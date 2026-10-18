@@ -297,6 +297,7 @@ fn f6_ends_the_syllable() {
     pre("KeyG KeyK KeyS F6 KeyK", "한아");
     pre("KeyG KeyK KeyS F6 KeyR", "한ㄱ");
     pre("KeyR KeyK F6 KeyS", "가ㄴ");
+    pre("KeyG KeyK KeyS F6 KeyK F6", "한ㅏ");
 }
 
 #[test]

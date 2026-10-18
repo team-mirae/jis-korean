@@ -224,7 +224,7 @@ full-width. The full-width form of U+0021–U+007E is the code point + 0xFEE0; s
 
 | Key | Label | Behavior | Status |
 |---|---|---|---|
-| F6 | 한글 | **Right after F9/F10:** restore the Hangul of the converted word. **On an implied ㅇ:** drop it (§4.2). **Otherwise:** end the syllable being composed, as switching to English and back does (한 F6 ㅏ → 한ㅏ). No-op if nothing is composing. Also the return path from 한자 (F7). | done in prototype |
+| F6 | 한글 | **Right after F9/F10:** restore the Hangul of the converted word. **On an implied ㅇ:** drop it (§4.2). **Otherwise:** end the syllable being composed, as switching to English and back does (한 F6 ㅏ → 한아, and one more F6 → 한ㅏ). No-op if nothing is composing. Also the return path from 한자 (F7). | done in prototype |
 | F7 | 한자 | Hanja conversion of the current syllable or word, with a candidate list. Pairs with F6 (native / borrowed script), mirroring JIS F6 hiragana / F7 katakana. | planned |
 | F8 | 두벌식 | Transient escape to standard 2-set on JIS (§6.1). | done in prototype (IME switching not simulated) |
 | F9 | 전각영숫자 | Convert the current word to full-width alphanumerics, from the raw characters (§5.2). | done in prototype |

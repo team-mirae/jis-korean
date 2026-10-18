@@ -45,7 +45,7 @@ still compose. The one sanctioned exception is the implied ㅇ (spec §4.2): ㅏ
 
 - The engine gets **golden tables**: key sequences → expected commit and preedit, covering every
   automaton transition, backspace, each F-key, and every core-principle example in the spec.
-- Every spec example (e.g. `한 F6 ㅏ → 한ㅏ`, the F9/F10 cycle in §6.2) must be a test.
+- Every spec example (e.g. `한 F6 ㅏ → 한아`, the F9/F10 cycle in §6.2) must be a test.
 - Run with `cargo test` in `/engine`. `tests/header.rs` fails if `include/jis_korean.h` drifts from
   the key list.
 - Shells are tested by hand against the app matrix (to be written per platform).
