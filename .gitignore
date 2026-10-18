@@ -1,0 +1,5 @@
+/engine/target
+node_modules
+/web/dist
+/web/src/engine.wasm
+.DS_Store

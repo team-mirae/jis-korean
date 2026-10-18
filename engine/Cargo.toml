@@ -1,0 +1,16 @@
+[package]
+name = "jis-korean-engine"
+version = "0.1.0"
+edition = "2024"
+publish = false
+license = "MIT"
+description = "Core engine of JIS Korean, a Korean 2-set input method for JIS keyboards"
+
+[lib]
+name = "jis_korean"
+# rlib for tests, staticlib for the macOS/Windows shells, cdylib for the web (wasm32)
+crate-type = ["rlib", "staticlib", "cdylib"]
+
+[profile.release]
+opt-level = "s"
+lto = true
