@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import type { KeyboardEvent as ReactKeyboardEvent } from "react";
 import type { Candidates, Counts, Engine, Mods, Output } from "./engine";
+import { ghost } from "./ghost";
 import { Keyboard } from "./Keyboard";
 import benchmarks from "./stats.json";
 
@@ -49,6 +50,8 @@ export function App({ engine }: { engine: Engine }) {
   // Applies an engine result, then what a passed-through key does in a plain text field.
   // Key presses for what's in the box (or the sample when it's empty), once typing pauses.
   const counted = doc + preedit || sample;
+  // The sample stays visible past the caret while what's typed follows it.
+  const rest = ghost(sample, doc + preedit);
   useEffect(() => {
     const timer = setTimeout(() => setCounts(engine.plan(counted)), 150);
     return () => clearTimeout(timer);
@@ -152,7 +155,7 @@ export function App({ engine }: { engine: Engine }) {
           {preedit && <span className="preedit">{preedit}</span>}
           {focused && <span className="caret" aria-hidden="true" />}
           {candidates && <CandidateList candidates={candidates} pageSize={engine.pageSize} onPick={onScreenKey} />}
-          {!doc && !preedit && <span className="placeholder">{sample}</span>}
+          {rest && <span className="placeholder">{rest}</span>}
         </div>
         <div className="controls">
           <button
@@ -185,11 +188,11 @@ export function App({ engine }: { engine: Engine }) {
         </div>
       </section>
 
+      <Keyboard engine={engine} escaped={escaped} shift={shift} pressed={pressed} onPress={onScreenKey} />
+
       {counts && <KeyCounts counts={counts} sample={!doc && !preedit} />}
 
       <Benchmarks />
-
-      <Keyboard engine={engine} escaped={escaped} shift={shift} pressed={pressed} onPress={onScreenKey} />
 
       <section className="reference">
         <h2>Keys to try</h2>
