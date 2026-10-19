@@ -2,7 +2,9 @@
 
 use std::sync::Arc;
 
-use crate::hangul::{self, Composer};
+use crate::hangul::{self, Composer, Options};
+#[cfg(feature = "predict")]
+use crate::predict::{Context, Language, Prediction, Predictor, Readings};
 use crate::hanja::{Candidate, Dictionary};
 use crate::key::{Key, Mods};
 use crate::layout::{self, Layout, Out};
@@ -81,6 +83,12 @@ pub struct Engine {
     layout: Layout,
     enter_commits: bool,
     dictionary: Option<Arc<Dictionary>>,
+    /// The predictive layer; `None` is the deterministic lite engine.
+    #[cfg(feature = "predict")]
+    predictor: Option<Arc<Predictor>>,
+    /// The language of the last committed word, for the predictor.
+    #[cfg(feature = "predict")]
+    previous: Option<Language>,
 }
 
 impl Default for Engine {
@@ -98,6 +106,10 @@ impl Engine {
             layout: Layout::JisKorean,
             enter_commits: false,
             dictionary: None,
+            #[cfg(feature = "predict")]
+            predictor: None,
+            #[cfg(feature = "predict")]
+            previous: None,
         }
     }
 
@@ -366,6 +378,50 @@ impl Engine {
         }));
     }
 
+    /// Turns the predictive layer on (`Some`) or off (`None`, the lite engine). Engines can share one.
+    #[cfg(feature = "predict")]
+    pub fn set_predictor(&mut self, predictor: Option<Arc<Predictor>>) {
+        self.predictor = predictor;
+    }
+
+    /// The readings of the staged text (spec §10).
+    #[cfg(feature = "predict")]
+    pub fn readings(&self) -> Readings {
+        let korean = compose(&self.segment);
+        let hanja = self.dictionary.as_ref().and_then(|d| {
+            let (reading, candidates) = d.longest_suffix(&korean)?;
+            // Lean: only a whole word of two syllables or more.
+            (reading == korean && reading.chars().count() >= 2).then(|| candidates[0].hanja.clone())
+        });
+        Readings {
+            english: self.english(),
+            two_set: compose_with(&two_set_tokens(&self.segment), Options { standard: true, keep_finals: false }),
+            keep_finals: compose_with(&self.segment, Options { standard: false, keep_finals: true }),
+            hanja,
+            korean,
+        }
+    }
+
+    /// The ranked predictions for the staged text; empty without a predictor (the lite engine).
+    #[cfg(feature = "predict")]
+    pub fn predictions(&self) -> Vec<Prediction> {
+        match &self.predictor {
+            Some(p) if !self.segment.is_empty() => {
+                p.predict(&self.readings(), Context { previous: self.previous, command: false })
+            }
+            _ => Vec::new(),
+        }
+    }
+
+    /// Commits prediction `index` (from [`Engine::predictions`]) instead of the Korean reading.
+    #[cfg(feature = "predict")]
+    pub fn commit_prediction(&mut self, index: usize) -> Output {
+        let Some(chosen) = self.predictions().into_iter().nth(index) else { return self.unchanged(true) };
+        self.previous = Some(Language::of(chosen.kind));
+        self.take_segment();
+        Output { commit: chosen.text, preedit: String::new(), consumed: true, candidates: None, english: String::new() }
+    }
+
     fn take_segment(&mut self) -> String {
         self.conversion = None;
         self.hanja = None;
@@ -389,7 +445,11 @@ impl Engine {
 }
 
 fn composer_for(segment: &[Token]) -> Composer {
-    let mut composer = Composer::default();
+    composer_with(segment, Options::default())
+}
+
+fn composer_with(segment: &[Token], options: Options) -> Composer {
+    let mut composer = Composer::with(options);
     for token in segment {
         match *token {
             Token::Jamo { jamo, .. } => composer.jamo(jamo),
@@ -403,6 +463,26 @@ fn composer_for(segment: &[Token]) -> Composer {
 
 fn compose(segment: &[Token]) -> String {
     composer_for(segment).finish()
+}
+
+#[cfg(feature = "predict")]
+fn compose_with(segment: &[Token], options: Options) -> String {
+    composer_with(segment, options).finish()
+}
+
+/// The segment as plain 2-set on stock JIS would have it: number-row keys type digits, symbol keys
+/// their stock JIS characters (composing then happens with `Options::standard`).
+#[cfg(feature = "predict")]
+fn two_set_tokens(segment: &[Token]) -> Vec<Token> {
+    segment
+        .iter()
+        .map(|t| match *t {
+            Token::Jamo { raw: Some(d), .. } if d.is_ascii_digit() => Token::Text(d),
+            Token::Typed(_, english) => Token::Text(english),
+            Token::Bare => Token::Bare,
+            ref other => other.clone(),
+        })
+        .collect()
 }
 
 /// The full-width form of a printable ASCII character (spec §5.3).

@@ -6,6 +6,11 @@ publish = false
 license = "MIT"
 description = "Core engine of JIS Korean, a Korean 2-set input method for JIS keyboards"
 
+[features]
+# The predictive layer (src/predict.rs, spec §10). Off: the deterministic lite engine only.
+default = ["predict"]
+predict = []
+
 [lib]
 name = "jis_korean"
 # rlib for tests, staticlib for the macOS/Windows shells, cdylib for the web (wasm32)

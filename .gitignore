@@ -11,3 +11,4 @@ node_modules
 /minecraft/.gradle
 /minecraft/build
 /minecraft/run
+/web/public/predict

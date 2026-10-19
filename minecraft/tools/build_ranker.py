@@ -9,10 +9,11 @@ Sources (all redistributable):
 - English: dwyl/english-words words_alpha.txt (Unlicense), plus common-en.txt.
 - Korean: readings in engine/dict/hanja.tsv (libhangul, BSD-3), plus common-ko.txt.
 
-The common-*.txt lists are in src/main/resources/assets/jiskorean/; the mod also uses them.
+The model and the common-*.txt lists live in engine/predict/ (the engine's predictor uses them);
+the Minecraft mod copies them into its jar at build time.
 
 Usage: python3 -I build_ranker.py <words_alpha.txt> [--eval-korean <text file>]
-Writes src/main/resources/assets/jiskorean/ranker.bin next to this tool's parent.
+Writes engine/predict/ranker.bin.
 """
 
 import math
@@ -25,11 +26,13 @@ import sys
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(HERE)
 HANJA_TSV = os.path.join(ROOT, "..", "engine", "dict", "hanja.tsv")
-OUT = os.path.join(ROOT, "src", "main", "resources", "assets", "jiskorean", "ranker.bin")
+# Shared with the engine's predictor; the mod copies these in at build time.
+PREDICT = os.path.join(ROOT, "..", "engine", "predict")
+OUT = os.path.join(PREDICT, "ranker.bin")
 
 # --- Hand-written lists (shared with the mod): frequent words the big lists miss or under-weight ---
 
-LISTS = os.path.join(ROOT, "src", "main", "resources", "assets", "jiskorean")
+LISTS = PREDICT
 
 
 def read_list(name):

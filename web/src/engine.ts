@@ -29,6 +29,13 @@ interface Exports {
   jk_candidate_len(h: number, i: number): number;
   jk_candidate_comment_ptr(h: number, i: number): number;
   jk_candidate_comment_len(h: number, i: number): number;
+  jk_predictor_new(m: number, ml: number, e: number, el: number, k: number, kl: number): number;
+  jk_set_predictor(h: number, p: number): void;
+  jk_predict(h: number): number;
+  jk_prediction_ptr(h: number, i: number): number;
+  jk_prediction_len(h: number, i: number): number;
+  jk_prediction_kind(h: number, i: number): number;
+  jk_commit_prediction(h: number, i: number): void;
   jk_plan(h: number, ptr: number, len: number): void;
   jk_plan_jis(h: number): number;
   jk_plan_conventional(h: number): number;
@@ -36,6 +43,15 @@ interface Exports {
   jk_plan_off_keyboard(h: number): number;
   jk_plan_dropped(h: number): number;
 }
+
+/** A ranked reading of the staged text (spec §10). */
+export interface Prediction {
+  text: string;
+  kind: PredictionKind;
+}
+
+export type PredictionKind = "korean" | "english" | "capitalized" | "upper" | "two-set" | "keep-finals" | "hanja";
+const KINDS: PredictionKind[] = ["korean", "english", "capitalized", "upper", "two-set", "keep-finals", "hanja"];
 
 /** Key presses for a text, both ways (Shift counted; symbols off a layout's legends count 3). */
 export interface Counts {
@@ -134,6 +150,48 @@ export class Engine {
     x.jk_set_dictionary(this.handle, dict);
     // The engine keeps its own reference.
     x.jk_dict_free(dict);
+  }
+
+  private predictor = 0;
+
+  /** Loads the predictive layer (ranker model and word lists). Turn it on with `setPredictions`. */
+  async loadPredictor(base: string): Promise<void> {
+    const get = async (file: string) => new Uint8Array(await (await fetch(base + file)).arrayBuffer());
+    const [model, english, korean] = await Promise.all([get("ranker.bin"), get("common-en.txt"), get("common-ko.txt")]);
+    const { x } = this;
+    const put = (bytes: Uint8Array) => {
+      const ptr = x.jk_alloc(bytes.length);
+      new Uint8Array(x.memory.buffer, ptr, bytes.length).set(bytes);
+      return ptr;
+    };
+    const [m, e, k] = [put(model), put(english), put(korean)];
+    this.predictor = x.jk_predictor_new(m, model.length, e, english.length, k, korean.length);
+    x.jk_dealloc(m, model.length);
+    x.jk_dealloc(e, english.length);
+    x.jk_dealloc(k, korean.length);
+    if (!this.predictor) throw new Error("predictor model is malformed");
+  }
+
+  /** On: the engine ranks readings of the staged text. Off: the deterministic lite engine. */
+  setPredictions(on: boolean): void {
+    this.x.jk_set_predictor(this.handle, on ? this.predictor : 0);
+  }
+
+  /** The ranked readings of the staged text (empty when predictions are off). */
+  predictions(): Prediction[] {
+    const { x, handle: h } = this;
+    const count = x.jk_predict(h);
+    const out: Prediction[] = [];
+    for (let i = 0; i < count; i++) {
+      out.push({ text: this.text(x.jk_prediction_ptr(h, i), x.jk_prediction_len(h, i)), kind: KINDS[x.jk_prediction_kind(h, i)] });
+    }
+    return out;
+  }
+
+  /** Commits reading `index` of `predictions()`. */
+  commitPrediction(index: number): Output {
+    this.x.jk_commit_prediction(this.handle, index);
+    return this.output(true);
   }
 
   /** Counts the key presses `text` takes on JIS Korean and on conventional 2-set. */

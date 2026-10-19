@@ -48,9 +48,14 @@ tasks.register("buildEngine", Exec) {
 
 tasks.register("copyEngine", Copy) {
 	dependsOn "buildEngine"
-	from(file("../engine/target/wasm32-unknown-unknown/release/jis_korean.wasm"))
 	into(engineWasm.map { it.dir("assets/jiskorean") })
-	rename { "engine.wasm" }
+	from(file("../engine/target/wasm32-unknown-unknown/release/jis_korean.wasm")) {
+		rename { "engine.wasm" }
+	}
+	// The ranker model and word lists, shared with the engine's predictor (../engine/predict).
+	from(file("../engine/predict")) {
+		include "ranker.bin", "common-en.txt", "common-ko.txt"
+	}
 }
 
 sourceSets.main.resources.srcDir(engineWasm)

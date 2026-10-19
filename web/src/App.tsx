@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import type { KeyboardEvent as ReactKeyboardEvent } from "react";
-import type { Candidates, Counts, Engine, Mods, Output } from "./engine";
+import type { Candidates, Counts, Engine, Mods, Output, Prediction, PredictionKind } from "./engine";
 import { ghost } from "./ghost";
 import { Keyboard } from "./Keyboard";
 import benchmarks from "./stats.json";
@@ -38,6 +38,8 @@ export function App({ engine }: { engine: Engine }) {
   const [samples, setSamples] = useState<Record<string, string>>({});
   const sample = samples[sampleId] ?? "한글을 입력해 보세요";
   const [counts, setCounts] = useState<Counts | null>(null);
+  const [predictionsOn, setPredictionsOn] = useState(() => loadSetting("predictions", true));
+  const [readings, setReadings] = useState<Prediction[]>([]);
   const [floating, setFloating] = useState(false);
   const surface = useRef<HTMLDivElement>(null);
   const caret = useRef<HTMLSpanElement>(null);
@@ -64,6 +66,14 @@ export function App({ engine }: { engine: Engine }) {
     observer.observe(box);
     return () => observer.disconnect();
   }, []);
+  useEffect(() => {
+    engine
+      .loadPredictor(`${import.meta.env.BASE_URL}predict/`)
+      .then(() => engine.setPredictions(predictionsOn))
+      .catch((error) => console.error("predictor:", error));
+    // Only once: later changes go through togglePredictions.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [engine]);
   useEffect(() => {
     engine
       .loadDictionary(`${import.meta.env.BASE_URL}hanja.tsv`)
@@ -96,6 +106,8 @@ export function App({ engine }: { engine: Engine }) {
     });
     setPreedit(out.preedit);
     setCandidates(out.candidates);
+    // The predictive layer's readings of what's staged (none while a hanja list is open).
+    setReadings(out.preedit && !out.candidates ? engine.predictions() : []);
     setEscaped(engine.escaped);
   }
 
@@ -109,9 +121,29 @@ export function App({ engine }: { engine: Engine }) {
     // An OS input method is composing: these keys aren't ours.
     if (e.nativeEvent.isComposing || e.keyCode === 229) return;
     setPressed((p) => new Set(p).add(e.code));
+    // With predictions on, Space commits the top reading (and types the space).
+    if (e.code === "Space" && readings.length && !(e.ctrlKey || e.altKey || e.metaKey)) {
+      e.preventDefault();
+      pick(0, " ");
+      return;
+    }
     const out = type(e.code, { shift: e.shiftKey || shift, ctrl: e.ctrlKey, alt: e.altKey, meta: e.metaKey });
     if (!e.code.startsWith("Shift")) setShift(false);
     if (out.consumed || e.code === "Enter" || e.code === "Backspace") e.preventDefault();
+  }
+
+  /** Commits reading `index` of the predictions, then `suffix`. */
+  function pick(index: number, suffix = "") {
+    const out = engine.commitPrediction(index);
+    apply({ ...out, commit: out.commit + suffix }, "", {});
+  }
+
+  function togglePredictions(on: boolean) {
+    setPredictionsOn(on);
+    saveSetting("predictions", on);
+    engine.setPredictions(on);
+    setReadings(on && preedit ? engine.predictions() : []);
+    surface.current?.focus();
   }
 
   function onKeyUp(e: ReactKeyboardEvent) {
@@ -203,6 +235,7 @@ export function App({ engine }: { engine: Engine }) {
           {preedit && <span className="preedit">{preedit}</span>}
           {focused && <span ref={caret} className="caret" aria-hidden="true" />}
           {candidates && <CandidateList candidates={candidates} pageSize={engine.pageSize} onPick={onScreenKey} />}
+          {!candidates && readings.length > 0 && <PredictionList readings={readings} onPick={(i) => pick(i)} />}
           {rest && <span className="placeholder">{rest}</span>}
         </div>
         <div className="controls">
@@ -215,6 +248,10 @@ export function App({ engine }: { engine: Engine }) {
           >
             Shift
           </button>
+          <label className="check">
+            <input type="checkbox" checked={predictionsOn} onChange={(e) => togglePredictions(e.target.checked)} />
+            Predictions
+          </label>
           <label className="check">
             <input
               type="checkbox"
@@ -287,6 +324,10 @@ export function App({ engine }: { engine: Engine }) {
           <div>
             <dt>Space</dt>
             <dd>Commits and types a space. Shift+Enter commits only.</dd>
+          </div>
+          <div>
+            <dt>Predictions</dt>
+            <dd>On by default: the likeliest reading of what you typed (Korean, English, plain 2-set, …) is highlighted, and Space commits it. Click another to use it instead. Turn off for plain JIS Korean.</dd>
           </div>
         </dl>
       </section>
@@ -405,4 +446,55 @@ function Benchmarks() {
       </p>
     </section>
   );
+}
+
+const KIND_LABELS: Record<PredictionKind, string> = {
+  korean: "한",
+  english: "En",
+  capitalized: "Aa",
+  upper: "AA",
+  "two-set": "두벌식",
+  "keep-finals": "받침",
+  hanja: "漢",
+};
+
+/** The predictive layer's ranked readings of the staged text, top one first. */
+function PredictionList({ readings, onPick }: { readings: Prediction[]; onPick(index: number): void }) {
+  return (
+    <span className="predictions" role="listbox" aria-label="Predictions">
+      {readings.map((r, i) => (
+        <span
+          key={r.kind + r.text}
+          role="option"
+          aria-selected={i === 0}
+          className={"prediction" + (i === 0 ? " top" : "")}
+          onMouseDown={(e) => {
+            e.preventDefault();
+            onPick(i);
+          }}
+        >
+          <span className="kind">{KIND_LABELS[r.kind]}</span>
+          {r.text}
+        </span>
+      ))}
+      <span className="prediction-hint">Space</span>
+    </span>
+  );
+}
+
+function loadSetting(key: string, fallback: boolean): boolean {
+  try {
+    const value = localStorage.getItem(`jis-korean:${key}`);
+    return value === null ? fallback : value === "true";
+  } catch {
+    return fallback;
+  }
+}
+
+function saveSetting(key: string, value: boolean) {
+  try {
+    localStorage.setItem(`jis-korean:${key}`, String(value));
+  } catch {
+    // Not remembered; fine.
+  }
 }

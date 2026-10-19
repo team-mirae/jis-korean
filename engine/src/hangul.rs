@@ -53,10 +53,20 @@ struct MovedFinal {
     vowel: char,
 }
 
+/// How to compose, for the alternative readings the predictor offers. The default is JIS Korean.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct Options {
+    /// Plain 2-set: no implied ㅇ, no double press, Shift+vowel is just the vowel (ㅠㅠ, 마리).
+    pub standard: bool,
+    /// A vowel after a final starts its own syllable on ㅇ instead of taking it (말이).
+    pub keep_finals: bool,
+}
+
 /// Composes jamo into text. Feed it jamo, plain characters and markers in order, then call
 /// [`Composer::finish`].
 #[derive(Default)]
 pub struct Composer {
+    options: Options,
     out: String,
     initial: Option<char>,
     medial: Option<char>,
@@ -74,11 +84,15 @@ pub struct Composer {
 }
 
 impl Composer {
+    pub fn with(options: Options) -> Composer {
+        Composer { options, ..Composer::default() }
+    }
+
     pub fn jamo(&mut self, j: char) {
         let moved = self.moved.take();
         if is_medial(j) {
             match moved {
-                Some(m) if m.vowel == j => self.restore_final(m),
+                Some(m) if m.vowel == j && !self.options.standard => self.restore_final(m),
                 _ => self.vowel(j),
             }
         } else {
@@ -94,6 +108,11 @@ impl Composer {
             && let Some(compound) = compound_medial(m, j)
         {
             self.medial = Some(compound);
+        } else if self.finals.0.is_some() && self.options.keep_finals {
+            // The final stays; the vowel starts its own syllable on ㅇ (말이).
+            self.flush();
+            self.initial = Some('ㅇ');
+            self.medial = Some(j);
         } else if let (Some(first), second) = self.finals {
             // The (last) final moves to the next syllable: 닭+ㅏ → 달가.
             let before = MovedFinal {
@@ -139,7 +158,7 @@ impl Composer {
     /// Starts a syllable with vowel `j` and no typed initial.
     fn vowel_syllable(&mut self, j: char) {
         self.medial = Some(j);
-        if !self.bare_next {
+        if !self.bare_next && !self.options.standard {
             // A vowel with no initial gets an implied ㅇ: ㅏ → 아, 가+ㅓ → 가어.
             self.initial = Some('ㅇ');
             self.implied_at = Some(self.fed);
@@ -167,6 +186,11 @@ impl Composer {
     /// vowel starts a new one on ㅇ: 말+⇧ㅣ → 말이, 오+⇧ㅣ → 오이. The ㅇ was asked for, so F6
     /// keeps it (no `implied_at`).
     pub fn ieung_vowel(&mut self, j: char) {
+        if self.options.standard {
+            // Plain 2-set has no Shift+vowel: it's the vowel.
+            self.jamo(j);
+            return;
+        }
         self.moved = None;
         if self.initial.is_some() && self.medial.is_none() {
             // An initial waiting for its vowel takes it as usual, so Shift still held from a

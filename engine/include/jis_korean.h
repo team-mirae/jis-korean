@@ -148,6 +148,28 @@ size_t jk_plan_chars(JkEngine *engine);
 size_t jk_plan_off_keyboard(JkEngine *engine); /* characters no key types, counted 3 each */
 size_t jk_plan_dropped(JkEngine *engine);
 
+/* Prediction (spec §10, draft). Only in builds with the `predict` feature (the default); the lite
+ * build has none of these. Without a predictor set, jk_predict returns 0: the deterministic engine. */
+typedef struct JkPredictor JkPredictor;
+enum {
+    JK_PREDICTION_KOREAN = 0,
+    JK_PREDICTION_ENGLISH = 1,
+    JK_PREDICTION_ENGLISH_CAPITALIZED = 2,
+    JK_PREDICTION_ENGLISH_UPPER = 3,
+    JK_PREDICTION_TWO_SET = 4,
+    JK_PREDICTION_KOREAN_KEEP_FINALS = 5,
+    JK_PREDICTION_HANJA = 6,
+};
+JkPredictor *jk_predictor_new(const uint8_t *model, size_t model_len, const uint8_t *english_words,
+                              size_t english_len, const uint8_t *korean_words, size_t korean_len);
+void jk_predictor_free(JkPredictor *predictor);
+void jk_set_predictor(JkEngine *engine, const JkPredictor *predictor); /* NULL: lite */
+size_t jk_predict(JkEngine *engine); /* ranks the staged text; returns the count */
+const uint8_t *jk_prediction_ptr(JkEngine *engine, size_t index);
+size_t jk_prediction_len(JkEngine *engine, size_t index);
+uint32_t jk_prediction_kind(JkEngine *engine, size_t index);
+void jk_commit_prediction(JkEngine *engine, size_t index); /* then read jk_commit_* */
+
 /* Memory in the engine's address space, for wasm hosts passing the dictionary in. */
 uint8_t *jk_alloc(size_t len);
 void jk_dealloc(uint8_t *ptr, size_t len);

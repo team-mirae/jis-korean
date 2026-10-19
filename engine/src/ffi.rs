@@ -13,6 +13,8 @@ pub struct JkEngine {
     engine: Engine,
     last: Output,
     counts: Counts,
+    #[cfg(feature = "predict")]
+    predictions: Vec<crate::predict::Prediction>,
 }
 
 /// A parsed hanja dictionary, shareable by many engines.
@@ -33,7 +35,13 @@ fn with<T>(handle: *mut JkEngine, fallback: T, f: impl FnOnce(&mut JkEngine) -> 
 
 #[unsafe(no_mangle)]
 pub extern "C" fn jk_new() -> *mut JkEngine {
-    Box::into_raw(Box::new(JkEngine { engine: Engine::new(), last: Output::default(), counts: Counts::default() }))
+    Box::into_raw(Box::new(JkEngine {
+        engine: Engine::new(),
+        last: Output::default(),
+        counts: Counts::default(),
+        #[cfg(feature = "predict")]
+        predictions: Vec::new(),
+    }))
 }
 
 /// # Safety
@@ -285,4 +293,109 @@ pub extern "C" fn jk_plan_off_keyboard(handle: *mut JkEngine) -> usize {
 #[unsafe(no_mangle)]
 pub extern "C" fn jk_plan_dropped(handle: *mut JkEngine) -> usize {
     with(handle, 0, |h| h.counts.dropped)
+}
+
+// --- Prediction (spec §10, draft; only with the `predict` feature)
+
+#[cfg(feature = "predict")]
+pub use predict_ffi::*;
+
+#[cfg(feature = "predict")]
+mod predict_ffi {
+    use std::sync::Arc;
+
+    use super::{JkEngine, with};
+    use crate::predict::Predictor;
+
+    /// A loaded predictor, shareable by many engines.
+    pub struct JkPredictor(Arc<Predictor>);
+
+    unsafe fn text<'a>(ptr: *const u8, len: usize) -> Option<&'a [u8]> {
+        // SAFETY: callers pass `len` readable bytes at `ptr`.
+        (!ptr.is_null()).then(|| unsafe { std::slice::from_raw_parts(ptr, len) })
+    }
+
+    /// Loads the predictor from `predict/ranker.bin` and the two word lists (UTF-8). Null if
+    /// anything is malformed.
+    ///
+    /// # Safety
+    /// Each pointer must point to its length in readable bytes.
+    #[unsafe(no_mangle)]
+    pub unsafe extern "C" fn jk_predictor_new(
+        model: *const u8,
+        model_len: usize,
+        english: *const u8,
+        english_len: usize,
+        korean: *const u8,
+        korean_len: usize,
+    ) -> *mut JkPredictor {
+        // SAFETY: per the contract above.
+        let (Some(m), Some(e), Some(k)) =
+            (unsafe { text(model, model_len) }, unsafe { text(english, english_len) }, unsafe { text(korean, korean_len) })
+        else {
+            return std::ptr::null_mut();
+        };
+        match (std::str::from_utf8(e), std::str::from_utf8(k)) {
+            (Ok(e), Ok(k)) => match Predictor::parse(m, e, k) {
+                Ok(p) => Box::into_raw(Box::new(JkPredictor(Arc::new(p)))),
+                Err(_) => std::ptr::null_mut(),
+            },
+            _ => std::ptr::null_mut(),
+        }
+    }
+
+    /// # Safety
+    /// `predictor` must come from `jk_predictor_new` and not be used afterwards.
+    #[unsafe(no_mangle)]
+    pub unsafe extern "C" fn jk_predictor_free(predictor: *mut JkPredictor) {
+        if !predictor.is_null() {
+            // SAFETY: per the contract above.
+            drop(unsafe { Box::from_raw(predictor) });
+        }
+    }
+
+    /// Turns prediction on with `predictor`, or off (the lite engine) with null.
+    ///
+    /// # Safety
+    /// `predictor` must be null or come from `jk_predictor_new` and not be freed yet.
+    #[unsafe(no_mangle)]
+    pub unsafe extern "C" fn jk_set_predictor(handle: *mut JkEngine, predictor: *const JkPredictor) {
+        // SAFETY: per the contract above.
+        let predictor = unsafe { predictor.as_ref() }.map(|p| p.0.clone());
+        with(handle, (), |h| h.engine.set_predictor(predictor))
+    }
+
+    /// Ranks the staged text's readings; returns how many (0 without a predictor).
+    #[unsafe(no_mangle)]
+    pub extern "C" fn jk_predict(handle: *mut JkEngine) -> usize {
+        with(handle, 0, |h| {
+            h.predictions = h.engine.predictions();
+            h.predictions.len()
+        })
+    }
+
+    #[unsafe(no_mangle)]
+    pub extern "C" fn jk_prediction_ptr(handle: *mut JkEngine, index: usize) -> *const u8 {
+        with(handle, std::ptr::null(), |h| h.predictions.get(index).map_or(std::ptr::null(), |p| p.text.as_ptr()))
+    }
+
+    #[unsafe(no_mangle)]
+    pub extern "C" fn jk_prediction_len(handle: *mut JkEngine, index: usize) -> usize {
+        with(handle, 0, |h| h.predictions.get(index).map_or(0, |p| p.text.len()))
+    }
+
+    /// The prediction's kind (`JK_PREDICTION_*`), or 255 if out of range.
+    #[unsafe(no_mangle)]
+    pub extern "C" fn jk_prediction_kind(handle: *mut JkEngine, index: usize) -> u32 {
+        with(handle, 255, |h| h.predictions.get(index).map_or(255, |p| p.kind as u32))
+    }
+
+    /// Commits prediction `index`; read the text with `jk_commit_*`.
+    #[unsafe(no_mangle)]
+    pub extern "C" fn jk_commit_prediction(handle: *mut JkEngine, index: usize) {
+        with(handle, (), |h| {
+            h.last = h.engine.commit_prediction(index);
+            h.predictions.clear();
+        })
+    }
 }

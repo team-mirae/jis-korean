@@ -10,6 +10,8 @@ mod hanja;
 mod key;
 mod layout;
 pub mod plan;
+#[cfg(feature = "predict")]
+pub mod predict;
 
 pub use engine::{Candidates, Engine, Output, PAGE_SIZE, full_width};
 pub use hanja::{Candidate, Dictionary};

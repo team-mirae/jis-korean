@@ -391,3 +391,59 @@ Raised by this spec:
 10. **Arrows, Tab, Esc (§5.1).** Outside the hanja list they commit then pass through. Should Esc
     cancel the segment instead?
 11. **Non-JIS hardware.** Supported at all on desktop (ANSI has no ¥ or ろ key), or JIS only?
+
+---
+
+## 10. Prediction *(draft)*
+
+An optional layer on top of the deterministic engine that ranks **readings of the staged,
+uncommitted text**. It never changes what the keys do; it only offers alternatives to commit.
+
+### 10.1 Lite and full
+
+| | Lite | Full |
+|---|---|---|
+| Build | `cargo build --no-default-features` | default (`predict` feature) |
+| Run time | — | prediction is on only after the host loads a predictor (`jk_predictor_new`, `jk_set_predictor`); with none set, the full build behaves exactly like lite |
+| What the user gets | §1–§7 only: Space commits the JIS Korean reading | ranked readings to choose from, in addition |
+
+Hosts choose per user setting. Turning it off is always a complete fallback: no state, no model,
+no behavior change.
+
+### 10.2 Readings (candidates)
+
+| Kind | Reading | Example (keys → text) |
+|---|---|---|
+| Korean | JIS Korean, as composed | `gksrmf` → 한글 |
+| English | the same keys on JIS QWERTY (stock JIS symbols) | `gksrmf` → gksrmf |
+| English, Capitalized / UPPER | case variants, **only when English ranks first** | `hello` → Hello, HELLO |
+| Standard 2-set | plain 2-set on stock JIS: no implied ㅇ, no double press, Shift+vowel is just the vowel, number-row keys type digits | `bb` → ㅠㅠ (JIS Korean: 유유); `rk1` → 가1 |
+| Korean, finals kept | each vowel after a final starts its own syllable on ㅇ | `akfl` → 말이 (JIS Korean: 마리) |
+| Hanja | the top dictionary form of the **whole** Korean reading, 2+ syllables only | 학교 → 學校 |
+
+Duplicates are removed (most readings coincide for most words), and **at most 4** are offered.
+
+### 10.3 Ranking
+
+Scores are in bits per key, positive leaning Korean:
+
+1. **Model:** the same keys under two key-trigram models, English spelling vs JIS Korean typing
+   (`engine/predict/ranker.bin`, built by `minecraft/tools/build_ranker.py`; held-out accuracy
+   about 99% on words, 96% on real Korean text).
+2. **Rules:** a capital at the start of a word on a key Korean never shifts means English; exact
+   matches in `predict/common-ko.txt` / `common-en.txt` lean their way; leftover bare jamo count
+   against Korean; a command name (after `/`) is English; the previous committed word's language
+   tips close calls.
+3. **Alternatives** rank one step below the reading they vary, unless they're a known word (so ㅠㅠ
+   beats 유유).
+4. **Hanja are lean:** one candidate at most, whole words of 2+ syllables only, and a heavy penalty
+   that keeps them last. They show only when there's room.
+
+### 10.4 Open questions
+
+- Should the hosts' Space commit the top prediction (as the Minecraft mod does) or keep committing
+  the JIS Korean reading, with predictions as a picker only?
+- The Minecraft mod still has its own Java copy of the ranker; it should move to this layer
+  (through the wasm engine) so there's one implementation.
+- Learning from the user's picks (session or persistent) isn't in the draft.
+

@@ -321,6 +321,46 @@ footer a {
   text-align: right;
 }
 
+/* Predictions, under the caret */
+
+.predictions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  margin-top: 6px;
+  font-size: 0.95rem;
+  line-height: 1.3;
+  white-space: normal;
+}
+
+.prediction {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 6px;
+  padding: 3px 9px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--surface);
+  cursor: pointer;
+}
+
+.prediction.top {
+  border-color: var(--camel);
+  background: var(--highlight);
+}
+
+.prediction .kind {
+  font-size: 0.7rem;
+  font-weight: 700;
+  color: var(--muted);
+}
+
+.prediction-hint {
+  font-size: 0.75rem;
+  color: var(--muted);
+}
+
 .placeholder {
   color: var(--muted);
   opacity: 0.7;
