@@ -132,6 +132,13 @@ size_t jk_candidate_len(JkEngine *engine, size_t index);
 const uint8_t *jk_candidate_comment_ptr(JkEngine *engine, size_t index);
 size_t jk_candidate_comment_len(JkEngine *engine, size_t index);
 
+/* The last result's keystrokes read as English on stock JIS (letters with case, digits, JIS
+ * symbols), for hosts that choose between Korean and English themselves. */
+const uint8_t *jk_english_ptr(JkEngine *engine);
+size_t jk_english_len(JkEngine *engine);
+/* Discards everything unconfirmed without committing it. */
+void jk_clear(JkEngine *engine);
+
 /* Memory in the engine's address space, for wasm hosts passing the dictionary in. */
 uint8_t *jk_alloc(size_t len);
 void jk_dealloc(uint8_t *ptr, size_t len);

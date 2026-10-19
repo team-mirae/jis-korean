@@ -26,8 +26,10 @@ still compose. The one sanctioned exception is the implied ㅇ (spec §4.2): ㅏ
 | `/engine` | Core engine: key map, Hangul automaton, segment/commit logic, F6–F10. Platform-independent, no OS APIs, no I/O. |
 | `/mac` | macOS input method (InputMethodKit, Swift) that wraps the engine. Built with `make` (no Xcode needed). |
 | `/windows` | Windows TSF text input processor that wraps the engine. |
-| `/android`, `/ios` | Planned mobile input methods. Empty for now. |
-| `/minecraft` | Minecraft. Stub for now. |
+| `/minecraft` | Minecraft (Fabric mod) that runs the engine inside the game. |
+| `/ipados` | iPadOS. Stub for now. |
+
+Build order: macOS → Minecraft → Windows → iPadOS. Android and iPhone are out of scope (a separate input method).
 | `/web` | React playground that runs the engine in the browser so people can try it before installing. |
 | `/docs` | Spec and design notes. |
 

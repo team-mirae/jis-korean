@@ -219,3 +219,25 @@ pub extern "C" fn jk_candidate_comment_ptr(handle: *mut JkEngine, index: usize) 
 pub extern "C" fn jk_candidate_comment_len(handle: *mut JkEngine, index: usize) -> usize {
     with(handle, 0, |h| candidate(h, index).map_or(0, |c| c.comment.len()))
 }
+
+// --- English reading (for hosts that rank Korean against English, like the Minecraft mod)
+
+/// The last result's keystrokes read as English on stock JIS.
+#[unsafe(no_mangle)]
+pub extern "C" fn jk_english_ptr(handle: *mut JkEngine) -> *const u8 {
+    with(handle, std::ptr::null(), |h| h.last.english.as_ptr())
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn jk_english_len(handle: *mut JkEngine) -> usize {
+    with(handle, 0, |h| h.last.english.len())
+}
+
+/// Discards everything unconfirmed without committing it.
+#[unsafe(no_mangle)]
+pub extern "C" fn jk_clear(handle: *mut JkEngine) {
+    with(handle, (), |h| {
+        h.engine.clear();
+        h.last = Output::default();
+    })
+}

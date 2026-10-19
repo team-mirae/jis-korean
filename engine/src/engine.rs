@@ -14,7 +14,11 @@ pub const PAGE_SIZE: usize = 9;
 enum Token {
     /// A jamo, with the Latin letter or digit of the key that typed it (for F9/F10).
     Jamo { jamo: char, raw: Option<char> },
+    /// Text from a conversion or a hanja pick.
     Text(char),
+    /// A character typed by a non-letter key, with what that key types on stock JIS (for the
+    /// English reading).
+    Typed(char, char),
     /// F6 on an implied ㅇ: the vowel after it stands bare. Only exists while F6 commits.
     Bare,
 }
@@ -62,6 +66,8 @@ pub struct Output {
     pub consumed: bool,
     /// The hanja candidate list, while one is open.
     pub candidates: Option<Candidates>,
+    /// The same keystrokes read as English on stock JIS (see [`Engine::english`]).
+    pub english: String,
 }
 
 #[derive(Clone)]
@@ -117,6 +123,28 @@ impl Engine {
     pub fn flush(&mut self) -> Output {
         self.accept_hanja();
         self.commit(String::new(), true)
+    }
+
+    /// Discards everything unconfirmed, for hosts that commit a reading of their own (the
+    /// Minecraft mod picks between [`Engine::preedit`] and [`Engine::english`]).
+    pub fn clear(&mut self) {
+        self.segment.clear();
+        self.conversion = None;
+        self.hanja = None;
+    }
+
+    /// The unconfirmed keystrokes read as English: each key as it types on stock JIS (letters
+    /// with their case, digits, JIS symbols). Converted and hanja text stays as shown.
+    pub fn english(&self) -> String {
+        self.segment
+            .iter()
+            .filter_map(|t| match *t {
+                Token::Jamo { jamo, raw } => Some(raw.unwrap_or(jamo)),
+                Token::Text(c) => Some(c),
+                Token::Typed(_, english) => Some(english),
+                Token::Bare => None,
+            })
+            .collect()
     }
 
     /// The unconfirmed text, with the selected hanja candidate in place while a list is open.
@@ -181,7 +209,8 @@ impl Engine {
                     self.unchanged(true)
                 }
                 Some(Out::Char(c)) => {
-                    self.segment.push(Token::Text(c));
+                    let english = layout::output(Layout::Escaped, key, mods.shift).map_or(c, Out::char);
+                    self.segment.push(Token::Typed(c, english));
                     self.unchanged(true)
                 }
                 None => self.commit(String::new(), false),
@@ -274,13 +303,13 @@ impl Engine {
                 conversion.width = width;
             }
             None => {
-                let symbols = matches!(self.segment.last(), Some(Token::Text(c)) if c.is_ascii_graphic());
+                let symbols = matches!(self.segment.last(), Some(Token::Text(c) | Token::Typed(c, _)) if c.is_ascii_graphic());
                 let run = self
                     .segment
                     .iter()
                     .rev()
                     .take_while(|t| match t {
-                        Token::Text(c) => symbols && c.is_ascii_graphic(),
+                        Token::Text(c) | Token::Typed(c, _) => symbols && c.is_ascii_graphic(),
                         Token::Jamo { raw, .. } => !symbols && raw.is_some(),
                         Token::Bare => false,
                     })
@@ -299,7 +328,7 @@ impl Engine {
             .iter()
             .filter_map(|t| match t {
                 Token::Jamo { raw, .. } => *raw,
-                Token::Text(c) => Some(*c),
+                Token::Text(c) | Token::Typed(c, _) => Some(*c),
                 Token::Bare => None,
             })
             .collect();
@@ -332,7 +361,7 @@ impl Engine {
     fn commit(&mut self, suffix: String, consumed: bool) -> Output {
         let mut commit = self.take_segment();
         commit.push_str(&suffix);
-        Output { commit, preedit: String::new(), consumed, candidates: None }
+        Output { commit, preedit: String::new(), consumed, candidates: None, english: String::new() }
     }
 
     fn unchanged(&self, consumed: bool) -> Output {
@@ -340,7 +369,7 @@ impl Engine {
             .hanja
             .as_ref()
             .map(|list| Candidates { items: list.candidates.clone(), selected: list.selected });
-        Output { commit: String::new(), preedit: self.preedit(), consumed, candidates }
+        Output { commit: String::new(), preedit: self.preedit(), consumed, candidates, english: self.english() }
     }
 }
 
@@ -349,7 +378,7 @@ fn composer_for(segment: &[Token]) -> Composer {
     for token in segment {
         match *token {
             Token::Jamo { jamo, .. } => composer.jamo(jamo),
-            Token::Text(c) => composer.text(c),
+            Token::Text(c) | Token::Typed(c, _) => composer.text(c),
             Token::Bare => composer.bare(),
         }
     }

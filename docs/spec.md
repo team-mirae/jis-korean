@@ -328,7 +328,8 @@ engine:
 - **Windows** (`/windows`): a TSF text input processor. It runs on the Japanese (106/109) hardware
   keyboard setting so JIS scan codes arrive intact. Password fields and the secure desktop do not load
   TIPs. That is a known limit.
-- **Android** (`/android`) and **iOS** (`/ios`): planned, empty for now.
+- **Minecraft** (`/minecraft`): a Fabric mod running the engine in-game.
+- **iPadOS** (`/ipados`): planned, empty for now. Android and iPhone are out of scope.
 - **Web** (`/web`): a React playground that runs the same engine in the browser, keyed on
   `KeyboardEvent.code`. On non-JIS keyboards, `IntlYen` and `IntlRo` don't exist, so the page needs
   on-screen keys for them.

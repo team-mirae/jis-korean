@@ -408,3 +408,39 @@ fn input_after_conversion_ends_it() {
 fn space_commits_converted_text() {
     doc("KeyG KeyK KeyS F9 Space", "ｇｋｓ ", "");
 }
+
+// English reading and clear (for hosts that rank Korean against English)
+
+#[test]
+fn english_reads_the_same_keys_on_stock_jis() {
+    let mut e = Engine::new();
+    let mut last = None;
+    for (code, shift) in [("KeyH", false), ("KeyE", false), ("KeyL", false), ("KeyL", false), ("KeyO", false), ("Digit1", true)] {
+        last = Some(e.key(Key::from_code(code), if shift { Mods::SHIFTED } else { Mods::NONE }));
+    }
+    let out = last.unwrap();
+    // h e l → 오디, then the second l is the same vowel right after a move: 옫이 (double press).
+    assert_eq!(out.preedit, "옫이애1");
+    assert_eq!(out.english, "hello!");
+    assert_eq!(e.english(), "hello!");
+}
+
+#[test]
+fn english_keeps_case_dedicated_digits_and_symbols() {
+    let mut e = Engine::new();
+    for (code, shift) in [("KeyQ", true), ("Digit1", false), ("Minus", false), ("Slash", false), ("IntlYen", false)] {
+        e.key(Key::from_code(code), if shift { Mods::SHIFTED } else { Mods::NONE });
+    }
+    assert_eq!(e.preedit(), "ㅃㅃ!·—");
+    assert_eq!(e.english(), "Q1-/¥");
+}
+
+#[test]
+fn clear_discards_without_committing() {
+    let mut e = Engine::new();
+    e.key(Key::from_code("KeyG"), Mods::NONE);
+    e.key(Key::from_code("KeyK"), Mods::NONE);
+    e.clear();
+    assert_eq!((e.preedit().as_str(), e.english().as_str()), ("", ""));
+    assert_eq!(e.flush().commit, "");
+}

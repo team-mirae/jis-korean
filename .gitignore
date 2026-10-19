@@ -7,3 +7,7 @@ node_modules
 /engine/tests/data/samsung-business.txt
 /web/public/hanja.tsv
 /hhkb-migration
+/web/.vercel
+/minecraft/.gradle
+/minecraft/build
+/minecraft/run
