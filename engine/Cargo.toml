@@ -19,3 +19,19 @@ crate-type = ["rlib", "staticlib", "cdylib"]
 [profile.release]
 opt-level = "s"
 lto = true
+
+[[example]]
+name = "sxs"
+required-features = ["predict"]
+
+[[example]]
+name = "abc"
+required-features = ["predict"]
+
+[[example]]
+name = "trust"
+required-features = ["predict"]
+
+[[example]]
+name = "easy"
+required-features = ["predict"]

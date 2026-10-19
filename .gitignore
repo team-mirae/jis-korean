@@ -12,3 +12,5 @@ node_modules
 /minecraft/build
 /minecraft/run
 /web/public/predict
+/corpora
+/evals

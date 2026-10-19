@@ -69,7 +69,8 @@ $(BUILD)/icon.tiff: tools/make-icon.swift
 
 DICT    := $(ENGINE)/dict
 PREDICT_FILES := $(ENGINE)/predict/ranker.bin $(ENGINE)/predict/common-en.txt $(ENGINE)/predict/common-ko.txt \
-                 $(ENGINE)/predict/english-nouns.txt $(ENGINE)/predict/LICENSE-wordnet.txt
+                 $(ENGINE)/predict/english-nouns.txt $(ENGINE)/predict/LICENSE-wordnet.txt \
+                 $(ENGINE)/predict/LICENSE-corpora.txt
 
 $(APP): $(BUILD)/JISKorean $(BUILD)/icon.tiff Info.plist $(DICT)/hanja.tsv
 	rm -rf $@

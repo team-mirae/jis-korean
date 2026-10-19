@@ -4,6 +4,11 @@ import InputMethodKit
 private let enterCommitsDefault = "EnterCommits"
 #if PREDICT
 private let predictionsDefault = "Predictions"
+/// Learning from the user's choices (spec §10.11): opt-in, stays on this Mac.
+private let learningDefault = "LearnFromChoices"
+/// What was learned: one line of counts, no text or keys.
+private let learnedDefault = "Learned"
+private let weightNames = ["Korean", "English", "Implied", "Mixed", "TwoSet", "KeepFinals", "Hanja", "ImpliedL"]
 #endif
 
 /// One controller per text input client; each owns its own engine. All behavior is in the engine
@@ -26,7 +31,7 @@ final class JKInputController: IMKInputController {
         super.init(server: server, delegate: delegate, client: inputClient)
         jk_set_dictionary(engine, sharedDictionary)
         #if PREDICT
-        UserDefaults.standard.register(defaults: [predictionsDefault: true])
+        UserDefaults.standard.register(defaults: [predictionsDefault: true, learningDefault: false])
         applyPredictionsSetting()
         #endif
     }
@@ -57,6 +62,9 @@ final class JKInputController: IMKInputController {
         #endif
         let consumed = jk_key(engine, engineKey(event.keyCode), modifiers(event.modifierFlags))
         apply(to: client)
+        #if PREDICT
+        saveLearned()
+        #endif
         return consumed != 0
     }
 
@@ -64,6 +72,10 @@ final class JKInputController: IMKInputController {
         super.activateServer(sender)
         jk_activate(engine)
         #if PREDICT
+        applyPredictionsSetting()
+        // A new or changed training file (docs/training-contract.md): applied, then settings again.
+        Training.applyIfChanged(to: engine)
+        saveLearned()
         applyPredictionsSetting()
         #endif
         jk_set_enter_commits(engine, UserDefaults.standard.bool(forKey: enterCommitsDefault) ? 1 : 0)
@@ -86,6 +98,24 @@ final class JKInputController: IMKInputController {
         let predictions = NSMenuItem(title: "Predictions", action: #selector(togglePredictions(_:)), keyEquivalent: "")
         predictions.state = UserDefaults.standard.bool(forKey: predictionsDefault) ? .on : .off
         menu.addItem(predictions)
+        let learning = NSMenuItem(title: "Learn from My Choices (Stays on This Mac)", action: #selector(toggleLearning(_:)), keyEquivalent: "")
+        learning.state = UserDefaults.standard.bool(forKey: learningDefault) ? .on : .off
+        menu.addItem(learning)
+        // What was learned, read-only: one line per scenario that moved.
+        let learned = NSMenuItem(title: "Learned Weights", action: nil, keyEquivalent: "")
+        let submenu = NSMenu()
+        let labels = ["Korean", "English", "Implied ㅇ", "English + particle", "Plain 2-set", "Finals kept", "Hanja", "Implied ㄹ after ㄴ"]
+        for (id, label) in labels.enumerated() {
+            let value = jk_learned_weight(engine, UInt32(id))
+            let item = NSMenuItem(title: String(format: "%@  ×%.2f", label, value), action: nil, keyEquivalent: "")
+            item.isEnabled = false
+            submenu.addItem(item)
+        }
+        submenu.addItem(.separator())
+        submenu.addItem(NSMenuItem(title: "Reset What It Learned", action: #selector(resetLearned(_:)), keyEquivalent: ""))
+        submenu.addItem(NSMenuItem(title: "Open Training Folder", action: #selector(openTrainingFolder(_:)), keyEquivalent: ""))
+        learned.submenu = submenu
+        menu.addItem(learned)
         #endif
         let item = NSMenuItem(title: "Enter Commits Without a New Line", action: #selector(toggleEnterCommits(_:)), keyEquivalent: "")
         item.state = UserDefaults.standard.bool(forKey: enterCommitsDefault) ? .on : .off
@@ -105,15 +135,49 @@ final class JKInputController: IMKInputController {
         applyPredictionsSetting()
     }
 
+    @objc func toggleLearning(_ sender: Any?) {
+        UserDefaults.standard.set(!UserDefaults.standard.bool(forKey: learningDefault), forKey: learningDefault)
+        applyPredictionsSetting()
+    }
+
+    @objc func openTrainingFolder(_ sender: Any?) {
+        Training.openFolder()
+    }
+
+    @objc func resetLearned(_ sender: Any?) {
+        jk_learner_reset(engine)
+        UserDefaults.standard.removeObject(forKey: learnedDefault)
+    }
+
     /// On: the shared predictor. Off: the deterministic lite behavior. Also applies the user's
-    /// tuning (spec §10.5), e.g. `defaults write me.sjun.inputmethod.JISKorean Weight.English -float 0.8`.
+    /// tuning (spec §10.5), e.g. `defaults write me.sjun.inputmethod.JISKorean Weight.English -float 0.8`
+    /// (`Weight.ImpliedL -float 0` turns the implied ㄹ after ㄴ off)
+    /// (a weight set this way wins over the learned one), and what was learned (spec §10.11).
     private func applyPredictionsSetting() {
-        jk_set_predictor(engine, UserDefaults.standard.bool(forKey: predictionsDefault) ? sharedPredictor : nil)
-        let names = ["Korean", "English", "Implied", "Mixed", "TwoSet", "KeepFinals", "Hanja"]
-        for (id, name) in names.enumerated() {
-            let value = UserDefaults.standard.object(forKey: "Weight.\(name)") as? Double ?? 1.0
-            jk_set_prediction_weight(engine, UInt32(id), value)
+        let defaults = UserDefaults.standard
+        jk_set_predictor(engine, defaults.bool(forKey: predictionsDefault) ? Training.predictor() : nil)
+        for (id, name) in weightNames.enumerated() {
+            if let value = defaults.object(forKey: "Weight.\(name)") as? Double {
+                jk_set_prediction_weight(engine, UInt32(id), value)
+            } else {
+                jk_clear_prediction_weight(engine, UInt32(id))
+            }
         }
+        // The latest of what every engine learned: each saves after a change, each loads here.
+        if let learned = defaults.string(forKey: learnedDefault) {
+            let bytes = Array(learned.utf8)
+            _ = jk_learner_import(engine, bytes, bytes.count)
+        } else {
+            jk_learner_reset(engine)
+        }
+        jk_set_learning(engine, defaults.bool(forKey: learningDefault) ? 1 : 0)
+    }
+
+    /// Stores what was learned when it changed: counts only, no text or keys.
+    private func saveLearned() {
+        guard jk_learner_changed(engine) != 0 else { return }
+        let length = jk_learner_export(engine)
+        UserDefaults.standard.set(text(jk_learner_ptr(engine), length), forKey: learnedDefault)
     }
 
     /// Keys for the suggestion list, while it shows predictions: ↓ / Tab and ↑ move through it
@@ -154,6 +218,7 @@ final class JKInputController: IMKInputController {
         jk_commit_prediction(engine, index)
         chosen = nil
         apply(to: client)
+        saveLearned()
     }
     #endif
 

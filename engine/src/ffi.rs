@@ -15,6 +15,9 @@ pub struct JkEngine {
     counts: Counts,
     #[cfg(feature = "predict")]
     predictions: Vec<crate::predict::Prediction>,
+    /// The learner's last export (spec §10.11).
+    #[cfg(feature = "predict")]
+    learned: String,
 }
 
 /// A parsed hanja dictionary, shareable by many engines.
@@ -41,6 +44,8 @@ pub extern "C" fn jk_new() -> *mut JkEngine {
         counts: Counts::default(),
         #[cfg(feature = "predict")]
         predictions: Vec::new(),
+        #[cfg(feature = "predict")]
+        learned: String::new(),
     }))
 }
 
@@ -348,6 +353,67 @@ mod predict_ffi {
         }
     }
 
+    /// A new predictor: `base` with the user's own words added (training contract, spec §10.12),
+    /// UTF-8 lines of `word` or `word<TAB>count` for Korean and English (either may be empty).
+    /// `base` stays valid and unchanged. Null if `base` is null or a list isn't UTF-8.
+    ///
+    /// # Safety
+    /// `base` must come from `jk_predictor_new` or this function; `korean` and `english` must
+    /// point to their lengths in readable bytes (or be null with length 0).
+    #[unsafe(no_mangle)]
+    pub unsafe extern "C" fn jk_predictor_with_words(
+        base: *const JkPredictor,
+        korean: *const u8,
+        korean_len: usize,
+        english: *const u8,
+        english_len: usize,
+    ) -> *mut JkPredictor {
+        // SAFETY: per the contract above.
+        let Some(base) = (unsafe { base.as_ref() }) else { return std::ptr::null_mut() };
+        // SAFETY: per the contract above.
+        let (k, e) = (unsafe { text(korean, korean_len) }.unwrap_or(&[]), unsafe { text(english, english_len) }.unwrap_or(&[]));
+        match (std::str::from_utf8(k), std::str::from_utf8(e)) {
+            (Ok(k), Ok(e)) => Box::into_raw(Box::new(JkPredictor(Arc::new(base.0.with_user_words(k, e))))),
+            _ => std::ptr::null_mut(),
+        }
+    }
+
+    /// Learns from one example of what the user meant (training contract, spec §10.12): `keys` as
+    /// `KeyboardEvent.code` names separated by spaces, `S-` for Shift (null or empty: the cheapest
+    /// keys for `text`). Returns where `text` was among the predictions (0 = top), -1 if it wasn't
+    /// listed, -2 if the input is malformed or there's no predictor.
+    ///
+    /// # Safety
+    /// `text` and `keys` must point to their lengths in readable bytes (`keys` may be null with 0).
+    #[unsafe(no_mangle)]
+    pub unsafe extern "C" fn jk_learn_example(
+        handle: *mut JkEngine,
+        text_ptr: *const u8,
+        text_len: usize,
+        keys: *const u8,
+        keys_len: usize,
+    ) -> i32 {
+        // SAFETY: per the contract above.
+        let Some(Ok(intended)) = (unsafe { text(text_ptr, text_len) }).map(std::str::from_utf8) else { return -2 };
+        // SAFETY: per the contract above.
+        let keys = match unsafe { text(keys, keys_len) }.map(std::str::from_utf8) {
+            None => None,
+            Some(Ok(k)) if k.trim().is_empty() => None,
+            Some(Ok(k)) => match crate::plan::parse_keys(k) {
+                Some(presses) => Some(presses),
+                None => return -2,
+            },
+            Some(Err(_)) => return -2,
+        };
+        with(handle, -2, |h| {
+            if h.engine.predictions_available() {
+                h.engine.learn_example(keys.as_deref(), intended).map_or(-1, |at| at as i32)
+            } else {
+                -2
+            }
+        })
+    }
+
     /// # Safety
     /// `predictor` must come from `jk_predictor_new` and not be used afterwards.
     #[unsafe(no_mangle)]
@@ -400,6 +466,79 @@ mod predict_ffi {
     pub extern "C" fn jk_set_prediction_weight(handle: *mut JkEngine, which: u32, value: f64) {
         if let Some(which) = crate::predict::Weight::from_id(which) {
             with(handle, (), |h| h.engine.set_prediction_weight(which, value))
+        }
+    }
+
+    /// Hands a scenario's weight back to learning (or 1.0 when learning is off). Unknown ids are
+    /// ignored.
+    #[unsafe(no_mangle)]
+    pub extern "C" fn jk_clear_prediction_weight(handle: *mut JkEngine, which: u32) {
+        if let Some(which) = crate::predict::Weight::from_id(which) {
+            with(handle, (), |h| h.engine.clear_prediction_weight(which))
+        }
+    }
+
+    /// Learning from the user's choices (spec §10.11), off by default.
+    #[unsafe(no_mangle)]
+    pub extern "C" fn jk_set_learning(handle: *mut JkEngine, on: u32) {
+        with(handle, (), |h| h.engine.set_learning(on != 0))
+    }
+
+    /// The learned multiplier for a scenario (`JK_WEIGHT_*`); 1.0 for unknown ids.
+    #[unsafe(no_mangle)]
+    pub extern "C" fn jk_learned_weight(handle: *mut JkEngine, which: u32) -> f64 {
+        match crate::predict::Weight::from_id(which) {
+            Some(which) => with(handle, 1.0, |h| h.engine.learner().weight(which)),
+            None => 1.0,
+        }
+    }
+
+    /// 1 if what was learned changed since the last call: store `jk_learner_export` then.
+    #[unsafe(no_mangle)]
+    pub extern "C" fn jk_learner_changed(handle: *mut JkEngine) -> u32 {
+        with(handle, 0, |h| h.engine.take_learned_changed() as u32)
+    }
+
+    /// What was learned, as one line of text (read it with `jk_learner_ptr`); returns its length.
+    #[unsafe(no_mangle)]
+    pub extern "C" fn jk_learner_export(handle: *mut JkEngine) -> usize {
+        with(handle, 0, |h| {
+            h.learned = h.engine.learner().export();
+            h.learned.len()
+        })
+    }
+
+    #[unsafe(no_mangle)]
+    pub extern "C" fn jk_learner_ptr(handle: *mut JkEngine) -> *const u8 {
+        with(handle, std::ptr::null(), |h| h.learned.as_ptr())
+    }
+
+    /// Restores an export (UTF-8). Returns 1 if it was taken, 0 if it wasn't one (nothing changes).
+    ///
+    /// # Safety
+    /// `ptr` must point to `len` readable bytes.
+    #[unsafe(no_mangle)]
+    pub unsafe extern "C" fn jk_learner_import(handle: *mut JkEngine, ptr: *const u8, len: usize) -> u32 {
+        // SAFETY: as documented.
+        let Some(bytes) = (unsafe { text(ptr, len) }) else { return 0 };
+        let Some(learner) = std::str::from_utf8(bytes).ok().and_then(crate::learn::Learner::import) else { return 0 };
+        with(handle, 0, |h| {
+            h.engine.set_learner(learner);
+            1
+        })
+    }
+
+    /// Forgets everything learned.
+    #[unsafe(no_mangle)]
+    pub extern "C" fn jk_learner_reset(handle: *mut JkEngine) {
+        with(handle, (), |h| h.engine.set_learner(crate::learn::Learner::default()))
+    }
+
+    /// Chooses the ranker for the implied-ㅇ alternatives (`JK_RANKER_*`). Unknown ids are ignored.
+    #[unsafe(no_mangle)]
+    pub extern "C" fn jk_set_ranker(handle: *mut JkEngine, ranker: u32) {
+        if let Some(ranker) = crate::predict::Ranker::from_id(ranker) {
+            with(handle, (), |h| h.engine.set_ranker(ranker))
         }
     }
 

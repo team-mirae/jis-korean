@@ -12,8 +12,9 @@
 
 use std::collections::{BTreeMap, HashMap};
 use std::fmt;
-use std::sync::Arc;
+use std::sync::{Arc, OnceLock};
 
+use crate::travel::Hand;
 use crate::{Dictionary, Engine, Key, Layout, Mods, Out, Output, PAGE_SIZE, output};
 
 /// What a symbol costs when it isn't on a layout's legends: an OS shortcut, the character palette or
@@ -64,11 +65,12 @@ pub struct Press {
 }
 
 impl Press {
-    fn new(key: Key) -> Press {
+    pub fn new(key: Key) -> Press {
         Press { key, shift: false }
     }
 
-    fn cost(self) -> usize {
+    /// Presses this takes: one, plus one for Shift.
+    pub fn cost(self) -> usize {
         1 + self.shift as usize
     }
 }
@@ -82,6 +84,167 @@ impl fmt::Display for Press {
     }
 }
 
+/// What the robot minimizes when several plans type the same thing.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum Metric {
+    /// Key presses, Shift counted as one more.
+    #[default]
+    Presses,
+    /// Finger travel ([`crate::travel`]); ties go to fewer presses.
+    Travel,
+}
+
+/// Which of the valid ways to type each syllable the robot takes. Real typists don't always take
+/// the cheapest: 의 is `9`, `d9` or `dml`; 당신이 is `ekdtlsL`, `ekdtlsll` or `ekdtlsdl`.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum Style {
+    /// The cheapest (by the robot's metric).
+    #[default]
+    Optimal,
+    /// The most presses: every ㅇ typed, doubles with Shift, compound vowels and double finals as
+    /// two keys, no dedicated keys or shortcuts (a plain 2-set habit).
+    EveryJamo,
+    /// A pseudo-random valid way per syllable, the same for the same seed.
+    Mixed(u64),
+}
+
+/// The effort of typing something: key presses (Shift counted) and finger travel (key units).
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
+pub struct Effort {
+    pub presses: usize,
+    pub travel: f64,
+}
+
+/// The least effort to type `text` from an empty screen on JIS Korean, planned for least travel.
+/// None if the robot can't type it.
+pub fn cheapest(text: &str) -> Option<Effort> {
+    cheapest_route(text).map(|(effort, _)| effort)
+}
+
+/// [`cheapest`], with the keys of that route.
+pub fn cheapest_route(text: &str) -> Option<(Effort, Vec<Press>)> {
+    let mut robot = Robot::new(None);
+    robot.metric = Metric::Travel;
+    robot.type_text(text);
+    let report = &robot.report;
+    (report.failures.is_empty() && report.pasted == 0 && report.escapes == 0)
+        .then(|| (Effort { presses: report.presses, travel: report.travel }, robot.log.clone()))
+}
+
+/// How many presses `typed` would need added and removed to become `route` (both ways around the
+/// longest common subsequence).
+pub fn edits(typed: &[Press], route: &[Press]) -> usize {
+    let mut row = vec![0usize; route.len() + 1];
+    for a in typed {
+        let mut diagonal = 0;
+        for (j, b) in route.iter().enumerate() {
+            let up = row[j + 1];
+            row[j + 1] = if a == b { diagonal + 1 } else { up.max(row[j]) };
+            diagonal = up;
+        }
+    }
+    let common = row[route.len()];
+    typed.len() + route.len() - 2 * common
+}
+
+/// The keys a fluent typist presses for one word, predictions doing the rest: Latin letter by
+/// letter, Hangul the cheapest JIS Korean way, jamo-only runs (ㅋㅋ) one key per jamo. None if a
+/// character can't be typed this way.
+pub fn keys_for_word(word: &str) -> Option<Vec<Press>> {
+    let chars: Vec<char> = word.chars().collect();
+    let mut keys = Vec::new();
+    let mut i = 0;
+    while i < chars.len() {
+        let latin = chars[i].is_ascii_alphabetic();
+        let end = chars[i..].iter().position(|&c| c.is_ascii_alphabetic() != latin).map_or(chars.len(), |n| i + n);
+        let run: String = chars[i..end].iter().collect();
+        if latin {
+            keys.extend(keys_of(&run));
+        } else if run.chars().all(is_compat_jamo) {
+            keys.extend(each_jamo(&run)?);
+        } else {
+            let mut robot = Robot::new(None);
+            robot.type_text(&run);
+            if !robot.report.failures.is_empty() || robot.report.pasted > 0 {
+                return None;
+            }
+            keys.extend(robot.log.iter().copied().filter(|p| !matches!(p.key, Key::F6 | Key::F7 | Key::F8 | Key::F9 | Key::F10)));
+        }
+        i = end;
+    }
+    Some(keys)
+}
+
+/// Keys written as text: `KeyboardEvent.code` names separated by spaces, `S-` before one typed
+/// with Shift (`KeyT KeyH S-KeyL Digit5`). None if a name isn't a key.
+pub fn parse_keys(text: &str) -> Option<Vec<Press>> {
+    text.split_whitespace()
+        .map(|token| {
+            let (shift, code) = token.strip_prefix("S-").map_or((false, token), |c| (true, c));
+            let key = Key::from_code(code);
+            (key != Key::Other && key != Key::Modifier).then_some(Press { key, shift })
+        })
+        .collect()
+}
+
+/// The effort of the keys that type `english` on stock JIS (the keys as pressed, read as Latin),
+/// from the home row. Characters with no key are skipped.
+pub fn effort_of_keys(english: &str) -> Effort {
+    effort(&keys_of(english))
+}
+
+/// The keys that type `english` on stock JIS: the staged keys, read back from their Latin reading
+/// (a capital is Shift and the letter's key, a digit its number-row key). Characters with no key are
+/// skipped.
+pub fn keys_of(english: &str) -> Vec<Press> {
+    english
+        .chars()
+        .filter_map(|c| {
+            if c.is_ascii_alphabetic() {
+                let key = Key::from_code(&format!("Key{}", c.to_ascii_uppercase()));
+                Some(Press { key, shift: c.is_ascii_uppercase() })
+            } else if c.is_ascii_digit() {
+                Some(Press::new(Key::from_code(&format!("Digit{c}"))))
+            } else {
+                keymap().char_press(Layout::Escaped, c)
+            }
+        })
+        .collect()
+}
+
+/// The effort of pressing `presses` in order from the home row.
+pub fn effort(presses: &[Press]) -> Effort {
+    let mut hand = Hand::default();
+    presses.iter().for_each(|p| {
+        hand.press(p.key);
+    });
+    Effort { presses: presses.iter().map(|p| p.cost()).sum(), travel: hand.travel }
+}
+
+/// The each-jamo route for `text`: one jamo at a time on plain 2-set, the way it's typed without
+/// JIS Korean's shortcuts. ㅇ is its own key, doubles take Shift, compound vowels and double finals
+/// take two keys. None if a character has no key.
+pub fn each_jamo(text: &str) -> Option<Vec<Press>> {
+    let keymap = keymap();
+    let way = |j: char| {
+        keymap.jamo_ways(Layout::Escaped, j).into_iter().min_by_key(|w| w.iter().map(|p| p.cost()).sum::<usize>())
+    };
+    let mut presses = Vec::new();
+    for c in text.chars() {
+        if is_syllable(c) {
+            let (initial, medial, last) = decompose(c);
+            for j in [Some(initial), Some(medial), last].into_iter().flatten() {
+                presses.extend(way(j)?);
+            }
+        } else if is_compat_jamo(c) {
+            presses.extend(way(c)?);
+        } else {
+            presses.push(keymap.char_press(Layout::Escaped, c)?);
+        }
+    }
+    Some(presses)
+}
+
 /// What a robot run did.
 #[derive(Debug, Default)]
 pub struct Report {
@@ -89,6 +252,8 @@ pub struct Report {
     pub chars: usize,
     /// Key presses, with each Shift counted as one more.
     pub presses: usize,
+    /// Finger travel for the keys pressed, in key units (Shift and thumbs move nothing).
+    pub travel: f64,
     pub shifts: usize,
     /// F6–F10 presses.
     pub function_keys: usize,
@@ -119,6 +284,7 @@ impl fmt::Display for Report {
         writeln!(f, "characters        {}", self.chars)?;
         writeln!(f, "key presses       {} ({:.3} per character, Shift included)", self.presses, per(self.presses))?;
         writeln!(f, "  Shift           {}", self.shifts)?;
+        writeln!(f, "finger travel     {:.0} keys ({:.2} per character)", self.travel, self.travel / self.chars.max(1) as f64)?;
         writeln!(f, "  F6–F10          {}", self.function_keys)?;
         writeln!(f, "standard 2-set    ~{} ({:.3} per character, estimate)", self.baseline, per(self.baseline))?;
         if self.baseline > 0 {
@@ -147,6 +313,12 @@ impl fmt::Display for Report {
 }
 
 // --- The layout, read back from the engine
+
+/// The keymap, built once from the layout tables.
+fn keymap() -> &'static Keymap {
+    static KEYMAP: OnceLock<Keymap> = OnceLock::new();
+    KEYMAP.get_or_init(Keymap::new)
+}
 
 /// Ways to type each character and jamo directly, per layout, cheapest first.
 struct Keymap {
@@ -233,15 +405,15 @@ const FINALS: &[char] = &[
     'ㅈ', 'ㅊ', 'ㅋ', 'ㅌ', 'ㅍ', 'ㅎ',
 ];
 
-fn is_syllable(c: char) -> bool {
+pub(crate) fn is_syllable(c: char) -> bool {
     ('가'..='힣').contains(&c)
 }
 
-fn is_compat_jamo(c: char) -> bool {
+pub(crate) fn is_compat_jamo(c: char) -> bool {
     ('ㄱ'..='ㅣ').contains(&c)
 }
 
-fn is_hanja(c: char) -> bool {
+pub(crate) fn is_hanja(c: char) -> bool {
     ('\u{4E00}'..='\u{9FFF}').contains(&c) || ('\u{F900}'..='\u{FAFF}').contains(&c)
 }
 
@@ -289,10 +461,12 @@ pub fn normalize(text: &str) -> (String, BTreeMap<char, usize>) {
 struct Screen {
     engine: Engine,
     doc: String,
+    hand: Hand,
 }
 
 impl Screen {
     fn press(&mut self, p: Press) -> Output {
+        self.hand.press(p.key);
         let out = self.engine.key(p.key, if p.shift { Mods::SHIFTED } else { Mods::NONE });
         self.doc.push_str(&out.commit);
         if !out.consumed {
@@ -332,7 +506,14 @@ impl Plan {
 }
 
 pub struct Robot {
-    keymap: Keymap,
+    keymap: &'static Keymap,
+    dictionary: Option<Arc<Dictionary>>,
+    /// What to minimize; the report counts both either way.
+    pub metric: Metric,
+    /// Which valid way to take (the cheapest unless set).
+    pub style: Style,
+    /// The state of [`Style::Mixed`]'s choices.
+    draws: u64,
     /// hanja → reading, for F7.
     readings: HashMap<char, String>,
     screen: Screen,
@@ -347,6 +528,7 @@ impl Robot {
         let mut engine = Engine::new();
         // hanja → its single-syllable reading where it ranks highest.
         let mut readings: HashMap<char, (String, usize)> = HashMap::new();
+        let kept = dictionary.clone();
         if let Some(dictionary) = dictionary {
             for (reading, candidates) in dictionary.entries() {
                 if reading.chars().count() != 1 {
@@ -356,7 +538,9 @@ impl Robot {
                     let mut chars = candidate.hanja.chars();
                     if let (Some(h), None) = (chars.next(), chars.next()) {
                         let best = readings.entry(h).or_insert((reading.to_string(), position));
-                        if position < best.1 {
+                        // Ties go to the first reading in Unicode order, so runs agree (the
+                        // dictionary is a hash map).
+                        if (position, reading) < (best.1, best.0.as_str()) {
                             *best = (reading.to_string(), position);
                         }
                     }
@@ -365,13 +549,47 @@ impl Robot {
             engine.set_dictionary(dictionary);
         }
         Robot {
-            keymap: Keymap::new(),
+            keymap: keymap(),
+            dictionary: kept,
+            metric: Metric::Presses,
+            style: Style::Optimal,
+            draws: 0,
             readings: readings.into_iter().map(|(h, (r, _))| (h, r)).collect(),
-            screen: Screen { engine, doc: String::new() },
+            screen: Screen { engine, doc: String::new(), hand: Hand::default() },
             expected: String::new(),
             log: Vec::new(),
             report: Report::default(),
         }
+    }
+
+    /// The reading the robot types a hanja by (for F7), if it can.
+    pub fn hanja_reading(&self, c: char) -> Option<&str> {
+        self.readings.get(&c).map(String::as_str)
+    }
+
+    /// Every single-syllable reading of a hanja in the dictionary, best-ranked first.
+    pub fn hanja_readings(&self, c: char) -> Vec<String> {
+        let mut found: Vec<(usize, String)> = self
+            .dictionary
+            .iter()
+            .flat_map(|d| d.entries())
+            .filter(|(reading, _)| reading.chars().count() == 1)
+            .filter_map(|(reading, candidates)| {
+                candidates.iter().position(|cand| cand.hanja.chars().eq([c])).map(|i| (i, reading.to_string()))
+            })
+            .collect();
+        found.sort();
+        found.into_iter().map(|(_, r)| r).collect()
+    }
+
+    /// How a character other than Hangul and Latin letters is typed on JIS Korean: its key, or the
+    /// F8 escape's key (pressed as F8, the key, Shift+F8). None: no key types it.
+    pub fn symbol_presses(&self, c: char) -> Option<Vec<Press>> {
+        if let Some(p) = self.keymap.char_press(Layout::JisKorean, c) {
+            return Some(vec![p]);
+        }
+        let p = self.keymap.char_press(Layout::Escaped, c)?;
+        Some(vec![Press::new(Key::F8), p, Press { key: Key::F8, shift: true }])
     }
 
     pub fn can_type(&self, c: char) -> bool {
@@ -416,7 +634,8 @@ impl Robot {
         }
         let out = self.screen.engine.flush();
         self.screen.doc.push_str(&out.commit);
-        self.report.baseline = baseline(&self.keymap, &self.expected);
+        self.report.baseline = baseline(self.keymap, &self.expected);
+        self.report.travel = self.screen.hand.travel;
         self.expected.clone()
     }
 
@@ -447,14 +666,44 @@ impl Robot {
     /// Tries `plans` in cost order on a copy of the screen, then presses the first that shows
     /// `want`.
     fn try_plans(&mut self, mut plans: Vec<Plan>, want: &str) -> Option<Plan> {
-        plans.sort_by_key(Plan::cost);
-        let plan = plans.into_iter().find(|plan| {
+        match self.metric {
+            Metric::Presses => plans.sort_by_key(Plan::cost),
+            Metric::Travel => {
+                // From where the fingers are now; rounded so float noise doesn't break ties.
+                let travel = |plan: &Plan| {
+                    let mut hand = self.screen.hand.clone();
+                    plan.presses.iter().for_each(|p| {
+                        hand.press(p.key);
+                    });
+                    ((hand.travel - self.screen.hand.travel) * 1e6).round() as i64
+                };
+                plans.sort_by_cached_key(|plan| (travel(plan), plan.cost()));
+            }
+        }
+        let shows_want = |plan: &Plan| {
             let mut screen = self.screen.clone();
             plan.presses.iter().for_each(|&p| {
                 screen.press(p);
             });
             screen.text() == want
-        })?;
+        };
+        let plan = match self.style {
+            Style::Optimal => plans.into_iter().find(shows_want)?,
+            Style::EveryJamo => plans.into_iter().rev().find(shows_want)?,
+            Style::Mixed(seed) => {
+                let mut valid: Vec<Plan> = plans.into_iter().filter(shows_want).collect();
+                if valid.is_empty() {
+                    return None;
+                }
+                // splitmix64 over (seed, draw): deterministic, no dependencies.
+                self.draws += 1;
+                let mut z = seed ^ self.draws.wrapping_mul(0x9E37_79B9_7F4A_7C15);
+                z = (z ^ (z >> 30)).wrapping_mul(0xBF58_476D_1CE4_E5B9);
+                z = (z ^ (z >> 27)).wrapping_mul(0x94D0_49BB_1331_11EB);
+                z ^= z >> 31;
+                valid.swap_remove((z % valid.len() as u64) as usize)
+            }
+        };
         self.press_all(&plan.presses);
         Some(plan)
     }
@@ -669,7 +918,7 @@ impl Robot {
 /// symbols, a 한/영 switch into and out of each Latin run, [`OFF_LEGEND`] presses for symbols stock
 /// JIS lacks (—, ·, 「」), and three for each hanja (reading + 한자 + pick, counted low).
 pub fn conventional(text: &str) -> usize {
-    baseline(&Keymap::new(), text)
+    baseline(keymap(), text)
 }
 
 fn baseline(keymap: &Keymap, text: &str) -> usize {
@@ -704,4 +953,24 @@ fn baseline(keymap: &Keymap, text: &str) -> usize {
         };
     }
     total
+}
+
+#[cfg(test)]
+mod route_tests {
+    use super::*;
+
+    #[test]
+    fn staged_keys_and_each_jamo_routes_read_back() {
+        let keys = keys_of("rkxms");
+        assert_eq!(keys.len(), 5);
+        assert_eq!(keys[0], Press::new(Key::KeyR));
+        assert_eq!(keys_of("Qk")[0], Press { key: Key::KeyQ, shift: true });
+        // 같은 one jamo at a time: r k x, then ㅇ as d, m s.
+        assert_eq!(each_jamo("같은"), Some(keys_of("rkxdms")));
+        // 가튼 is its own each-jamo route; 아이 isn't kl (that's the implied ㅇ).
+        assert_eq!(each_jamo("가튼"), Some(keys_of("rkxms")));
+        assert_eq!(each_jamo("아이"), Some(keys_of("dkdl")));
+        assert_eq!(each_jamo("ㅠㅠ"), Some(keys_of("bb")));
+        assert_eq!(effort(&keys_of("rkxms")).presses, 5);
+    }
 }

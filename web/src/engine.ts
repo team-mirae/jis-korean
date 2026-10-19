@@ -31,12 +31,24 @@ interface Exports {
   jk_candidate_comment_len(h: number, i: number): number;
   jk_predictor_new(m: number, ml: number, e: number, el: number, k: number, kl: number, n: number, nl: number): number;
   jk_set_predictor(h: number, p: number): void;
+  jk_predictor_free(p: number): void;
+  jk_predictor_with_words(base: number, k: number, kl: number, e: number, el: number): number;
+  jk_learn_example(h: number, t: number, tl: number, keys: number, kl: number): number;
   jk_predict(h: number): number;
   jk_prediction_ptr(h: number, i: number): number;
   jk_prediction_len(h: number, i: number): number;
   jk_prediction_kind(h: number, i: number): number;
   jk_commit_prediction(h: number, i: number): void;
   jk_set_prediction_weight(h: number, which: number, value: number): void;
+  jk_set_ranker(h: number, ranker: number): void;
+  jk_clear_prediction_weight(h: number, which: number): void;
+  jk_set_learning(h: number, on: number): void;
+  jk_learned_weight(h: number, which: number): number;
+  jk_learner_changed(h: number): number;
+  jk_learner_export(h: number): number;
+  jk_learner_ptr(h: number): number;
+  jk_learner_import(h: number, ptr: number, len: number): number;
+  jk_learner_reset(h: number): void;
   jk_plan(h: number, ptr: number, len: number): void;
   jk_plan_jis(h: number): number;
   jk_plan_conventional(h: number): number;
@@ -52,14 +64,18 @@ export interface Prediction {
 }
 
 export type PredictionKind =
-  | "korean" | "english" | "capitalized" | "upper" | "two-set" | "keep-finals" | "hanja" | "bare" | "mixed";
+  | "korean" | "english" | "capitalized" | "upper" | "two-set" | "keep-finals" | "hanja" | "bare" | "mixed" | "implied-l";
 const KINDS: PredictionKind[] = [
-  "korean", "english", "capitalized", "upper", "two-set", "keep-finals", "hanja", "bare", "mixed",
+  "korean", "english", "capitalized", "upper", "two-set", "keep-finals", "hanja", "bare", "mixed", "implied-l",
 ];
 
 /** Scenarios the user can tune (spec §10.5), in C ABI id order. */
-export const WEIGHTS = ["korean", "english", "implied", "mixed", "two-set", "keep-finals", "hanja"] as const;
+export const WEIGHTS = ["korean", "english", "implied", "mixed", "two-set", "keep-finals", "hanja", "implied-l"] as const;
 export type WeightName = (typeof WEIGHTS)[number];
+
+/** How the implied-ㅇ alternatives are ranked (spec §10.7), in C ABI id order. */
+export const RANKERS = ["rules", "travel", "route"] as const;
+export type RankerName = (typeof RANKERS)[number];
 
 /** Key presses for a text, both ways (Shift counted; symbols off a layout's legends count 3). */
 export interface Counts {
@@ -161,6 +177,10 @@ export class Engine {
   }
 
   private predictor = 0;
+  /** The predictor as loaded; `predictor` may be it with the user's own words (training file). */
+  private basePredictor = 0;
+  private predictionsOn = false;
+  private ranker: RankerName = "rules";
 
   /** Loads the predictive layer (ranker model and word lists). Turn it on with `setPredictions`. */
   async loadPredictor(base: string): Promise<void> {
@@ -184,11 +204,58 @@ export class Engine {
     x.jk_dealloc(k, korean.length);
     x.jk_dealloc(n, nouns.length);
     if (!this.predictor) throw new Error("predictor model is malformed");
+    this.basePredictor = this.predictor;
   }
 
   /** On: the engine ranks readings of the staged text. Off: the deterministic lite engine. */
   setPredictions(on: boolean): void {
+    this.predictionsOn = on;
     this.x.jk_set_predictor(this.handle, on ? this.predictor : 0);
+  }
+
+  /** Adds the user's own words (training contract): lines of `word` or `word<TAB>count`. Replaces
+   * any added before. */
+  setUserWords(korean: string, english: string): void {
+    const { x } = this;
+    const k = encoder.encode(korean);
+    const e = encoder.encode(english);
+    const kp = x.jk_alloc(k.length);
+    const ep = x.jk_alloc(e.length);
+    new Uint8Array(x.memory.buffer, kp, k.length).set(k);
+    new Uint8Array(x.memory.buffer, ep, e.length).set(e);
+    const next = x.jk_predictor_with_words(this.basePredictor, kp, k.length, ep, e.length);
+    x.jk_dealloc(kp, k.length);
+    x.jk_dealloc(ep, e.length);
+    if (!next) throw new Error("words are not UTF-8");
+    this.usePredictor(next);
+  }
+
+  /** Back to the built-in word lists. */
+  clearUserWords(): void {
+    this.usePredictor(this.basePredictor);
+  }
+
+  private usePredictor(next: number): void {
+    if (this.predictor !== this.basePredictor) this.x.jk_predictor_free(this.predictor);
+    this.predictor = next;
+    if (this.predictionsOn) this.x.jk_set_predictor(this.handle, next);
+  }
+
+  /** Learns from an example of what the user meant (training contract): `keys` as
+   * KeyboardEvent.code names, "S-" for Shift, or none for the cheapest keys. Returns where the text
+   * was listed (0 = top), -1 if it wasn't, -2 if the input was malformed. */
+  learnExample(text: string, keys?: string): number {
+    const { x } = this;
+    const t = encoder.encode(text);
+    const k = encoder.encode(keys ?? "");
+    const tp = x.jk_alloc(t.length);
+    const kp = x.jk_alloc(Math.max(k.length, 1));
+    new Uint8Array(x.memory.buffer, tp, t.length).set(t);
+    new Uint8Array(x.memory.buffer, kp, k.length).set(k);
+    const at = x.jk_learn_example(this.handle, tp, t.length, kp, k.length);
+    x.jk_dealloc(tp, t.length);
+    x.jk_dealloc(kp, Math.max(k.length, 1));
+    return at;
   }
 
   /** The ranked readings of the staged text (empty when predictions are off). */
@@ -202,9 +269,77 @@ export class Engine {
     return out;
   }
 
-  /** Tunes one scenario: a multiplier on its learned probability (1 = as learned). */
+  /** Chooses how the implied-ㅇ alternatives are ranked. */
+  setRanker(ranker: RankerName): void {
+    this.ranker = ranker;
+    this.x.jk_set_ranker(this.handle, RANKERS.indexOf(ranker));
+  }
+
+  /** `predictions()` as `ranker` would rank them, leaving the engine's own ranker as it was. */
+  predictionsBy(ranker: RankerName): Prediction[] {
+    return this.withRanker(ranker, () => this.predictions());
+  }
+
+  /** `commitPrediction()` from `ranker`'s list. */
+  commitPredictionBy(ranker: RankerName, index: number): Output {
+    return this.withRanker(ranker, () => this.commitPrediction(index));
+  }
+
+  private withRanker<T>(ranker: RankerName, run: () => T): T {
+    const own = this.ranker;
+    this.x.jk_set_ranker(this.handle, RANKERS.indexOf(ranker));
+    try {
+      return run();
+    } finally {
+      this.x.jk_set_ranker(this.handle, RANKERS.indexOf(own));
+    }
+  }
+
+  /** Tunes one scenario: a multiplier on its learned probability (1 = as learned; 0 turns an
+   * alternative off). */
   setWeight(which: WeightName, value: number): void {
     this.x.jk_set_prediction_weight(this.handle, WEIGHTS.indexOf(which), value);
+  }
+
+  /** Hands a scenario's weight back to learning (or 1 when learning is off). */
+  clearWeight(which: WeightName): void {
+    this.x.jk_clear_prediction_weight(this.handle, WEIGHTS.indexOf(which));
+  }
+
+  /** Learning from the user's choices (spec §10.11). The engine records choices itself. */
+  setLearning(on: boolean): void {
+    this.x.jk_set_learning(this.handle, on ? 1 : 0);
+  }
+
+  /** The learned multiplier for a scenario (0.5–2; 1 = no change). */
+  learnedWeight(which: WeightName): number {
+    return this.x.jk_learned_weight(this.handle, WEIGHTS.indexOf(which));
+  }
+
+  /** Whether what was learned changed since the last call. */
+  learnerChanged(): boolean {
+    return this.x.jk_learner_changed(this.handle) !== 0;
+  }
+
+  /** What was learned, as one line of counts (no text, no keys). */
+  exportLearner(): string {
+    const len = this.x.jk_learner_export(this.handle);
+    return this.text(this.x.jk_learner_ptr(this.handle), len);
+  }
+
+  /** Restores an export; false if it wasn't one. */
+  importLearner(state: string): boolean {
+    const { x } = this;
+    const bytes = encoder.encode(state);
+    const ptr = x.jk_alloc(bytes.length);
+    new Uint8Array(x.memory.buffer, ptr, bytes.length).set(bytes);
+    const ok = x.jk_learner_import(this.handle, ptr, bytes.length) !== 0;
+    x.jk_dealloc(ptr, bytes.length);
+    return ok;
+  }
+
+  resetLearner(): void {
+    this.x.jk_learner_reset(this.handle);
   }
 
   /** Commits reading `index` of `predictions()`. */

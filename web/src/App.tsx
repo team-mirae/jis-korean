@@ -1,12 +1,26 @@
 import { useEffect, useRef, useState } from "react";
 import type { KeyboardEvent as ReactKeyboardEvent } from "react";
-import type { Candidates, Counts, Engine, Mods, Output, Prediction, PredictionKind, WeightName } from "./engine";
+import type { Candidates, Counts, Engine, Mods, Output, Prediction, PredictionKind, RankerName, WeightName } from "./engine";
 import { WEIGHTS } from "./engine";
+import type { TrainingFile, TrainingSummary } from "./training";
+import { check, learnExamples, wordLists } from "./training";
 import { ghost } from "./ghost";
 import { Keyboard } from "./Keyboard";
 import benchmarks from "./stats.json";
 
 const REPO = "https://github.com/team-mirae/jis-korean";
+
+/** Short runs on the number row and home row that type whole words (docs/easy-words.md). */
+const EASY_WORDS: [string, string][] = [
+  ["98", "의외"],
+  ["09", "와의"],
+  ["a7", "뭐"],
+  ["3h", "또"],
+  ["h1k", "오빠"],
+  ["98fh", "의외로"],
+  ["k4k7", "아까워"],
+  ["l3k6", "이따위"],
+];
 
 /** Practice texts in public/: the gray guide in the typing area, and what's counted when it's empty. */
 const SAMPLES = [
@@ -41,7 +55,17 @@ export function App({ engine }: { engine: Engine }) {
   const [counts, setCounts] = useState<Counts | null>(null);
   const [predictionsOn, setPredictionsOn] = useState(() => loadSetting("predictions", true));
   const [readings, setReadings] = useState<Prediction[]>([]);
+  // Side by side: the travel ranker's list next to the rules' (spec §10.7).
+  const [ranking, setRanking] = useState<Ranking>(() => loadRanking());
+  const [travelReadings, setTravelReadings] = useState<Prediction[]>([]);
+  const [routeReadings, setRouteReadings] = useState<Prediction[]>([]);
   const [weights, setWeights] = useState<Record<WeightName, number>>(() => loadWeights());
+  // Learning from the user's choices (spec §10.11): off by default, kept only in this browser and
+  // forgotten 24 hours after it started, session or not.
+  const [learningOn, setLearningOn] = useState(() => loadSetting("learning", false));
+  const [learned, setLearned] = useState<Record<WeightName, number>>(() => unlearned());
+  // A training file (docs/training-contract.md): what it applied, or why it couldn't.
+  const [training, setTraining] = useState<{ summary?: TrainingSummary; problems?: string[] } | null>(null);
   const [floating, setFloating] = useState(false);
   const surface = useRef<HTMLDivElement>(null);
   const caret = useRef<HTMLSpanElement>(null);
@@ -73,11 +97,29 @@ export function App({ engine }: { engine: Engine }) {
       .loadPredictor(`${import.meta.env.BASE_URL}predict/`)
       .then(() => {
         engine.setPredictions(predictionsOn);
-        for (const name of WEIGHTS) engine.setWeight(name, weights[name]);
+        engine.setRanker(ranking === "side-by-side" ? "rules" : ranking);
+        // Only weights the user set by hand are pinned; the rest are left to learning.
+        for (const [name, value] of Object.entries(storedWeights())) engine.setWeight(name as WeightName, value);
+        const saved = loadLearned();
+        if (saved) engine.importLearner(saved.state);
+        const words = loadTrainingWords();
+        if (words) engine.setUserWords(words.korean, words.english);
+        engine.setLearning(learningOn);
+        setLearned(learnedWeights(engine));
       })
       .catch((error) => console.error("predictor:", error));
     // Only once: later changes go through togglePredictions.
     // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [engine]);
+  useEffect(() => {
+    // The 24-hour limit holds within a session too: check once a minute.
+    const timer = setInterval(() => {
+      if (expireLearned()) {
+        engine.resetLearner();
+        setLearned(learnedWeights(engine));
+      }
+    }, 60_000);
+    return () => clearInterval(timer);
   }, [engine]);
   useEffect(() => {
     engine
@@ -112,8 +154,17 @@ export function App({ engine }: { engine: Engine }) {
     setPreedit(out.preedit);
     setCandidates(out.candidates);
     // The predictive layer's readings of what's staged (none while a hanja list is open).
-    setReadings(out.preedit && !out.candidates ? engine.predictions() : []);
+    showReadings(Boolean(out.preedit && !out.candidates));
     setEscaped(engine.escaped);
+    // Past 24 hours, what was learned goes, counts in the engine included, before anything new
+    // is stored (else old counts would carry into a fresh window).
+    if (expireLearned()) {
+      engine.resetLearner();
+      setLearned(learnedWeights(engine));
+    } else if (engine.learnerChanged()) {
+      saveLearned(engine.exportLearner());
+      setLearned(learnedWeights(engine));
+    }
   }
 
   function type(code: string, mods: Mods): Output {
@@ -137,30 +188,131 @@ export function App({ engine }: { engine: Engine }) {
     if (out.consumed || e.code === "Enter" || e.code === "Backspace") e.preventDefault();
   }
 
-  /** Commits reading `index` of the predictions, then `suffix`. */
-  function pick(index: number, suffix = "") {
-    const out = engine.commitPrediction(index);
+  /** The predictions (and, side by side, the travel ranker's) of what's staged, or none. */
+  function showReadings(show: boolean, mode: Ranking = ranking) {
+    setReadings(show ? engine.predictions() : []);
+    setTravelReadings(show && mode === "side-by-side" ? engine.predictionsBy("travel") : []);
+    setRouteReadings(show && mode === "side-by-side" ? engine.predictionsBy("route") : []);
+  }
+
+  /** Commits reading `index` of the predictions (of `ranker`'s list, side by side), then `suffix`. */
+  function pick(index: number, suffix = "", ranker?: RankerName) {
+    const out = ranker ? engine.commitPredictionBy(ranker, index) : engine.commitPrediction(index);
     apply({ ...out, commit: out.commit + suffix }, "", {});
+  }
+
+  function changeRanking(mode: Ranking) {
+    setRanking(mode);
+    try {
+      localStorage.setItem("jis-korean:ranking", mode);
+    } catch {
+      // Not remembered; fine.
+    }
+    engine.setRanker(mode === "side-by-side" ? "rules" : mode);
+    showReadings(predictionsOn && Boolean(preedit), mode);
   }
 
   function togglePredictions(on: boolean) {
     setPredictionsOn(on);
     saveSetting("predictions", on);
     engine.setPredictions(on);
-    setReadings(on && preedit ? engine.predictions() : []);
+    showReadings(on && Boolean(preedit));
     surface.current?.focus();
   }
 
+  /** A weight set by hand: it wins over the learned one. */
   function setWeight(name: WeightName, value: number) {
-    const next = { ...weights, [name]: value };
-    setWeights(next);
+    setWeights({ ...weights, [name]: value });
     engine.setWeight(name, value);
     try {
-      localStorage.setItem("jis-korean:weights", JSON.stringify(next));
+      localStorage.setItem("jis-korean:weights", JSON.stringify({ ...storedWeights(), [name]: value }));
     } catch {
       // Not remembered; fine.
     }
-    setReadings(predictionsOn && preedit ? engine.predictions() : []);
+    showReadings(predictionsOn && Boolean(preedit));
+  }
+
+  /** Back to the defaults: every weight handed back to learning. */
+  function resetWeights() {
+    for (const name of WEIGHTS) engine.clearWeight(name);
+    setWeights(loadWeights(true));
+    try {
+      localStorage.removeItem("jis-korean:weights");
+    } catch {
+      // Nothing stored; fine.
+    }
+    showReadings(predictionsOn && Boolean(preedit));
+  }
+
+  function toggleLearning(on: boolean) {
+    setLearningOn(on);
+    saveSetting("learning", on);
+    engine.setLearning(on);
+    showReadings(predictionsOn && Boolean(preedit));
+  }
+
+  /** Applies a training file: its weights as hand-set sliders, its words (kept in this browser),
+   * and its examples to the learner (which only counts while learning is on, so it's turned on). */
+  function applyTraining(file: unknown) {
+    const problems = check(file);
+    if (problems.length) {
+      setTraining({ problems });
+      return;
+    }
+    const f = file as TrainingFile;
+    let next = { ...weights };
+    for (const [name, value] of Object.entries(f.weights ?? {}) as [WeightName, number][]) {
+      next = { ...next, [name]: value };
+      engine.setWeight(name, value);
+    }
+    setWeights(next);
+    try {
+      localStorage.setItem("jis-korean:weights", JSON.stringify({ ...storedWeights(), ...(f.weights ?? {}) }));
+    } catch {
+      // Not remembered; fine.
+    }
+    const lists = wordLists(f);
+    const count = (f.vocabulary?.korean?.length ?? 0) + (f.vocabulary?.english?.length ?? 0);
+    if (count) {
+      engine.setUserWords(lists.korean, lists.english);
+      saveTrainingWords(lists);
+    }
+    if (f.examples?.length && !learningOn) toggleLearning(true);
+    if (expireLearned()) engine.resetLearner();
+    const examples = learnExamples(engine, f);
+    if (engine.learnerChanged()) saveLearned(engine.exportLearner());
+    setLearned(learnedWeights(engine));
+    setTraining({
+      summary: {
+        source: f.source?.tool ?? "training file",
+        weights: Object.keys(f.weights ?? {}).length,
+        words: count,
+        examples,
+      },
+    });
+    showReadings(predictionsOn && Boolean(preedit));
+  }
+
+  function forgetTrainingWords() {
+    engine.clearUserWords();
+    try {
+      localStorage.removeItem(TRAINING_WORDS_KEY);
+    } catch {
+      // Nothing stored; fine.
+    }
+    setTraining(null);
+    showReadings(predictionsOn && Boolean(preedit));
+  }
+
+  function forgetLearned() {
+    engine.resetLearner();
+    try {
+      localStorage.removeItem(LEARNED_KEY);
+    } catch {
+      // Nothing stored; fine.
+    }
+    setLearned(learnedWeights(engine));
+    showReadings(predictionsOn && Boolean(preedit));
   }
 
   function onKeyUp(e: ReactKeyboardEvent) {
@@ -252,7 +404,19 @@ export function App({ engine }: { engine: Engine }) {
           {preedit && <span className="preedit">{preedit}</span>}
           {focused && <span ref={caret} className="caret" aria-hidden="true" />}
           {candidates && <CandidateList candidates={candidates} pageSize={engine.pageSize} onPick={onScreenKey} />}
-          {!candidates && readings.length > 0 && <PredictionList readings={readings} onPick={(i) => pick(i)} />}
+          {!candidates && readings.length > 0 && (
+            <PredictionList
+              readings={readings}
+              label={ranking === "side-by-side" ? "Rules" : undefined}
+              onPick={(i) => pick(i)}
+            />
+          )}
+          {!candidates && travelReadings.length > 0 && (
+            <PredictionList readings={travelReadings} label="Travel" onPick={(i) => pick(i, "", "travel")} />
+          )}
+          {!candidates && routeReadings.length > 0 && (
+            <PredictionList readings={routeReadings} label="Route" onPick={(i) => pick(i, "", "route")} />
+          )}
           {rest && <span className="placeholder">{rest}</span>}
         </div>
         <div className="controls">
@@ -288,7 +452,22 @@ export function App({ engine }: { engine: Engine }) {
             Clear
           </button>
         </div>
-        {predictionsOn && <Tuning weights={weights} onChange={setWeight} />}
+        {predictionsOn && (
+          <Tuning
+            weights={weights}
+            onChange={setWeight}
+            onReset={resetWeights}
+            ranking={ranking}
+            onRanking={changeRanking}
+            learningOn={learningOn}
+            onLearning={toggleLearning}
+            learned={learned}
+            onForget={forgetLearned}
+            training={training}
+            onTraining={applyTraining}
+            onForgetTraining={forgetTrainingWords}
+          />
+        )}
       </section>
 
       <Keyboard
@@ -314,6 +493,20 @@ export function App({ engine }: { engine: Engine }) {
           <div>
             <dt>6–0</dt>
             <dd>ㅟ ㅝ ㅚ ㅢ ㅘ. ㅗ then ㅏ still makes ㅘ. Shift types the digit.</dd>
+          </div>
+          <div>
+            <dt>Easy words</dt>
+            <dd>
+              {EASY_WORDS.map(([keys, word], i) => (
+                <span key={keys}>
+                  {i > 0 && " · "}
+                  <span className="easy-word">
+                    <code>{keys}</code> {word}
+                  </span>
+                </span>
+              ))}
+              . <a href={`${REPO}/blob/main/docs/easy-words.md`}>More</a>
+            </dd>
           </div>
           <div>
             <dt>Lone vowel</dt>
@@ -476,12 +669,14 @@ const KIND_LABELS: Record<PredictionKind, string> = {
   hanja: "漢",
   bare: "ㅏ",
   mixed: "En+한",
+  "implied-l": "ㄹ",
 };
 
 /** The predictive layer's ranked readings of the staged text, top one first. */
-function PredictionList({ readings, onPick }: { readings: Prediction[]; onPick(index: number): void }) {
+function PredictionList({ readings, label, onPick }: { readings: Prediction[]; label?: string; onPick(index: number): void }) {
   return (
-    <span className="predictions" role="listbox" aria-label="Predictions">
+    <span className="predictions" role="listbox" aria-label={label ? `Predictions (${label})` : "Predictions"}>
+      {label && <span className="ranker-label">{label}</span>}
       {readings.map((r, i) => (
         <span
           key={r.kind + r.text}
@@ -497,7 +692,7 @@ function PredictionList({ readings, onPick }: { readings: Prediction[]; onPick(i
           {r.text}
         </span>
       ))}
-      <span className="prediction-hint">Space</span>
+      {(!label || label === "Rules") && <span className="prediction-hint">Space</span>}
     </span>
   );
 }
@@ -527,19 +722,151 @@ const WEIGHT_LABELS: Record<WeightName, string> = {
   "two-set": "Plain 2-set",
   "keep-finals": "Finals kept",
   hanja: "Hanja",
+  "implied-l": "Implied ㄹ after ㄴ",
 };
 
-function loadWeights(): Record<WeightName, number> {
-  const defaults = Object.fromEntries(WEIGHTS.map((w) => [w, 1])) as Record<WeightName, number>;
+/** Scenarios a slider can turn off (at 0); the rest go down to 0.5. */
+const CAN_TURN_OFF: WeightName[] = ["implied-l"];
+
+/** Which ranker orders the implied-ㅇ alternatives, or both lists side by side. */
+type Ranking = "rules" | "travel" | "route" | "side-by-side";
+
+const RANKINGS: { value: Ranking; label: string }[] = [
+  { value: "rules", label: "Rules" },
+  { value: "travel", label: "Travel (experimental)" },
+  { value: "route", label: "Route preference (experimental)" },
+  { value: "side-by-side", label: "Side by side" },
+];
+
+function loadRanking(): Ranking {
   try {
-    return { ...defaults, ...JSON.parse(localStorage.getItem("jis-korean:weights") ?? "{}") };
+    const value = localStorage.getItem("jis-korean:ranking");
+    return RANKINGS.some((r) => r.value === value) ? (value as Ranking) : "rules";
   } catch {
-    return defaults;
+    return "rules";
   }
 }
 
+function unlearned(): Record<WeightName, number> {
+  return Object.fromEntries(WEIGHTS.map((w) => [w, 1])) as Record<WeightName, number>;
+}
+
+/** The weights the user set by hand (only those). */
+function storedWeights(): Partial<Record<WeightName, number>> {
+  try {
+    const stored = JSON.parse(localStorage.getItem("jis-korean:weights") ?? "{}");
+    return Object.fromEntries(Object.entries(stored).filter(([k, v]) => (WEIGHTS as readonly string[]).includes(k) && typeof v === "number"));
+  } catch {
+    return {};
+  }
+}
+
+function loadWeights(reset = false): Record<WeightName, number> {
+  return reset ? unlearned() : { ...unlearned(), ...storedWeights() };
+}
+
+function learnedWeights(engine: Engine): Record<WeightName, number> {
+  return Object.fromEntries(WEIGHTS.map((w) => [w, engine.learnedWeight(w)])) as Record<WeightName, number>;
+}
+
+// The words from a training file, kept in this browser until forgotten.
+const TRAINING_WORDS_KEY = "jis-korean:training-words";
+
+function loadTrainingWords(): { korean: string; english: string } | null {
+  try {
+    const saved = JSON.parse(localStorage.getItem(TRAINING_WORDS_KEY) ?? "null");
+    return saved && typeof saved.korean === "string" && typeof saved.english === "string" ? saved : null;
+  } catch {
+    return null;
+  }
+}
+
+function saveTrainingWords(words: { korean: string; english: string }) {
+  try {
+    localStorage.setItem(TRAINING_WORDS_KEY, JSON.stringify(words));
+  } catch {
+    // Not remembered; they apply for this page only.
+  }
+}
+
+// What was learned, with when learning started: forgotten 24 hours after that, session or not.
+const LEARNED_KEY = "jis-korean:learned";
+const LEARNED_FOR_MS = 24 * 60 * 60 * 1000;
+
+function loadLearned(): { created: number; state: string } | null {
+  try {
+    const saved = JSON.parse(localStorage.getItem(LEARNED_KEY) ?? "null");
+    if (!saved || typeof saved.created !== "number" || typeof saved.state !== "string") return null;
+    if (Date.now() - saved.created >= LEARNED_FOR_MS) {
+      localStorage.removeItem(LEARNED_KEY);
+      return null;
+    }
+    return saved;
+  } catch {
+    return null;
+  }
+}
+
+/** Stores what was learned; the 24-hour window starts with the first store. Callers expire first. */
+function saveLearned(state: string) {
+  try {
+    const created = loadLearned()?.created ?? Date.now();
+    localStorage.setItem(LEARNED_KEY, JSON.stringify({ created, state }));
+  } catch {
+    // Not remembered; it lives for this page only.
+  }
+}
+
+/** Forgets what was learned once it's 24 hours old. True if it did. */
+function expireLearned(): boolean {
+  try {
+    const saved = JSON.parse(localStorage.getItem(LEARNED_KEY) ?? "null");
+    if (saved && typeof saved.created === "number" && Date.now() - saved.created >= LEARNED_FOR_MS) {
+      localStorage.removeItem(LEARNED_KEY);
+      return true;
+    }
+  } catch {
+    // Storage unreadable: nothing to expire.
+  }
+  return false;
+}
+
 /** Per-scenario multipliers on the predictor's learned probabilities (spec §10.5). */
-function Tuning({ weights, onChange }: { weights: Record<WeightName, number>; onChange(name: WeightName, value: number): void }) {
+function Tuning({
+  weights,
+  onChange,
+  onReset,
+  ranking,
+  onRanking,
+  learningOn,
+  onLearning,
+  learned,
+  onForget,
+  training,
+  onTraining,
+  onForgetTraining,
+}: {
+  weights: Record<WeightName, number>;
+  onChange(name: WeightName, value: number): void;
+  onReset(): void;
+  ranking: Ranking;
+  onRanking(mode: Ranking): void;
+  learningOn: boolean;
+  onLearning(on: boolean): void;
+  learned: Record<WeightName, number>;
+  onForget(): void;
+  training: { summary?: TrainingSummary; problems?: string[] } | null;
+  onTraining(file: unknown): void;
+  onForgetTraining(): void;
+}) {
+  const [over, setOver] = useState(false);
+  const read = (file: File | undefined) => {
+    if (!file) return;
+    file
+      .text()
+      .then((text) => onTraining(JSON.parse(text)))
+      .catch(() => onTraining(null));
+  };
   return (
     <details className="tuning">
       <summary>Tune predictions</summary>
@@ -553,19 +880,85 @@ function Tuning({ weights, onChange }: { weights: Record<WeightName, number>; on
             <span>{WEIGHT_LABELS[name]}</span>
             <input
               type="range"
-              min={0.5}
+              min={CAN_TURN_OFF.includes(name) ? 0 : 0.5}
               max={2}
               step={0.05}
               value={weights[name]}
               onChange={(e) => onChange(name, Number(e.target.value))}
             />
-            <output>{weights[name].toFixed(2)}×</output>
+            <output>{weights[name] === 0 ? "off" : `${weights[name].toFixed(2)}×`}</output>
+            {learningOn && <small className="learned" title="Learned from your choices">learned {learned[name].toFixed(2)}×</small>}
           </label>
         ))}
       </div>
-      <button type="button" className="reset" onClick={() => WEIGHTS.forEach((w) => onChange(w, 1))}>
+      <button type="button" className="reset" onClick={onReset}>
         Reset
       </button>
+      <fieldset className="ranking">
+        <legend>Learning</legend>
+        <label>
+          <input type="checkbox" checked={learningOn} onChange={(e) => onLearning(e.target.checked)} />
+          Learn from my choices (this browser only, forgotten after 24 hours)
+        </label>
+        <button type="button" className="reset" onClick={onForget}>
+          Forget what it learned
+        </button>
+        <p className="counts-note">
+          Counts which kinds of prediction you pick over the top one, nothing else: no text, no keys. It nudges each
+          weight within 0.5–2×; a slider you moved wins over it. Hanja never come first.
+        </p>
+      </fieldset>
+      <fieldset className="ranking">
+        <legend>Training file</legend>
+        <label
+          className={"drop" + (over ? " over" : "")}
+          onDragOver={(e) => {
+            e.preventDefault();
+            setOver(true);
+          }}
+          onDragLeave={() => setOver(false)}
+          onDrop={(e) => {
+            e.preventDefault();
+            setOver(false);
+            read(e.dataTransfer.files[0]);
+          }}
+        >
+          <input type="file" accept=".json,application/json" hidden onChange={(e) => read(e.target.files?.[0])} />
+          Drop a training file (.json) here, or click to choose one.
+        </label>
+        {training?.problems && <p className="counts-note">Not applied: {training.problems.join("; ")}.</p>}
+        {training?.summary && (
+          <p className="counts-note">
+            From {training.summary.source}: {training.summary.weights} sliders set, {training.summary.words} words added
+            {training.summary.examples.top + training.summary.examples.listed + training.summary.examples.missed.length > 0 &&
+              `, examples learned (${training.summary.examples.top} already on top, ${training.summary.examples.listed} listed lower` +
+                (training.summary.examples.missed.length ? `, not offered: ${training.summary.examples.missed.slice(0, 8).join(" ")}` : "") +
+                ")"}
+            .
+          </p>
+        )}
+        <button type="button" className="reset" onClick={onForgetTraining}>
+          Forget training words
+        </button>
+        <p className="counts-note">
+          The format is in <a href={`${REPO}/blob/main/docs/training-contract.md`}>docs/training-contract.md</a>: hand it to
+          your AI agent with your own data. Read here, in this browser; nothing is uploaded.
+        </p>
+      </fieldset>
+      <fieldset className="ranking">
+        <legend>Implied ㅇ ranking</legend>
+        {RANKINGS.map((r) => (
+          <label key={r.value}>
+            <input type="radio" name="ranking" checked={ranking === r.value} onChange={() => onRanking(r.value)} />
+            {r.label}
+          </label>
+        ))}
+        <p className="counts-note">
+          Travel ranks ㅠㅠ against 유유 and 말이 against 마리 by the keys and finger travel a typist who meant them would
+          have skipped. Route preference asks how strongly a typist who meant each reading would prefer the route the keys
+          took over typing each jamo. Side by side shows all three lists; click any to commit.
+        </p>
+      </fieldset>
     </details>
   );
 }

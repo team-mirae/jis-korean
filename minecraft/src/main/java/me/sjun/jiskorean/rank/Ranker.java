@@ -173,7 +173,9 @@ public final class Ranker {
 			for (String line; (line = reader.readLine()) != null; ) {
 				line = line.strip();
 				if (!line.isEmpty() && !line.startsWith("#")) {
-					words.add(line);
+					// Generated entries are "word<TAB>count"; the mod only needs the word.
+					int tab = line.indexOf('\t');
+					words.add(tab < 0 ? line : line.substring(0, tab));
 				}
 			}
 		}

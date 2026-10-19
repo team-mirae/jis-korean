@@ -4,7 +4,9 @@ use std::sync::Arc;
 
 use crate::hangul::{self, Composer, Options};
 #[cfg(feature = "predict")]
-use crate::predict::{Context, Language, Prediction, Predictor, Readings, Split, Weight, Weights};
+use crate::learn::{self, Event, Learner};
+#[cfg(feature = "predict")]
+use crate::predict::{Context, Language, Piece, Prediction, Predictor, Ranker, Readings, Split, Weight, Weights};
 use crate::hanja::{Candidate, Dictionary};
 use crate::key::{Key, Mods};
 use crate::layout::{self, Layout, Out};
@@ -92,6 +94,23 @@ pub struct Engine {
     /// The user's tuning of the predictions.
     #[cfg(feature = "predict")]
     weights: Weights,
+    /// How the implied-ㅇ alternatives are ranked (spec §10.7).
+    #[cfg(feature = "predict")]
+    ranker: Ranker,
+    /// Learning from the user's choices (spec §10.11): off unless the host turns it on.
+    #[cfg(feature = "predict")]
+    learner: Learner,
+    #[cfg(feature = "predict")]
+    learning: bool,
+    /// Scenarios the user set by hand: their weight wins over the learned one.
+    #[cfg(feature = "predict")]
+    manual: [bool; Weight::ALL.len()],
+    /// The scenario of a top prediction just accepted, for a Backspace right after (regret).
+    #[cfg(feature = "predict")]
+    accepted: Option<Weight>,
+    /// The learner changed since the host last exported it.
+    #[cfg(feature = "predict")]
+    learned_changed: bool,
 }
 
 impl Default for Engine {
@@ -115,6 +134,18 @@ impl Engine {
             previous: None,
             #[cfg(feature = "predict")]
             weights: Weights::default(),
+            #[cfg(feature = "predict")]
+            ranker: Ranker::default(),
+            #[cfg(feature = "predict")]
+            learner: Learner::default(),
+            #[cfg(feature = "predict")]
+            learning: false,
+            #[cfg(feature = "predict")]
+            manual: [false; Weight::ALL.len()],
+            #[cfg(feature = "predict")]
+            accepted: None,
+            #[cfg(feature = "predict")]
+            learned_changed: false,
         }
     }
 
@@ -175,6 +206,14 @@ impl Engine {
     pub fn key(&mut self, key: Key, mods: Mods) -> Output {
         if key == Key::Modifier {
             return self.unchanged(false);
+        }
+        // Backspace right after accepting a top prediction: a weak sign it was wrong.
+        #[cfg(feature = "predict")]
+        if let Some(kind) = self.accepted.take()
+            && key == Key::Backspace
+            && self.segment.is_empty()
+        {
+            self.learn(&Event::Regret(kind));
         }
         // Shift+Z is F10 (spec §6): F10 isn't reachable everywhere (Windows browsers take it for
         // their menu), and Shift adds nothing to ㅋ. Standard 2-set (the F8 escape) keeps it as ㅋ.
@@ -393,9 +432,110 @@ impl Engine {
     }
 
     /// Tunes one scenario of the predictions (spec §10.5): a multiplier on its learned probability.
+    /// Sets a scenario's weight by hand; it then wins over the learned one.
     #[cfg(feature = "predict")]
     pub fn set_prediction_weight(&mut self, which: Weight, value: f64) {
         self.weights.set(which, value);
+        self.manual[which as usize] = true;
+    }
+
+    /// Hands a scenario's weight back to learning (or 1.0 when learning is off).
+    #[cfg(feature = "predict")]
+    pub fn clear_prediction_weight(&mut self, which: Weight) {
+        self.weights.set(which, 1.0);
+        self.manual[which as usize] = false;
+    }
+
+    /// Turns learning from the user's choices on or off (spec §10.11). Off keeps what was learned
+    /// but stops using and adding to it.
+    #[cfg(feature = "predict")]
+    pub fn set_learning(&mut self, on: bool) {
+        self.learning = on;
+        self.accepted = None;
+    }
+
+    #[cfg(feature = "predict")]
+    pub fn learner(&self) -> &Learner {
+        &self.learner
+    }
+
+    /// Whether a predictor is loaded (the full engine with predictions on).
+    #[cfg(feature = "predict")]
+    pub fn predictions_available(&self) -> bool {
+        self.predictor.is_some()
+    }
+
+    /// Learns from one example of what the user meant (spec §10.12, the training contract): types
+    /// `keys` (or, without them, the cheapest keys for `intended`) into a scratch engine with this
+    /// one's predictor and weights, and where `intended` is among the predictions, records that it
+    /// was chosen, as learning does. Returns where it was listed (0 = on top), or None when it
+    /// wasn't (or there's no predictor). Learns even with learning off: the user asked for it.
+    #[cfg(feature = "predict")]
+    pub fn learn_example(&mut self, keys: Option<&[crate::plan::Press]>, intended: &str) -> Option<usize> {
+        let planned;
+        let keys = match keys {
+            Some(keys) => keys,
+            None => {
+                planned = crate::plan::keys_for_word(intended)?;
+                &planned
+            }
+        };
+        let mut scratch = Engine::new();
+        scratch.dictionary = self.dictionary.clone();
+        scratch.predictor = Some(self.predictor.clone()?);
+        scratch.weights = self.weights;
+        scratch.manual = self.manual;
+        scratch.ranker = self.ranker;
+        scratch.learner = self.learner.clone();
+        scratch.learning = true;
+        for press in keys {
+            scratch.key(press.key, if press.shift { Mods::SHIFTED } else { Mods::NONE });
+        }
+        let at = scratch.predictions().iter().position(|p| p.text == intended)?;
+        scratch.commit_prediction(at);
+        self.learner = scratch.learner;
+        self.learned_changed = true;
+        Some(at)
+    }
+
+    /// Replaces what was learned (from the host's storage, or a reset with the default).
+    #[cfg(feature = "predict")]
+    pub fn set_learner(&mut self, learner: Learner) {
+        self.learner = learner;
+        self.learned_changed = false;
+    }
+
+    /// Whether the learner changed since the last call (the host then stores it).
+    #[cfg(feature = "predict")]
+    pub fn take_learned_changed(&mut self) -> bool {
+        std::mem::take(&mut self.learned_changed)
+    }
+
+    #[cfg(feature = "predict")]
+    fn learn(&mut self, event: &Event) {
+        if self.learning {
+            self.learner = self.learner.after(event);
+            self.learned_changed = true;
+        }
+    }
+
+    /// The weights the predictor uses: the user's where set by hand, else the learned ones while
+    /// learning is on, else 1.0.
+    #[cfg(feature = "predict")]
+    pub fn effective_weights(&self) -> Weights {
+        let mut weights = self.weights;
+        for which in Weight::ALL {
+            if !self.manual[which as usize] && self.learning {
+                weights.set(which, self.learner.weight(which));
+            }
+        }
+        weights
+    }
+
+    /// Chooses how the implied-ㅇ alternatives are ranked (spec §10.7).
+    #[cfg(feature = "predict")]
+    pub fn set_ranker(&mut self, ranker: Ranker) {
+        self.ranker = ranker;
     }
 
     #[cfg(feature = "predict")]
@@ -412,10 +552,31 @@ impl Engine {
         top.text == preview.preedit()
     }
 
-    /// The readings of the staged text (spec §10).
+    /// The readings of the staged text (spec §10), with its pieces between punctuation when there's
+    /// any (Research(이하 is Research, then 이하).
     #[cfg(feature = "predict")]
     pub fn readings(&self) -> Readings {
-        let korean = compose(&self.segment);
+        let mut readings = self.readings_of(&self.segment);
+        let mut start = 0;
+        let mut pieces = Vec::new();
+        for (i, token) in self.segment.iter().enumerate() {
+            if let Token::Typed(c, _) = *token
+                && is_separator(c)
+            {
+                pieces.push(Piece { readings: self.readings_of(&self.segment[start..i]), separator: c.to_string() });
+                start = i + 1;
+            }
+        }
+        if !pieces.is_empty() {
+            pieces.push(Piece { readings: self.readings_of(&self.segment[start..]), separator: String::new() });
+            readings.pieces = pieces;
+        }
+        readings
+    }
+
+    #[cfg(feature = "predict")]
+    fn readings_of(&self, segment: &[Token]) -> Readings {
+        let korean = compose(segment);
         let hanja = self.dictionary.as_ref().and_then(|d| {
             let (reading, candidates) = d.longest_suffix(&korean)?;
             // Lean: only a whole word of two syllables or more.
@@ -423,18 +584,21 @@ impl Engine {
         });
         // Every way to read the keys as an English start plus a Korean ending (report에), ending
         // short: the predictor keeps the ones whose ending is a particle.
-        let splits = (self.segment.len().saturating_sub(MAX_ENDING_KEYS).max(1)..self.segment.len())
-            .map(|k| Split { english: english_of(&self.segment[..k]), korean: compose(&self.segment[k..]) })
+        let splits = (segment.len().saturating_sub(MAX_ENDING_KEYS).max(1)..segment.len())
+            .map(|k| Split { english: typed_of(&segment[..k]), korean: compose(&segment[k..]) })
             .collect();
         Readings {
-            english: self.english(),
-            two_set: compose_with(&two_set_tokens(&self.segment), Options { standard: true, ..Options::default() }),
-            keep_finals: compose_with(&self.segment, Options { keep_finals: true, ..Options::default() }),
-            bare: compose_with(&self.segment, Options { no_implied: true, ..Options::default() }),
-            implied: composer_for(&self.segment).implied_count(),
+            english: typed_of(segment),
+            two_set: compose_with(&two_set_tokens(segment), Options { standard: true, ..Options::default() }),
+            keep_finals: compose_with(segment, Options { keep_finals: true, ..Options::default() }),
+            kept: kept_variants(segment),
+            implied_l: implied_l_variants(segment),
+            bare: compose_with(segment, Options { no_implied: true, ..Options::default() }),
+            implied: composer_for(segment).implied_count(),
             splits,
             hanja,
             korean,
+            pieces: Vec::new(),
         }
     }
 
@@ -444,7 +608,7 @@ impl Engine {
         match &self.predictor {
             Some(p) if !self.segment.is_empty() => p.predict(
                 &self.readings(),
-                Context { previous: self.previous, command: false, weights: self.weights },
+                Context { previous: self.previous, command: false, weights: self.effective_weights(), ranker: self.ranker },
                 self.dictionary.as_deref(),
             ),
             _ => Vec::new(),
@@ -454,7 +618,11 @@ impl Engine {
     /// Commits prediction `index` (from [`Engine::predictions`]) instead of the Korean reading.
     #[cfg(feature = "predict")]
     pub fn commit_prediction(&mut self, index: usize) -> Output {
-        let Some(chosen) = self.predictions().into_iter().nth(index) else { return self.unchanged(true) };
+        let shown = self.predictions();
+        let Some(chosen) = shown.get(index).cloned() else { return self.unchanged(true) };
+        let kinds = shown.iter().map(|p| learn::scenario(p.kind)).collect();
+        self.learn(&Event::Chose { shown: kinds, chosen: index });
+        self.accepted = (index == 0 && self.learning).then(|| learn::scenario(chosen.kind));
         self.previous = Some(Language::of(chosen.kind));
         self.take_segment();
         Output { commit: chosen.text, preedit: String::new(), consumed: true, candidates: None, english: String::new() }
@@ -493,6 +661,72 @@ fn english_of(segment: &[Token]) -> String {
             Token::Bare => None,
         })
         .collect()
+}
+
+/// The staged keys composed with one final kept before the vowel after it (산이 for 사니, 어린이
+/// for 어리니), one variant per place the composition moves a final: the vowel there starts its
+/// own syllable on ㅇ, as Shift+vowel types it (spec §4.2, §10.3).
+#[cfg(feature = "predict")]
+fn kept_variants(segment: &[Token]) -> Vec<String> {
+    let moved = compose(segment);
+    let mut out: Vec<String> = Vec::new();
+    for (k, token) in segment.iter().enumerate() {
+        let Token::Jamo { jamo, raw } = *token else { continue };
+        if k == 0 || !hangul::is_medial(jamo) {
+            continue;
+        }
+        let mut variant = segment.to_vec();
+        variant[k] = Token::IeungVowel { jamo, raw };
+        let kept = compose(&variant);
+        if kept != moved && kept.chars().count() == moved.chars().count() && !out.contains(&kept) {
+            out.push(kept);
+        }
+    }
+    out
+}
+
+/// The staged keys composed with an implied ㄹ after a ㄴ final (전력 for 저녁 typed lazily: ㄴ
+/// then ㄹ sounds ㄹㄹ, so the ㄹ is easy to leave out), one variant per place a ㄴ final moved
+/// onto a vowel (spec §10.5).
+#[cfg(feature = "predict")]
+fn implied_l_variants(segment: &[Token]) -> Vec<String> {
+    let moved = compose(segment);
+    let mut out: Vec<String> = Vec::new();
+    for (k, token) in segment.iter().enumerate() {
+        let Token::Jamo { jamo, .. } = *token else { continue };
+        let after_n = k > 0 && matches!(segment[k - 1], Token::Jamo { jamo: 'ㄴ', .. });
+        if !after_n || !hangul::is_medial(jamo) {
+            continue;
+        }
+        let mut variant = segment.to_vec();
+        variant.insert(k, Token::Jamo { jamo: 'ㄹ', raw: None });
+        let text = compose(&variant);
+        if text != moved && text.chars().count() == moved.chars().count() && !out.contains(&text) {
+            out.push(text);
+        }
+    }
+    out
+}
+
+/// The keys read as English for predictions: letters with their case, and non-letter keys as they
+/// typed (a ; typed is ;, where F10 would give the stock JIS key's character).
+#[cfg(feature = "predict")]
+fn typed_of(segment: &[Token]) -> String {
+    segment
+        .iter()
+        .filter_map(|t| match *t {
+            Token::Jamo { jamo, raw } | Token::IeungVowel { jamo, raw } => Some(raw.unwrap_or(jamo)),
+            Token::Text(c) | Token::Typed(c, _) => Some(c),
+            Token::Bare => None,
+        })
+        .collect()
+}
+
+/// Punctuation that separates the pieces of a staged word (spec §10.10): anything typed that isn't
+/// a letter or digit.
+#[cfg(feature = "predict")]
+fn is_separator(c: char) -> bool {
+    !c.is_alphanumeric()
 }
 
 /// The longest Korean ending considered when splitting into English + Korean (에서는 is 6 keys).

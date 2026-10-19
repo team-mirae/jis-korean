@@ -161,6 +161,7 @@ enum {
     JK_PREDICTION_HANJA = 6,
     JK_PREDICTION_BARE_VOWELS = 7,
     JK_PREDICTION_MIXED = 8,
+    JK_PREDICTION_IMPLIED_L = 9, /* an implied ㄹ after a ㄴ final: 전력 for 저녁 */
 };
 JkPredictor *jk_predictor_new(const uint8_t *model, size_t model_len, const uint8_t *english_words,
                               size_t english_len, const uint8_t *korean_words, size_t korean_len,
@@ -173,7 +174,7 @@ size_t jk_prediction_len(JkEngine *engine, size_t index);
 uint32_t jk_prediction_kind(JkEngine *engine, size_t index);
 void jk_commit_prediction(JkEngine *engine, size_t index); /* then read jk_commit_* */
 /* User tuning (spec §10.5): a multiplier on each scenario's learned probability, 1.0 = as learned,
- * clamped to 0.1-10. */
+ * clamped to 0.1-10; 0 turns an alternative off (not Korean or English). */
 enum {
     JK_WEIGHT_KOREAN = 0,
     JK_WEIGHT_ENGLISH = 1,
@@ -182,8 +183,36 @@ enum {
     JK_WEIGHT_TWO_SET = 4,
     JK_WEIGHT_KEEP_FINALS = 5,
     JK_WEIGHT_HANJA = 6,
+    JK_WEIGHT_IMPLIED_L = 7, /* 0 turns it off */
 };
 void jk_set_prediction_weight(JkEngine *engine, uint32_t which, double value);
+/* How the implied-ㅇ alternatives (ㅠㅠ vs 유유, 말이 vs 마리) are ranked (spec §10.7): the rules, or
+ * the effort a typist who meant them skipped (experimental). Unknown ids are ignored. */
+enum {
+    JK_RANKER_RULES = 0,
+    JK_RANKER_TRAVEL = 1,
+    JK_RANKER_ROUTE = 2, /* route preference (spec §10.8, experimental) */
+};
+void jk_set_ranker(JkEngine *engine, uint32_t ranker);
+/* Learning from the user's choices (spec §10.11): opt-in, on the device only. The engine records
+ * choices itself when predictions are committed; the host only stores the export and turns it on.
+ * A weight set with jk_set_prediction_weight wins over the learned one until cleared. */
+void jk_clear_prediction_weight(JkEngine *engine, uint32_t which);
+void jk_set_learning(JkEngine *engine, uint32_t on);
+double jk_learned_weight(JkEngine *engine, uint32_t which); /* 0.5-2, 1.0 = no change */
+uint32_t jk_learner_changed(JkEngine *engine);              /* 1 once after each change */
+size_t jk_learner_export(JkEngine *engine);                 /* then read jk_learner_ptr */
+const uint8_t *jk_learner_ptr(JkEngine *engine);
+uint32_t jk_learner_import(JkEngine *engine, const uint8_t *text, size_t len); /* 1 if taken */
+void jk_learner_reset(JkEngine *engine);
+/* The training contract (docs/training-contract.md, spec §10.12). A predictor with the user's own
+ * words added (lines of `word` or `word<TAB>count`; the base stays as it is): */
+JkPredictor *jk_predictor_with_words(const JkPredictor *base, const uint8_t *korean, size_t korean_len,
+                                     const uint8_t *english, size_t english_len);
+/* Learns from an example: keys as KeyboardEvent.code names, "S-" for Shift (null/empty: the cheapest
+ * keys for the text). Returns its place among the predictions (0 = top), -1 not listed, -2 bad input. */
+int32_t jk_learn_example(JkEngine *engine, const uint8_t *text, size_t text_len, const uint8_t *keys,
+                         size_t keys_len);
 
 /* Memory in the engine's address space, for wasm hosts passing the dictionary in. */
 uint8_t *jk_alloc(size_t len);

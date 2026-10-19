@@ -1,0 +1,7 @@
+안녕하세요.
+
+Yellow Apples Research(이하 「당사」)는 대한민국의 소프트웨어 개발사입니다. 당사는 2026年 10月 19日 현재로서 서울특별시 소재의 부가가치세 일반과세자·계속사업자로 등록되어있으며, 사업자등록번호(Business Registration Number; BRN)는 123-45-67890입니다.
+
+당사에서는 인공지능(Artificial Intelligence; AI)를 흴용한 소프트웨어 개발에 집중하고 있습니다. 특히, 오픈 소스 소프트웨어(Open Source Software)에 기여(contribute)하는 것을 주요 대외활동으로 삼고 있습니다.
+
+내부적으로는, 당사의 업무 효율화 및 각종 SaaS(Software-as-a-Service)에 지출하는 비용을 절감하기 위해 가상사설망(Virtual Private Network; VPN)을 활용한 그룹웨어(Groupware) 개발 등을 통해 내부 데이터를 활용하여 소프트웨어 개발 역량을 개선하고 운영 노하우(knowhow) 및 영업권(Goodwill)의 가치 제고를 도모하고 있습니다.

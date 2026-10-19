@@ -321,10 +321,13 @@ fn real_korean_words_almost_never_rank_as_mixed() {
         words.extend(corpus.split(|c: char| !('가'..='힣').contains(&c)).filter(|w| w.chars().count() >= 2).map(String::from));
     }
     let p = predictor();
+    // With the hanja dictionary, as the apps run.
+    let dictionary = Arc::new(Dictionary::parse(&dict));
     let (mut total, mut mixed, mut english) = (0, Vec::new(), 0);
     for word in &words {
         let Some(keys) = jis_keys(word) else { continue };
         let mut e = Engine::new();
+        e.set_dictionary(dictionary.clone());
         e.set_predictor(Some(p.clone()));
         for (code, shift) in &keys {
             e.key(Key::from_code(code), if *shift { Mods::SHIFTED } else { Mods::NONE });
@@ -339,7 +342,7 @@ fn real_korean_words_almost_never_rank_as_mixed() {
     eprintln!("{english} of {total} Korean words ranked as English ({:.2}%)", english as f64 * 100.0 / total as f64);
     assert!((english as f64 / total as f64) < 0.03, "{english} of {total} Korean words ranked as English");
     let rate = mixed.len() as f64 / total as f64;
-    eprintln!("{} of {total} Korean words ranked as mixed ({:.2}%): {:?}", mixed.len(), rate * 100.0, &mixed[..mixed.len().min(15)]);
+    eprintln!("{} of {total} Korean words ranked as mixed ({:.2}%): {:?}", mixed.len(), rate * 100.0, &mixed[..mixed.len().min(40)]);
     assert!(rate < 0.002, "{:.2}% of Korean words ranked as mixed", rate * 100.0);
 }
 
@@ -361,8 +364,8 @@ fn noun_lemmas_lean_english_more_than_other_forms() {
         e.predictions().into_iter().find(|x| x.kind == Kind::English).map(|x| x.score).unwrap()
     };
     let gain = |keys: &str| english_score(&predictor(), keys) - english_score(&without, keys);
-    // model (a noun lemma) gains; published (a verb form) doesn't.
-    assert!(gain("KeyM KeyO KeyD KeyE KeyL") > 1.0, "noun gain {}", gain("KeyM KeyO KeyD KeyE KeyL"));
+    // walrus (a noun lemma in no word list) gains; published (a verb form) doesn't.
+    assert!(gain("KeyW KeyA KeyL KeyR KeyU KeyS") > 1.0, "noun gain {}", gain("KeyW KeyA KeyL KeyR KeyU KeyS"));
     assert_eq!(gain("KeyP KeyU KeyB KeyL KeyI KeyS KeyH KeyE KeyD"), 0.0);
 }
 
@@ -386,4 +389,167 @@ fn a_lone_vowel_key_is_its_implied_syllable_not_a_letter() {
     for (key, syllable) in [("KeyH", "오"), ("KeyU", "여"), ("KeyO", "애"), ("KeyI", "야"), ("KeyN", "우"), ("KeyM", "으"), ("KeyB", "유")] {
         assert_eq!(top(key), (syllable.into(), Kind::Korean), "{key}");
     }
+}
+
+// The travel ranker (spec §10.7, experimental)
+
+fn top_by(ranker: jis_korean::predict::Ranker, keys: &str) -> String {
+    let mut e = typed(keys);
+    e.set_ranker(ranker);
+    e.predictions()[0].text.clone()
+}
+
+#[test]
+fn travel_ranker_keeps_chat_vowels_and_real_words() {
+    use jis_korean::predict::{Effort, Ranker};
+    let travel = Ranker::Travel(Effort::default());
+    // ㅠㅠ is a chat word either way; 아이 stays a word.
+    assert_eq!(top_by(travel, "KeyB KeyB"), "ㅠㅠ");
+    assert_eq!(top_by(travel, "KeyK KeyL"), "아이");
+    // A run of a vowel chat doesn't double as jamo stays syllables, for both.
+    assert_eq!(top_by(Ranker::Rules, "KeyH KeyH KeyQ KeyO KeyR KeyS KeyU KeyS"), "오오백년");
+    assert_eq!(top_by(travel, "KeyH KeyH KeyQ KeyO KeyR KeyS KeyU KeyS"), "오오백년");
+    // ㅠㅠ is the chat word, by the lexicon's counts, for the rules too.
+    assert_eq!(top_by(Ranker::Rules, "KeyB KeyB KeyB"), "ㅠㅠㅠ");
+}
+
+// The route-preference ranker (spec §10.8, experimental)
+
+#[test]
+fn route_ranker_keeps_words_chat_runs_and_typed_readings() {
+    use jis_korean::predict::{Preference, Ranker};
+    let route = Ranker::Route(Preference::default());
+    // A run of one vowel is a chat word; 아이 and 오오백년 are words; jamo-only mixes aren't.
+    assert_eq!(top_by(route, "KeyB KeyB"), "ㅠㅠ");
+    assert_eq!(top_by(route, "KeyK KeyL"), "아이");
+    assert_eq!(top_by(route, "KeyH KeyH KeyQ KeyO KeyR KeyS KeyU KeyS"), "오오백년");
+    assert_eq!(top_by(route, "KeyJ KeyK KeyQ"), "어압");
+    // 데이터의 typed with ㅡ ㅣ, not the dedicated ㅢ key, is still 데이터의.
+    assert_eq!(top_by(route, "KeyE KeyP KeyL KeyX KeyJ KeyM KeyL"), "데이터의");
+}
+
+// Suboptimal routes (spec §10.10): every valid way to type a word gets it, as typed and on top
+
+#[test]
+fn every_route_the_owner_named_types_the_word_on_top() {
+    let routes: [(&str, &[&str]); 2] = [
+        ("의", &["Digit9", "KeyD Digit9", "KeyD KeyM KeyL"]),
+        ("당신이", &["KeyE KeyK KeyD KeyT KeyL KeyS S-KeyL", "KeyE KeyK KeyD KeyT KeyL KeyS KeyL KeyL", "KeyE KeyK KeyD KeyT KeyL KeyS KeyD KeyL"]),
+    ];
+    for (word, ways) in routes {
+        for keys in ways {
+            let e = typed(keys);
+            assert_eq!(e.preedit(), word, "{keys}");
+            assert_eq!(e.predictions()[0].text, word, "{keys}: {:?}", e.predictions());
+        }
+    }
+}
+
+#[test]
+fn a_word_started_with_shift_vowel_is_korean_and_names_stay_english() {
+    // 있습니다 with Shift on ㅣ (and ㅆ by Shift): Korean, not LTtmqslek.
+    assert_eq!(top("S-KeyL S-KeyT KeyT KeyM KeyQ KeyS KeyL KeyE KeyK"), ("있습니다".into(), Kind::Korean));
+    // A known English word with the same kind of capital stays English for sure.
+    assert_eq!(top("S-KeyH KeyE KeyL KeyL KeyO").1, Kind::English);
+    // An acronym before a particle is still English + particle.
+    assert_eq!(top("S-KeyK S-KeyP S-KeyI Digit0"), ("KPI와".into(), Kind::Mixed));
+}
+
+#[test]
+fn the_web_demos_easy_words_type_their_word_on_top() {
+    // web/src/App.tsx EASY_WORDS (from docs/easy-words.md).
+    for (keys, word) in [("98", "의외"), ("09", "와의"), ("a7", "뭐"), ("3h", "또"), ("h1k", "오빠"), ("98fh", "의외로"), ("k4k7", "아까워"), ("l3k6", "이따위")] {
+        let codes: Vec<String> = keys.chars().map(|c| if c.is_ascii_digit() { format!("Digit{c}") } else { format!("Key{}", c.to_ascii_uppercase()) }).collect();
+        let e = typed(&codes.join(" "));
+        assert_eq!(e.preedit(), word, "{keys}");
+        assert_eq!(e.predictions()[0].text, word, "{keys}: {:?}", e.predictions());
+    }
+}
+
+// Keeping a final before an implied ㅇ (spec §10.3; 한글 맞춤법 제14·15·19·22항): typed the lazy way
+// (no double press, no ㅇ), the right spelling comes first; where both spellings are words, both
+// are offered.
+
+/// The keys for a word typed lazily: an ㅇ-initial syllable after a final gets no key of its own.
+fn lazy_keys(word: &str) -> String {
+    const I: [&str; 19] = ["KeyR", "S-KeyR", "KeyS", "KeyE", "S-KeyE", "KeyF", "KeyA", "KeyQ", "S-KeyQ", "KeyT", "S-KeyT", "KeyD", "KeyW", "S-KeyW", "KeyC", "KeyZ", "KeyX", "KeyV", "KeyG"];
+    const M: [&str; 21] = ["KeyK", "KeyO", "KeyI", "S-KeyO", "KeyJ", "KeyP", "KeyU", "S-KeyP", "KeyH", "KeyH KeyK", "KeyH KeyO", "KeyH KeyL", "KeyY", "KeyN", "KeyN KeyJ", "KeyN KeyP", "KeyN KeyL", "KeyB", "KeyM", "KeyM KeyL", "KeyL"];
+    const F: [&str; 28] = ["", "KeyR", "S-KeyR", "KeyR KeyT", "KeyS", "KeyS KeyW", "KeyS KeyG", "KeyE", "KeyF", "KeyF KeyR", "KeyF KeyA", "KeyF KeyQ", "KeyF KeyT", "KeyF KeyX", "KeyF KeyV", "KeyF KeyG", "KeyA", "KeyQ", "KeyQ KeyT", "KeyT", "S-KeyT", "KeyD", "KeyW", "KeyC", "KeyZ", "KeyX", "KeyV", "KeyG"];
+    let mut keys = Vec::new();
+    let mut prev_final = false;
+    for ch in word.chars() {
+        let n = ch as usize - 0xAC00;
+        let (i, m, f) = (n / 588, n % 588 / 28, n % 28);
+        if !(i == 11 && (prev_final || keys.is_empty())) {
+            keys.push(I[i]);
+        }
+        keys.push(M[m]);
+        if f > 0 {
+            keys.push(F[f]);
+        }
+        prev_final = f > 0;
+    }
+    keys.into_iter().filter(|k| !k.is_empty()).collect::<Vec<_>>().join(" ")
+}
+
+#[test]
+fn kept_and_moved_finals_follow_the_spelling_rules() {
+    let p = predictor();
+    let dict = Arc::new(Dictionary::parse(&std::fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/dict/hanja.tsv")).unwrap()));
+    let ranked = |word: &str| {
+        let mut e = Engine::new();
+        e.set_dictionary(dict.clone());
+        e.set_predictor(Some(p.clone()));
+        for token in lazy_keys(word).split(' ') {
+            let (mods, code) = token.strip_prefix("S-").map_or((Mods::NONE, token), |c| (Mods::SHIFTED, c));
+            e.key(Key::from_code(code), mods);
+        }
+        e.predictions().into_iter().map(|x| x.text).collect::<Vec<_>>()
+    };
+    // One right spelling: it comes first.
+    let first = [
+        "당신이", "기준입니다", "드리겠습니다", "지난주", "괜찮더라", "사람", "먹어", "웃음", "무덤", "마개", "마중", "걸어",
+        "많이", "좋은", "앉아", "값이", "드러나다", "깍두기", "바깥", "지붕", "바둑이", "할아버지", "일요일", "국어",
+        // A ㅇ final before a particle that only follows consonants (the owner's 소비량은).
+        "소비량은", "생산량을", "공간을", "방법으로", "사용량이", "아이",
+    ];
+    let mut misses = Vec::new();
+    for word in first {
+        let list = ranked(word);
+        if list.first().map(String::as_str) != Some(word) {
+            misses.push(format!("{word}: {list:?}"));
+        }
+    }
+    // Both spellings are words: both offered.
+    let pairs = [("산이", "사니"), ("말이", "마리"), ("길이", "기리"), ("너머", "넘어"), ("어린이", "어리니"), ("놀이", "노리"), ("얼음", "어름")];
+    for (kept, moved) in pairs {
+        let list = ranked(kept);
+        if !(list.contains(&kept.to_string()) && list.contains(&moved.to_string())) {
+            misses.push(format!("{kept}/{moved}: {list:?}"));
+        }
+    }
+    eprintln!("{} of {} edge cases miss:\n  {}", misses.len(), first.len() + pairs.len(), misses.join("\n  "));
+    // The bar: about 1 in 10 needing a manual pick.
+    assert!(misses.len() * 10 <= first.len() + pairs.len(), "{misses:#?}");
+}
+
+// An implied ㄹ after a ㄴ final (spec §10.5): 전력 typed lazily as 저녁's keys
+
+#[test]
+fn an_implied_l_after_n_is_offered_and_its_weight_0_turns_it_off() {
+    use jis_korean::predict::Weight;
+    let keys = "KeyW KeyJ KeyS KeyU KeyR"; // ㅈ ㅓ ㄴ ㅕ ㄱ: 저녁 as composed
+    let p = typed(keys).predictions();
+    assert_eq!(p[0].text, "저녁", "{p:?}");
+    assert!(p.iter().any(|x| x.text == "전력" && x.kind == Kind::ImpliedL), "{p:?}");
+    // Weight 0: gone entirely.
+    let mut e = typed(keys);
+    e.set_prediction_weight(Weight::ImpliedL, 0.0);
+    assert!(e.predictions().iter().all(|x| x.kind != Kind::ImpliedL), "{:?}", e.predictions());
+    // Korean and English can't be turned off: 0 is clamped up.
+    let mut e = typed(keys);
+    e.set_prediction_weight(Weight::Korean, 0.0);
+    assert_eq!(e.effective_weights().get(Weight::Korean), jis_korean::predict::Weights::MIN);
+    // Only after a ㄴ final: 사람 has none to offer.
+    assert!(typed("KeyT KeyK KeyF KeyK KeyA").predictions().iter().all(|x| x.kind != Kind::ImpliedL));
 }

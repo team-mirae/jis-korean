@@ -1,0 +1,33 @@
+{
+  "format": "jis-korean-training",
+  "version": 1,
+  "source": {
+    "tool": "hand-written example",
+    "created": "2026-10-19",
+    "description": "The shape of a training file; words from a style corpus about AI infrastructure."
+  },
+  "weights": { "english": 0.8, "implied-l": 0 },
+  "vocabulary": {
+    "korean": [
+      { "word": "데이터센터", "confidence": "confirmed" },
+      { "word": "상향조정", "confidence": "tentative" },
+      { "word": "토큰량", "confidence": "tentative" },
+      { "word": "바둑", "count": 50 }
+    ],
+    "english": [{ "word": "paradox", "count": 20 }]
+  },
+  "examples": [
+    { "text": "기준입니다" },
+    { "text": "산이", "keys": "KeyT KeyK KeyS KeyL", "count": 2, "note": "typed lazily, no double press" },
+    { "text": "GPU랙" },
+    { "text": "paradox에" }
+  ],
+  "typos": [
+    { "intended": "질문", "typed": "질분", "class": "Q", "count": 1 },
+    { "intended": "이른", "typed": "일은", "class": "K9", "count": 1, "note": "kept-final reading committed" }
+  ],
+  "preferences": [
+    { "id": "implied-l", "question": "When you type the keys of 저녁, should 전력 also be offered?", "answer": "no", "weights": { "implied-l": 0 } },
+    { "id": "english", "question": "Prediction sometimes picks English wrongly for you; lean Korean?", "answer": "yes", "weights": { "english": 0.8 } }
+  ]
+}

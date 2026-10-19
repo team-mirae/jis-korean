@@ -1,0 +1,84 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/team-mirae/jis-korean/blob/main/docs/training-contract.schema.json",
+  "title": "JIS Korean training file",
+  "description": "Tunes JIS Korean's predictions to one person. See docs/training-contract.md.",
+  "type": "object",
+  "required": ["format", "version"],
+  "properties": {
+    "format": { "const": "jis-korean-training" },
+    "version": { "const": 1 },
+    "source": {
+      "type": "object",
+      "properties": {
+        "tool": { "type": "string", "maxLength": 200 },
+        "created": { "type": "string", "maxLength": 40 },
+        "description": { "type": "string", "maxLength": 2000 }
+      }
+    },
+    "weights": {
+      "type": "object",
+      "propertyNames": { "enum": ["korean", "english", "implied", "mixed", "two-set", "keep-finals", "hanja", "implied-l"] },
+      "additionalProperties": { "type": "number", "minimum": 0, "maximum": 10 }
+    },
+    "vocabulary": {
+      "type": "object",
+      "properties": {
+        "korean": { "type": "array", "maxItems": 5000, "items": { "$ref": "#/$defs/word", "properties": { "word": { "pattern": "^[가-힣]+$" } } } },
+        "english": { "type": "array", "maxItems": 5000, "items": { "$ref": "#/$defs/word", "properties": { "word": { "pattern": "^[A-Za-z]+$" } } } }
+      }
+    },
+    "examples": {
+      "type": "array",
+      "maxItems": 2000,
+      "items": {
+        "type": "object",
+        "required": ["text"],
+        "properties": {
+          "text": { "type": "string", "minLength": 1, "maxLength": 60, "pattern": "^\\S+$" },
+          "keys": { "type": "string", "maxLength": 600, "pattern": "^((S-)?(Key[A-Z]|Digit[0-9]|Minus|Equal|IntlYen|BracketLeft|BracketRight|Semicolon|Quote|Backslash|Comma|Period|Slash|IntlRo|F6|F7|F8|F9|F10)( |$))+$" },
+          "count": { "type": "integer", "minimum": 1, "maximum": 20 },
+          "note": { "type": "string", "maxLength": 500 }
+        }
+      }
+    },
+    "typos": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["intended", "typed"],
+        "properties": {
+          "intended": { "type": "string" },
+          "typed": { "type": "string" },
+          "class": { "type": "string" },
+          "count": { "type": "integer", "minimum": 1 },
+          "note": { "type": "string" }
+        }
+      }
+    },
+    "preferences": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id", "answer"],
+        "properties": {
+          "id": { "type": "string" },
+          "question": { "type": "string" },
+          "answer": { "type": "string" },
+          "weights": { "type": "object", "additionalProperties": { "type": "number" } }
+        }
+      }
+    }
+  },
+  "$defs": {
+    "word": {
+      "type": "object",
+      "required": ["word"],
+      "properties": {
+        "word": { "type": "string", "minLength": 1, "maxLength": 40 },
+        "count": { "type": "integer", "minimum": 1, "maximum": 1000000 },
+        "confidence": { "enum": ["tentative", "likely", "confirmed"] }
+      }
+    }
+  }
+}

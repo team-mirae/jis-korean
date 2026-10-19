@@ -99,6 +99,8 @@ jar {
 	from("../engine/dict/LICENSE-libhangul-hanja.txt")
 	// …and weights English nouns with Princeton WordNet 3.0.
 	from("../engine/predict/LICENSE-wordnet.txt")
+	// …and on colloquial corpora and business term lists (word counts only).
+	from("../engine/predict/LICENSE-corpora.txt")
 }
 
 // In-game tests: boots the real client, opens chat in a test world and has a robot type through
