@@ -446,7 +446,9 @@ Scores are in bits per key, positive leaning Korean:
    beats 유유).
 4. **Implied ㅇ:** each implied ㅇ is weighed against its bare vowel. It's likely in real words
    (아이, 이거) and unlikely in runs of one vowel (유유 → ㅠㅠ) or in known chat words, which the bare
-   reading then outranks.
+   reading then outranks. When the bare reading is also the plain 2-set one (ㅏㅣ for `kl`), it's
+   one row weighed by both. A single vowel key is its syllable, never a letter: ㅗ alone is 오, not
+   `h`, since a lone lowercase letter is hardly ever an English word.
 5. **English + particle:** the keys split into an English start and a Korean ending that is a known
    particle (에, 에서, 를, 이라는, …). The split counts when the start reads clearly more English than
    the whole keys (0.5 bits per key; a capitalized start such as Anthropic or RLHF always

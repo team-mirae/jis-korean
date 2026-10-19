@@ -252,8 +252,18 @@ impl Predictor {
             out.push(Prediction { text: capitalized(english), kind: Kind::EnglishCapitalized, score: -margin - ALTERNATIVE });
             out.push(Prediction { text: english.to_uppercase(), kind: Kind::EnglishUpper, score: -margin - 2.0 * ALTERNATIVE });
         }
+        // The bare-vowel reading is usually the 2-set one too (ㅏㅣ for k l): then it's one row,
+        // weighed by both, so the implied ㅇ weight moves it either way.
+        let bare = self.bare(readings, margin).map(|mut bare| {
+            // Each implied ㅇ is weight times as likely as its bare vowel.
+            bare.score -= readings.implied as f64 * w.bits(Weight::Implied);
+            if bare.text == readings.two_set {
+                bare.score += w.bits(Weight::TwoSet);
+            }
+            bare
+        });
         for (text, kind) in [(&readings.two_set, Kind::TwoSet), (&readings.keep_finals, Kind::KoreanKeepFinals)] {
-            if text.is_empty() || *text == readings.korean {
+            if text.is_empty() || *text == readings.korean || bare.as_ref().is_some_and(|b| b.text == *text) {
                 continue;
             }
             // An alternative Korean reading that is a known word (ㅠㅠ, 말이) can win.
@@ -268,11 +278,7 @@ impl Predictor {
         for text in hanja_exceptions(&readings.korean, dictionary) {
             out.push(Prediction { text, kind: Kind::Hanja, score: margin + w.bits(Weight::Hanja) });
         }
-        if let Some(mut bare) = self.bare(readings, margin) {
-            // Each implied ㅇ is weight times as likely as its bare vowel.
-            bare.score -= readings.implied as f64 * w.bits(Weight::Implied);
-            out.push(bare);
-        }
+        out.extend(bare);
         if let Some(mut mixed) = self.mixed(readings, -margin) {
             // When the whole keys make good Korean (kanxms is 아무튼), a split is only an
             // alternative to it, never ahead of it.
@@ -350,6 +356,12 @@ impl Predictor {
             Some(Language::Korean) => margin += STICKY,
             Some(Language::English) => margin -= STICKY,
             None => {}
+        }
+        // One vowel key is a syllable on an implied ㅇ (ㅗ → 오), and a lone lowercase letter
+        // is hardly ever an English word: Korean keeps it, or the first key of every word
+        // starting with ㅗ ㅕ ㅐ ㅜ … would show as h u o n.
+        if readings.implied > 0 && english.len() == 1 && english.chars().all(|c| c.is_ascii_lowercase()) {
+            margin = margin.max(ALTERNATIVE);
         }
         // The user's tuning: per-key bits for each language.
         margin + context.weights.bits(Weight::Korean) - context.weights.bits(Weight::English)

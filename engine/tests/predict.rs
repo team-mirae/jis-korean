@@ -365,3 +365,25 @@ fn noun_lemmas_lean_english_more_than_other_forms() {
     assert!(gain("KeyM KeyO KeyD KeyE KeyL") > 1.0, "noun gain {}", gain("KeyM KeyO KeyD KeyE KeyL"));
     assert_eq!(gain("KeyP KeyU KeyB KeyL KeyI KeyS KeyH KeyE KeyD"), 0.0);
 }
+
+#[test]
+fn implied_weight_moves_the_bare_vowel_row_both_ways() {
+    // ㅏㅣ is both the bare-vowel and the 2-set reading: one row, moved by the implied ㅇ weight.
+    let ranked = |weight: f64| {
+        let mut e = typed("KeyK KeyL");
+        e.set_prediction_weight(jis_korean::predict::Weight::Implied, weight);
+        e.predictions().into_iter().map(|p| p.text).collect::<Vec<_>>()
+    };
+    let at = |t: &[String], s: &str| t.iter().position(|x| x == s).unwrap();
+    let (low, high) = (ranked(0.1), ranked(10.0));
+    assert_eq!(low[0], "ㅏㅣ", "{low:?}");
+    assert!(at(&high, "ㅏㅣ") > at(&high, "kl"), "{high:?}");
+    assert_eq!(low.iter().filter(|x| *x == "ㅏㅣ").count(), 1);
+}
+
+#[test]
+fn a_lone_vowel_key_is_its_implied_syllable_not_a_letter() {
+    for (key, syllable) in [("KeyH", "오"), ("KeyU", "여"), ("KeyO", "애"), ("KeyI", "야"), ("KeyN", "우"), ("KeyM", "으"), ("KeyB", "유")] {
+        assert_eq!(top(key), (syllable.into(), Kind::Korean), "{key}");
+    }
+}
