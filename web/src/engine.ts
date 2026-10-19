@@ -29,13 +29,14 @@ interface Exports {
   jk_candidate_len(h: number, i: number): number;
   jk_candidate_comment_ptr(h: number, i: number): number;
   jk_candidate_comment_len(h: number, i: number): number;
-  jk_predictor_new(m: number, ml: number, e: number, el: number, k: number, kl: number): number;
+  jk_predictor_new(m: number, ml: number, e: number, el: number, k: number, kl: number, n: number, nl: number): number;
   jk_set_predictor(h: number, p: number): void;
   jk_predict(h: number): number;
   jk_prediction_ptr(h: number, i: number): number;
   jk_prediction_len(h: number, i: number): number;
   jk_prediction_kind(h: number, i: number): number;
   jk_commit_prediction(h: number, i: number): void;
+  jk_set_prediction_weight(h: number, which: number, value: number): void;
   jk_plan(h: number, ptr: number, len: number): void;
   jk_plan_jis(h: number): number;
   jk_plan_conventional(h: number): number;
@@ -50,8 +51,15 @@ export interface Prediction {
   kind: PredictionKind;
 }
 
-export type PredictionKind = "korean" | "english" | "capitalized" | "upper" | "two-set" | "keep-finals" | "hanja";
-const KINDS: PredictionKind[] = ["korean", "english", "capitalized", "upper", "two-set", "keep-finals", "hanja"];
+export type PredictionKind =
+  | "korean" | "english" | "capitalized" | "upper" | "two-set" | "keep-finals" | "hanja" | "bare" | "mixed";
+const KINDS: PredictionKind[] = [
+  "korean", "english", "capitalized", "upper", "two-set", "keep-finals", "hanja", "bare", "mixed",
+];
+
+/** Scenarios the user can tune (spec §10.5), in C ABI id order. */
+export const WEIGHTS = ["korean", "english", "implied", "mixed", "two-set", "keep-finals", "hanja"] as const;
+export type WeightName = (typeof WEIGHTS)[number];
 
 /** Key presses for a text, both ways (Shift counted; symbols off a layout's legends count 3). */
 export interface Counts {
@@ -157,18 +165,24 @@ export class Engine {
   /** Loads the predictive layer (ranker model and word lists). Turn it on with `setPredictions`. */
   async loadPredictor(base: string): Promise<void> {
     const get = async (file: string) => new Uint8Array(await (await fetch(base + file)).arrayBuffer());
-    const [model, english, korean] = await Promise.all([get("ranker.bin"), get("common-en.txt"), get("common-ko.txt")]);
+    const [model, english, korean, nouns] = await Promise.all([
+      get("ranker.bin"),
+      get("common-en.txt"),
+      get("common-ko.txt"),
+      get("english-nouns.txt"),
+    ]);
     const { x } = this;
     const put = (bytes: Uint8Array) => {
       const ptr = x.jk_alloc(bytes.length);
       new Uint8Array(x.memory.buffer, ptr, bytes.length).set(bytes);
       return ptr;
     };
-    const [m, e, k] = [put(model), put(english), put(korean)];
-    this.predictor = x.jk_predictor_new(m, model.length, e, english.length, k, korean.length);
+    const [m, e, k, n] = [put(model), put(english), put(korean), put(nouns)];
+    this.predictor = x.jk_predictor_new(m, model.length, e, english.length, k, korean.length, n, nouns.length);
     x.jk_dealloc(m, model.length);
     x.jk_dealloc(e, english.length);
     x.jk_dealloc(k, korean.length);
+    x.jk_dealloc(n, nouns.length);
     if (!this.predictor) throw new Error("predictor model is malformed");
   }
 
@@ -186,6 +200,11 @@ export class Engine {
       out.push({ text: this.text(x.jk_prediction_ptr(h, i), x.jk_prediction_len(h, i)), kind: KINDS[x.jk_prediction_kind(h, i)] });
     }
     return out;
+  }
+
+  /** Tunes one scenario: a multiplier on its learned probability (1 = as learned). */
+  setWeight(which: WeightName, value: number): void {
+    this.x.jk_set_prediction_weight(this.handle, WEIGHTS.indexOf(which), value);
   }
 
   /** Commits reading `index` of `predictions()`. */

@@ -1,12 +1,28 @@
 # Builds JISKorean.app (universal arm64 + x86_64) without Xcode: Command Line Tools are enough.
-#   make            build build/JISKorean.app
-#   make install    copy it to ~/Library/Input Methods, register it, and restart it
-#   make dist       build/JISKorean-<version>.zip for a release
+#   make                 build build/full/JISKorean.app (with the predictive layer)
+#   make PREDICT=0       build build/lite/JISKorean.app: the predictive layer stripped out entirely
+#   make install         copy it to ~/Library/Input Methods, register it, and restart it
+#   make dist            build/<variant>/JISKorean-<version>[-lite].zip for a release
+
+# 1: with prediction (engine `predict` feature, spec §10). 0: the lean deterministic engine only.
+PREDICT    ?= 1
+ifeq ($(PREDICT),1)
+  VARIANT        := full
+  CARGO_FEATURES :=
+  SWIFT_DEFINES  := -D PREDICT
+  DIST_SUFFIX    :=
+else
+  VARIANT        := lite
+  CARGO_FEATURES := --no-default-features
+  SWIFT_DEFINES  :=
+  DIST_SUFFIX    := -lite
+endif
 
 ENGINE     := ../engine
 HEADER     := $(ENGINE)/include/jis_korean.h
-BUILD      := build
+BUILD      := build/$(VARIANT)
 APP        := $(BUILD)/JISKorean.app
+TARGET_DIR := $(ENGINE)/target/mac-$(VARIANT)
 INSTALL_TO := $(HOME)/Library/Input Methods
 MIN_MACOS  := 13.0
 SOURCES    := $(wildcard Sources/*.swift)
@@ -22,11 +38,11 @@ all: $(APP)
 
 $(BUILD)/libjis_korean.a: $(wildcard $(ENGINE)/src/*.rs) $(ENGINE)/Cargo.toml
 	@mkdir -p $(BUILD)
-	$(CARGO) build --manifest-path $(ENGINE)/Cargo.toml --release --target aarch64-apple-darwin
-	$(CARGO) build --manifest-path $(ENGINE)/Cargo.toml --release --target x86_64-apple-darwin
+	$(CARGO) build --manifest-path $(ENGINE)/Cargo.toml --release $(CARGO_FEATURES) --target-dir $(TARGET_DIR) --target aarch64-apple-darwin
+	$(CARGO) build --manifest-path $(ENGINE)/Cargo.toml --release $(CARGO_FEATURES) --target-dir $(TARGET_DIR) --target x86_64-apple-darwin
 	lipo -create -output $@ \
-		$(ENGINE)/target/aarch64-apple-darwin/release/libjis_korean.a \
-		$(ENGINE)/target/x86_64-apple-darwin/release/libjis_korean.a
+		$(TARGET_DIR)/aarch64-apple-darwin/release/libjis_korean.a \
+		$(TARGET_DIR)/x86_64-apple-darwin/release/libjis_korean.a
 
 engine: $(BUILD)/libjis_korean.a
 
@@ -34,7 +50,7 @@ engine: $(BUILD)/libjis_korean.a
 
 $(BUILD)/%/JISKorean: $(SOURCES) $(HEADER) $(BUILD)/libjis_korean.a
 	@mkdir -p $(dir $@)
-	swiftc -O -swift-version 5 -target $*-apple-macos$(MIN_MACOS) \
+	swiftc -O -swift-version 5 $(SWIFT_DEFINES) -target $*-apple-macos$(MIN_MACOS) \
 		-import-objc-header $(HEADER) \
 		-framework Cocoa -framework InputMethodKit -framework Carbon \
 		$(SOURCES) $(BUILD)/libjis_korean.a -o $@
@@ -51,7 +67,9 @@ $(BUILD)/icon.tiff: tools/make-icon.swift
 
 # --- bundle
 
-DICT := $(ENGINE)/dict
+DICT    := $(ENGINE)/dict
+PREDICT_FILES := $(ENGINE)/predict/ranker.bin $(ENGINE)/predict/common-en.txt $(ENGINE)/predict/common-ko.txt \
+                 $(ENGINE)/predict/english-nouns.txt $(ENGINE)/predict/LICENSE-wordnet.txt
 
 $(APP): $(BUILD)/JISKorean $(BUILD)/icon.tiff Info.plist $(DICT)/hanja.tsv
 	rm -rf $@
@@ -60,6 +78,10 @@ $(APP): $(BUILD)/JISKorean $(BUILD)/icon.tiff Info.plist $(DICT)/hanja.tsv
 	cp $(BUILD)/JISKorean $@/Contents/MacOS/JISKorean
 	cp $(BUILD)/icon.tiff $@/Contents/Resources/icon.tiff
 	cp $(DICT)/hanja.tsv $(DICT)/LICENSE-libhangul-hanja.txt $(DICT)/LICENSE-unicode.txt $@/Contents/Resources/
+ifeq ($(PREDICT),1)
+	mkdir -p $@/Contents/Resources/predict
+	cp $(PREDICT_FILES) $@/Contents/Resources/predict/
+endif
 	codesign --force --sign - $@
 
 install: $(APP)
@@ -75,10 +97,12 @@ uninstall:
 
 VERSION := $(shell plutil -extract CFBundleShortVersionString raw Info.plist)
 
+ZIP := $(BUILD)/JISKorean-$(VERSION)$(DIST_SUFFIX).zip
+
 dist: $(APP)
-	rm -f $(BUILD)/JISKorean-$(VERSION).zip
-	ditto -c -k --keepParent $(APP) $(BUILD)/JISKorean-$(VERSION).zip
-	@echo $(BUILD)/JISKorean-$(VERSION).zip
+	rm -f $(ZIP)
+	ditto -c -k --keepParent $(APP) $(ZIP)
+	@echo $(ZIP)
 
 clean:
-	rm -rf $(BUILD)
+	rm -rf build

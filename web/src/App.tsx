@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import type { KeyboardEvent as ReactKeyboardEvent } from "react";
-import type { Candidates, Counts, Engine, Mods, Output, Prediction, PredictionKind } from "./engine";
+import type { Candidates, Counts, Engine, Mods, Output, Prediction, PredictionKind, WeightName } from "./engine";
+import { WEIGHTS } from "./engine";
 import { ghost } from "./ghost";
 import { Keyboard } from "./Keyboard";
 import benchmarks from "./stats.json";
@@ -40,6 +41,7 @@ export function App({ engine }: { engine: Engine }) {
   const [counts, setCounts] = useState<Counts | null>(null);
   const [predictionsOn, setPredictionsOn] = useState(() => loadSetting("predictions", true));
   const [readings, setReadings] = useState<Prediction[]>([]);
+  const [weights, setWeights] = useState<Record<WeightName, number>>(() => loadWeights());
   const [floating, setFloating] = useState(false);
   const surface = useRef<HTMLDivElement>(null);
   const caret = useRef<HTMLSpanElement>(null);
@@ -69,7 +71,10 @@ export function App({ engine }: { engine: Engine }) {
   useEffect(() => {
     engine
       .loadPredictor(`${import.meta.env.BASE_URL}predict/`)
-      .then(() => engine.setPredictions(predictionsOn))
+      .then(() => {
+        engine.setPredictions(predictionsOn);
+        for (const name of WEIGHTS) engine.setWeight(name, weights[name]);
+      })
       .catch((error) => console.error("predictor:", error));
     // Only once: later changes go through togglePredictions.
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -144,6 +149,18 @@ export function App({ engine }: { engine: Engine }) {
     engine.setPredictions(on);
     setReadings(on && preedit ? engine.predictions() : []);
     surface.current?.focus();
+  }
+
+  function setWeight(name: WeightName, value: number) {
+    const next = { ...weights, [name]: value };
+    setWeights(next);
+    engine.setWeight(name, value);
+    try {
+      localStorage.setItem("jis-korean:weights", JSON.stringify(next));
+    } catch {
+      // Not remembered; fine.
+    }
+    setReadings(predictionsOn && preedit ? engine.predictions() : []);
   }
 
   function onKeyUp(e: ReactKeyboardEvent) {
@@ -271,6 +288,7 @@ export function App({ engine }: { engine: Engine }) {
             Clear
           </button>
         </div>
+        {predictionsOn && <Tuning weights={weights} onChange={setWeight} />}
       </section>
 
       <Keyboard
@@ -318,8 +336,8 @@ export function App({ engine }: { engine: Engine }) {
             <dd>Standard 2-set with the stock JIS symbols, until Shift+F8.</dd>
           </div>
           <div>
-            <dt>F9 / F10</dt>
-            <dd>The word as full- or half-width letters. Press again to cycle case.</dd>
+            <dt>F9 / F10, Shift+Z</dt>
+            <dd>The word as full- or half-width letters. Press again to cycle case. Shift+Z does what F10 does, for keyboards and browsers where F10 is taken.</dd>
           </div>
           <div>
             <dt>Space</dt>
@@ -456,6 +474,8 @@ const KIND_LABELS: Record<PredictionKind, string> = {
   "two-set": "두벌식",
   "keep-finals": "받침",
   hanja: "漢",
+  bare: "ㅏ",
+  mixed: "En+한",
 };
 
 /** The predictive layer's ranked readings of the staged text, top one first. */
@@ -497,4 +517,55 @@ function saveSetting(key: string, value: boolean) {
   } catch {
     // Not remembered; fine.
   }
+}
+
+const WEIGHT_LABELS: Record<WeightName, string> = {
+  korean: "Korean",
+  english: "English",
+  implied: "Implied ㅇ",
+  mixed: "English + particle",
+  "two-set": "Plain 2-set",
+  "keep-finals": "Finals kept",
+  hanja: "Hanja",
+};
+
+function loadWeights(): Record<WeightName, number> {
+  const defaults = Object.fromEntries(WEIGHTS.map((w) => [w, 1])) as Record<WeightName, number>;
+  try {
+    return { ...defaults, ...JSON.parse(localStorage.getItem("jis-korean:weights") ?? "{}") };
+  } catch {
+    return defaults;
+  }
+}
+
+/** Per-scenario multipliers on the predictor's learned probabilities (spec §10.5). */
+function Tuning({ weights, onChange }: { weights: Record<WeightName, number>; onChange(name: WeightName, value: number): void }) {
+  return (
+    <details className="tuning">
+      <summary>Tune predictions</summary>
+      <p className="counts-note">
+        Each slider multiplies how likely that reading is, as learned. English 0.8× makes English readings less likely;
+        Korean 1.2× makes Korean ones likelier.
+      </p>
+      <div className="weights">
+        {WEIGHTS.map((name) => (
+          <label key={name} className="weight">
+            <span>{WEIGHT_LABELS[name]}</span>
+            <input
+              type="range"
+              min={0.5}
+              max={2}
+              step={0.05}
+              value={weights[name]}
+              onChange={(e) => onChange(name, Number(e.target.value))}
+            />
+            <output>{weights[name].toFixed(2)}×</output>
+          </label>
+        ))}
+      </div>
+      <button type="button" className="reset" onClick={() => WEIGHTS.forEach((w) => onChange(w, 1))}>
+        Reset
+      </button>
+    </details>
+  );
 }

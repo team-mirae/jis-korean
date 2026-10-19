@@ -5,7 +5,7 @@ browser playground.
 
 **Try it in your browser: [jis-korean.sjun.me](https://jis-korean.sjun.me)**
 
-[![JIS Korean typing demo (YouTube)](https://img.youtube.com/vi/Mt4FjVDUPiQ/maxresdefault.jpg)](https://www.youtube.com/watch?v=Mt4FjVDUPiQ)
+[![JIS Korean typing demo v2, with predictive typing (YouTube)](https://img.youtube.com/vi/UyRzQDqXXvE/hqdefault.jpg)](https://www.youtube.com/watch?v=UyRzQDqXXvE)
 
 ![The JIS Korean layout: double consonants and compound vowels on the number row, Korean punctuation on the symbol keys, and 한글 / 한자 / 두벌식 / 전각 / 반각 on F6–F10](docs/layout.png)
 

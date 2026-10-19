@@ -17,7 +17,7 @@ double consonants, compound vowels, Korean punctuation and Japanese-IME-style F6
 
 Every valid standard 2-set key and combination still types what it always did. Dedicated keys add
 shortcuts; they never remove anything. Shift+Q is still ㅃ, ㅗ+ㅏ is still ㅘ, and double finals
-still compose. The one sanctioned exception is the implied ㅇ (spec §4.2): ㅏ → 아; F6 commits the bare vowel instead.
+still compose. The sanctioned exceptions are listed in spec §1: the implied ㅇ (ㅏ → 아), Shift+vowel starting a syllable on ㅇ, and Shift+Z acting as F10.
 
 ## Layout
 
@@ -48,7 +48,9 @@ Build order: macOS → Minecraft → Windows → iPadOS. Android and iPhone are 
 
 - Engine: `cargo test` in `/engine`.
 - Web: `npm run dev` in `/web` (builds the engine to wasm first).
-- macOS: `make` / `make install` in `/mac` (see `mac/README.md`).
+- macOS: `make` / `make install` in `/mac` (see `mac/README.md`); `make PREDICT=0` builds the lean
+  version without the predictive layer.
+- Engine: `cargo test --no-default-features` tests the lite engine (no `predict` feature).
 - Minecraft: `./gradlew build`, `./gradlew test`, `./gradlew runClientGameTest` (boots the real
   client and types through the mod) in `/minecraft` (see `minecraft/README.md`). Gradle runs on
   Java 25 via `gradle/gradle-daemon-jvm.properties`.

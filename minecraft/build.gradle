@@ -97,6 +97,8 @@ jar {
 	}
 	// ranker.bin is trained partly on libhangul hanja.txt readings (BSD-3-Clause).
 	from("../engine/dict/LICENSE-libhangul-hanja.txt")
+	// …and weights English nouns with Princeton WordNet 3.0.
+	from("../engine/predict/LICENSE-wordnet.txt")
 }
 
 // In-game tests: boots the real client, opens chat in a test world and has a robot type through

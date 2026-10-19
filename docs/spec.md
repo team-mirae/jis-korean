@@ -20,12 +20,13 @@ adds a shortcut; it never takes anything away.
 - ㅗ then ㅏ is still ㅘ, even though 0 also types ㅘ.
 - Double finals (ㄹ+ㄱ → ㄺ etc.) compose as usual.
 
-Two deliberate exceptions, both in §4.2:
+Three deliberate exceptions (§4.2 and §6):
 
 - **Implied ㅇ:** a vowel with no initial types a full syllable (ㅏ → 아) instead of a bare jamo. F6
   right after commits the bare jamo instead.
 - **Shift+vowel** (vowel keys whose Shift types nothing else: all but O and P) after a syllable
   starts a new syllable on ㅇ instead of acting like the plain vowel (마ㄹ+⇧ㅣ → 말이, not 마리).
+- **Shift+Z is F10** (§6), not ㅋ: plain Z still types ㅋ.
 
 Any change that breaks this principle is a spec change, not an implementation detail.
 
@@ -109,7 +110,8 @@ Digits are on Shift, so numbers type with Shift held.
 
 | Key | Unshifted | Shift | Notes |
 |---|---|---|---|
-| Z X C V | ㅋ ㅌ ㅊ ㅍ | same | standard 2-set |
+| Z | ㅋ | **F10** (half-width letters, §6) | Shift+Z isn't ㅋ: F10 isn't reachable everywhere (Windows browsers take it for their menu) |
+| X C V | ㅌ ㅊ ㅍ | same | standard 2-set |
 | B N M | ㅠ ㅜ ㅡ | same | standard 2-set |
 | , | , | , | Shift ignored |
 | . | . | . | Shift ignored |
@@ -273,7 +275,7 @@ The full-width form of U+0021–U+007E is the code point + 0xFEE0; space becomes
 | F7 | 한자 | Hanja conversion of the word at the end of the unconfirmed text, with a candidate list (§7). Pairs with F6 (native / borrowed script), mirroring JIS F6 hiragana / F7 katakana. | done |
 | F8 | 두벌식 | Transient escape to standard 2-set on JIS (§6.1). | done in prototype (IME switching not simulated) |
 | F9 | 전각영숫자 | Convert the current word to full-width alphanumerics, from the raw characters (§5.2). | done in prototype |
-| F10 | 반각영숫자 | Same, half-width. | done in prototype |
+| F10 | 반각영숫자 | Same, half-width. **Shift+Z does the same**, on every platform, since F10 isn't always reachable (Windows browsers take it for their menu). Not in the F8 escape, where Shift+Z is ㅋ. With predictions on (§10), when the top prediction is already byte-identical to what F10 would give, the first Shift+Z presses F10 twice (hello → HELLO); later presses step the cycle as F10 does. F10 itself never skips. | done |
 
 ### 6.1 F8 escape
 
@@ -419,7 +421,9 @@ no behavior change.
 | English, Capitalized / UPPER | case variants, **only when English ranks first** | `hello` → Hello, HELLO |
 | Standard 2-set | plain 2-set on stock JIS: no implied ㅇ, no double press, Shift+vowel is just the vowel, number-row keys type digits | `bb` → ㅠㅠ (JIS Korean: 유유); `rk1` → 가1 |
 | Korean, finals kept | each vowel after a final starts its own syllable on ㅇ | `akfl` → 말이 (JIS Korean: 마리) |
-| Hanja | the top dictionary form of the **whole** Korean reading, 2+ syllables only | 학교 → 學校 |
+| Bare vowels | JIS Korean without the implied ㅇ (§10.3) | `bb` → ㅠㅠ, `nn` → ㅜㅜ |
+| English + particle | an English start with a Korean particle or ending (§10.3) | Anthropic에서, report에, RLHF에, server를 |
+| Hanja | the top dictionary form of the **whole** Korean reading, 2+ syllables only; plus the everyday exceptions (§10.4) | 학교 → 學校, 2026년 → 2026年 |
 
 Duplicates are removed (most readings coincide for most words), and **at most 4** are offered.
 
@@ -429,21 +433,65 @@ Scores are in bits per key, positive leaning Korean:
 
 1. **Model:** the same keys under two key-trigram models, English spelling vs JIS Korean typing
    (`engine/predict/ranker.bin`, built by `minecraft/tools/build_ranker.py`; held-out accuracy
-   about 99% on words, 96% on real Korean text).
+   about 99% on words, 96% on real Korean text). English nouns train at 3× weight.
+   **Nouns weigh more than verbs:** an English reading that is a noun in its normalized form
+   (Princeton WordNet 3.0 lemmas, 3+ letters: report, server, model) gets a bonus; verbs,
+   adjectives and inflected or other forms (published, reports) don't. In mixed Korean text English
+   words are mostly nouns. Cost on 8,774 real Korean words: 0.73% → 0.76% ranked as English.
 2. **Rules:** a capital at the start of a word on a key Korean never shifts means English; exact
    matches in `predict/common-ko.txt` / `common-en.txt` lean their way; leftover bare jamo count
    against Korean; a command name (after `/`) is English; the previous committed word's language
    tips close calls.
 3. **Alternatives** rank one step below the reading they vary, unless they're a known word (so ㅠㅠ
    beats 유유).
-4. **Hanja are lean:** one candidate at most, whole words of 2+ syllables only, and a heavy penalty
-   that keeps them last. They show only when there's room.
+4. **Implied ㅇ:** each implied ㅇ is weighed against its bare vowel. It's likely in real words
+   (아이, 이거) and unlikely in runs of one vowel (유유 → ㅠㅠ) or in known chat words, which the bare
+   reading then outranks.
+5. **English + particle:** the keys split into an English start and a Korean ending that is a known
+   particle (에, 에서, 를, 이라는, …). The split counts when the start reads clearly more English than
+   the whole keys (0.5 bits per key; a capitalized start such as Anthropic or RLHF always
+   qualifies) and the whole isn't a known English word, so `small` never becomes smal이. The start
+   must also read as English on its own (1 bit per key), and when the whole keys make good Korean
+   (`kanxms` is 아무튼, not kanx은) the split is only an alternative below it. Otherwise it ranks
+   above the whole-word English reading. A regression test types 8,700+ real Korean words the JIS
+   Korean way: 0.01% rank as mixed.
+6. **Hanja are lean:** one dictionary candidate at most, whole words of 2+ syllables only, and a
+   heavy penalty that keeps it last. It shows only when there's room. The exceptions (§10.4) aren't
+   penalized.
 
-### 10.4 Open questions
+### 10.4 Everyday hanja (not penalized)
+
+These tie with the Korean reading and follow it right after:
+
+- **Country names in the news, for OECD members** (38 as of 2026-10): 美 미, 日 일, 韓 한, 英 영,
+  佛 불, 獨 독, 伊 이 (Italy), 以 이 (Israel), 加 가, 濠 호, 土 토. Alone or in runs (韓美). The
+  other members' traditional forms (丁 諾 芬 匈 波 白 墺 葡 希 墨 西) aren't in everyday news use and
+  are left out; 中 is everyday but China isn't an OECD member.
+- **Dates:** 年 (년, 연), 月, 日, and digits before them (2026年, 10月, 19日); 曰 after a dictionary
+  stem (孔子曰).
+- **Weekdays:** 月火水木金土日, alone or in runs.
+
+### 10.5 User tuning
+
+Each scenario has a weight, a multiplier on its learned probability: 1.0 is as learned, English
+0.8 makes English readings 0.8 times as likely, and Korean 1.2 makes Korean ones 1.2 times as
+likely. A weight adds log2(weight) bits to that reading's score (per key for Korean and English,
+per implied ㅇ for the implied ㅇ). Scenarios: Korean, English, implied ㅇ, English + particle,
+plain 2-set, finals kept, hanja. Weights are clamped to 0.1–10. They never override the hard rules
+(a capital at the start of a word, command names).
+
+Hosts store them per user: the web playground has sliders under "Tune predictions" (remembered
+in the browser); macOS reads `defaults write me.sjun.inputmethod.JISKorean Weight.<Scenario>`.
+
+### 10.6 Open questions
 
 - Should the hosts' Space commit the top prediction (as the Minecraft mod does) or keep committing
   the JIS Korean reading, with predictions as a picker only?
 - The Minecraft mod still has its own Java copy of the ranker; it should move to this layer
   (through the wasm engine) so there's one implementation.
+- Hosts so far: the web playground (predictions on by default, picker under the caret, Space
+  commits the top reading) and macOS (marked text shows the top reading, committing keys take it;
+  "Predictions" menu item; `make PREDICT=0` strips the layer). macOS has no picker yet: the other
+  readings need an IMK candidate window.
 - Learning from the user's picks (session or persistent) isn't in the draft.
 

@@ -315,8 +315,8 @@ mod predict_ffi {
         (!ptr.is_null()).then(|| unsafe { std::slice::from_raw_parts(ptr, len) })
     }
 
-    /// Loads the predictor from `predict/ranker.bin` and the two word lists (UTF-8). Null if
-    /// anything is malformed.
+    /// Loads the predictor from `predict/ranker.bin`, the two word lists and the noun lexicon
+    /// (`english-nouns.txt`; may be empty), all UTF-8. Null if anything is malformed.
     ///
     /// # Safety
     /// Each pointer must point to its length in readable bytes.
@@ -328,6 +328,8 @@ mod predict_ffi {
         english_len: usize,
         korean: *const u8,
         korean_len: usize,
+        nouns: *const u8,
+        nouns_len: usize,
     ) -> *mut JkPredictor {
         // SAFETY: per the contract above.
         let (Some(m), Some(e), Some(k)) =
@@ -335,8 +337,10 @@ mod predict_ffi {
         else {
             return std::ptr::null_mut();
         };
-        match (std::str::from_utf8(e), std::str::from_utf8(k)) {
-            (Ok(e), Ok(k)) => match Predictor::parse(m, e, k) {
+        // SAFETY: per the contract above.
+        let n = unsafe { text(nouns, nouns_len) }.unwrap_or(&[]);
+        match (std::str::from_utf8(e), std::str::from_utf8(k), std::str::from_utf8(n)) {
+            (Ok(e), Ok(k), Ok(n)) => match Predictor::parse(m, e, k, n) {
                 Ok(p) => Box::into_raw(Box::new(JkPredictor(Arc::new(p)))),
                 Err(_) => std::ptr::null_mut(),
             },
@@ -388,6 +392,15 @@ mod predict_ffi {
     #[unsafe(no_mangle)]
     pub extern "C" fn jk_prediction_kind(handle: *mut JkEngine, index: usize) -> u32 {
         with(handle, 255, |h| h.predictions.get(index).map_or(255, |p| p.kind as u32))
+    }
+
+    /// Tunes one scenario (`JK_WEIGHT_*`): a multiplier on its learned probability, 1.0 as learned,
+    /// clamped to 0.1–10. Unknown ids are ignored.
+    #[unsafe(no_mangle)]
+    pub extern "C" fn jk_set_prediction_weight(handle: *mut JkEngine, which: u32, value: f64) {
+        if let Some(which) = crate::predict::Weight::from_id(which) {
+            with(handle, (), |h| h.engine.set_prediction_weight(which, value))
+        }
     }
 
     /// Commits prediction `index`; read the text with `jk_commit_*`.

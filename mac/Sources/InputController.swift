@@ -2,17 +2,33 @@ import Cocoa
 import InputMethodKit
 
 private let enterCommitsDefault = "EnterCommits"
+#if PREDICT
+private let predictionsDefault = "Predictions"
+#endif
 
 /// One controller per text input client; each owns its own engine. All behavior is in the engine
-/// (docs/spec.md): this class only moves key events in and text out.
+/// (docs/spec.md): this class only moves key events in and text out, and shows the suggestion list.
 @objc(JKInputController)
 final class JKInputController: IMKInputController {
     private let engine = jk_new()
     private var hasMarkedText = false
+    #if PREDICT
+    /// The ranked readings of what's staged (spec §10), shown in the suggestion list.
+    private var predictions: [String] = []
+    /// The row chosen with ↓ / Tab, or nil while nothing is chosen (the top reading applies).
+    private var chosen: Int?
+    /// The reading shown as the marked text in place of the Korean one: the chosen row, or the top
+    /// prediction when it isn't the Korean reading. Nil: the engine's own preedit shows.
+    private var shown: String?
+    #endif
 
     override init!(server: IMKServer!, delegate: Any!, client inputClient: Any!) {
         super.init(server: server, delegate: delegate, client: inputClient)
         jk_set_dictionary(engine, sharedDictionary)
+        #if PREDICT
+        UserDefaults.standard.register(defaults: [predictionsDefault: true])
+        applyPredictionsSetting()
+        #endif
     }
 
     deinit {
@@ -25,6 +41,20 @@ final class JKInputController: IMKInputController {
 
     override func handle(_ event: NSEvent!, client sender: Any!) -> Bool {
         guard let event, event.type == .keyDown, let client = sender as? IMKTextInput else { return false }
+        #if PREDICT
+        if let handled = handleList(event, client) {
+            return handled
+        }
+        // A key that commits takes the reading on screen, not the Korean one underneath.
+        if shown != nil && commits(event) {
+            commitPrediction(chosen ?? 0, to: client)
+            if event.keyCode == UInt16(kVK_Space) && modifiers(event.modifierFlags) & ~UInt32(JK_MOD_SHIFT) == 0 {
+                client.insertText(" ", replacementRange: NSRange(location: NSNotFound, length: NSNotFound))
+                return true
+            }
+        }
+        chosen = nil
+        #endif
         let consumed = jk_key(engine, engineKey(event.keyCode), modifiers(event.modifierFlags))
         apply(to: client)
         return consumed != 0
@@ -33,11 +63,15 @@ final class JKInputController: IMKInputController {
     override func activateServer(_ sender: Any!) {
         super.activateServer(sender)
         jk_activate(engine)
+        #if PREDICT
+        applyPredictionsSetting()
+        #endif
         jk_set_enter_commits(engine, UserDefaults.standard.bool(forKey: enterCommitsDefault) ? 1 : 0)
     }
 
     override func deactivateServer(_ sender: Any!) {
         flush(sender)
+        SuggestionWindow.shared.hide()
         super.deactivateServer(sender)
     }
 
@@ -48,6 +82,11 @@ final class JKInputController: IMKInputController {
 
     override func menu() -> NSMenu! {
         let menu = NSMenu()
+        #if PREDICT
+        let predictions = NSMenuItem(title: "Predictions", action: #selector(togglePredictions(_:)), keyEquivalent: "")
+        predictions.state = UserDefaults.standard.bool(forKey: predictionsDefault) ? .on : .off
+        menu.addItem(predictions)
+        #endif
         let item = NSMenuItem(title: "Enter Commits Without a New Line", action: #selector(toggleEnterCommits(_:)), keyEquivalent: "")
         item.state = UserDefaults.standard.bool(forKey: enterCommitsDefault) ? .on : .off
         menu.addItem(item)
@@ -60,23 +99,116 @@ final class JKInputController: IMKInputController {
         jk_set_enter_commits(engine, on ? 1 : 0)
     }
 
+    #if PREDICT
+    @objc func togglePredictions(_ sender: Any?) {
+        UserDefaults.standard.set(!UserDefaults.standard.bool(forKey: predictionsDefault), forKey: predictionsDefault)
+        applyPredictionsSetting()
+    }
+
+    /// On: the shared predictor. Off: the deterministic lite behavior. Also applies the user's
+    /// tuning (spec §10.5), e.g. `defaults write me.sjun.inputmethod.JISKorean Weight.English -float 0.8`.
+    private func applyPredictionsSetting() {
+        jk_set_predictor(engine, UserDefaults.standard.bool(forKey: predictionsDefault) ? sharedPredictor : nil)
+        let names = ["Korean", "English", "Implied", "Mixed", "TwoSet", "KeepFinals", "Hanja"]
+        for (id, name) in names.enumerated() {
+            let value = UserDefaults.standard.object(forKey: "Weight.\(name)") as? Double ?? 1.0
+            jk_set_prediction_weight(engine, UInt32(id), value)
+        }
+    }
+
+    /// Keys for the suggestion list, while it shows predictions: ↓ / Tab and ↑ move through it
+    /// (the chosen row replaces the marked text), Escape leaves it, Space / Enter commit the chosen
+    /// row. Nil: not a list key, handle as usual.
+    private func handleList(_ event: NSEvent, _ client: IMKTextInput) -> Bool? {
+        guard predictions.count > 1, jk_candidate_count(engine) == 0 else { return nil }
+        let mods = modifiers(event.modifierFlags)
+        guard mods & UInt32(JK_MOD_CTRL | JK_MOD_ALT | JK_MOD_META) == 0 else { return nil }
+        let count = predictions.count
+        let shift = mods & UInt32(JK_MOD_SHIFT) != 0
+        let key = Int(event.keyCode)
+        if key == kVK_DownArrow || (key == kVK_Tab && !shift) {
+            chosen = ((chosen ?? -1) + 1) % count
+        } else if key == kVK_UpArrow || (key == kVK_Tab && shift) {
+            chosen = ((chosen ?? 0) - 1 + count) % count
+        } else if key == kVK_Escape && chosen != nil {
+            chosen = nil
+        } else if (key == kVK_Return || key == kVK_ANSI_KeypadEnter) && chosen != nil {
+            commitPrediction(chosen ?? 0, to: client)
+            return true
+        } else {
+            return nil
+        }
+        refresh(client)
+        return true
+    }
+
+    /// Keys whose engine handling commits the staged text.
+    private func commits(_ event: NSEvent) -> Bool {
+        let shortcut = modifiers(event.modifierFlags) & UInt32(JK_MOD_CTRL | JK_MOD_ALT | JK_MOD_META) != 0
+        let committing: Set<Int> = [kVK_Space, kVK_Return, kVK_ANSI_KeypadEnter, kVK_Tab, kVK_Escape,
+                                    kVK_LeftArrow, kVK_RightArrow, kVK_UpArrow, kVK_DownArrow]
+        return shortcut || committing.contains(Int(event.keyCode)) || engineKey(event.keyCode) == UInt32(JK_KEY_OTHER)
+    }
+
+    private func commitPrediction(_ index: Int, to client: IMKTextInput) {
+        jk_commit_prediction(engine, index)
+        chosen = nil
+        apply(to: client)
+    }
+    #endif
+
     private func flush(_ sender: Any!) {
+        let client = (sender as? IMKTextInput) ?? (client() as IMKTextInput?)
+        #if PREDICT
+        if shown != nil, let client {
+            commitPrediction(chosen ?? 0, to: client)
+            return
+        }
+        #endif
         jk_flush(engine)
-        if let client = (sender as? IMKTextInput) ?? (client() as IMKTextInput?) {
+        if let client {
             apply(to: client)
         }
     }
 
-    /// Inserts the engine's commit text, then shows its preedit as marked text.
+    /// Inserts the engine's commit text, then shows its preedit (or the chosen reading) as marked
+    /// text, and updates the suggestion list.
     private func apply(to client: IMKTextInput) {
-        let notFound = NSRange(location: NSNotFound, length: NSNotFound)
         let commit = text(jk_commit_ptr(engine), jk_commit_len(engine))
-        let preedit = text(jk_preedit_ptr(engine), jk_preedit_len(engine))
         if !commit.isEmpty {
             // Inserting replaces any marked text.
-            client.insertText(commit, replacementRange: notFound)
+            client.insertText(commit, replacementRange: NSRange(location: NSNotFound, length: NSNotFound))
             hasMarkedText = false
         }
+        #if PREDICT
+        predictions = []
+        let preedit = text(jk_preedit_ptr(engine), jk_preedit_len(engine))
+        if !preedit.isEmpty && jk_candidate_count(engine) == 0 {
+            let count = jk_predict(engine)
+            predictions = (0..<count).map { text(jk_prediction_ptr(engine, $0), jk_prediction_len(engine, $0)) }
+            let topIsKorean = count == 0 || jk_prediction_kind(engine, 0) == UInt32(JK_PREDICTION_KOREAN)
+            if let chosen, chosen >= count { self.chosen = nil }
+            shown = chosen.map { predictions[$0] } ?? (topIsKorean ? nil : predictions.first)
+        } else {
+            chosen = nil
+            shown = nil
+        }
+        #endif
+        refresh(client)
+    }
+
+    /// The marked text and the suggestion list, from the current state.
+    private func refresh(_ client: IMKTextInput) {
+        let notFound = NSRange(location: NSNotFound, length: NSNotFound)
+        var preedit = text(jk_preedit_ptr(engine), jk_preedit_len(engine))
+        #if PREDICT
+        if let chosen, chosen < predictions.count {
+            shown = predictions[chosen]
+        }
+        if let shown {
+            preedit = shown
+        }
+        #endif
         if !preedit.isEmpty {
             let marked = NSAttributedString(string: preedit, attributes: [
                 .underlineStyle: NSUnderlineStyle.single.rawValue,
@@ -89,6 +221,44 @@ final class JKInputController: IMKInputController {
             client.setMarkedText("", selectionRange: NSRange(location: 0, length: 0), replacementRange: notFound)
             hasMarkedText = false
         }
+        showList(client, empty: preedit.isEmpty)
+    }
+
+    /// Hanja candidates after F7, or the predictions while typing (when there's more than one).
+    private func showList(_ client: IMKTextInput, empty: Bool) {
+        var caret = NSRect.zero
+        _ = client.attributes(forCharacterIndex: 0, lineHeightRectangle: &caret)
+        let window = SuggestionWindow.shared
+        let hanja = jk_candidate_count(engine)
+        if hanja > 0 {
+            let items = (0..<hanja).map { i -> String in
+                let hanja = text(jk_candidate_ptr(engine, i), jk_candidate_len(engine, i))
+                let comment = text(jk_candidate_comment_ptr(engine, i), jk_candidate_comment_len(engine, i))
+                return comment.isEmpty ? hanja : "\(hanja)  \(comment)"
+            }
+            let selected = jk_candidate_selected(engine)
+            window.onPick = { [weak self] index in self?.pickHanja(index, from: selected, client) }
+            window.show(items, selected: selected, below: caret)
+            return
+        }
+        #if PREDICT
+        if !empty && predictions.count > 1 {
+            window.onPick = { [weak self] index in self?.commitPrediction(index, to: client) }
+            window.show(predictions, selected: chosen, below: caret)
+            return
+        }
+        #endif
+        window.hide()
+    }
+
+    /// A click on a hanja candidate: move the engine's selection there, then pick it.
+    private func pickHanja(_ index: Int, from selected: Int, _ client: IMKTextInput) {
+        let key = UInt32(index > selected ? JK_KEY_ARROWDOWN : JK_KEY_ARROWUP)
+        for _ in 0..<abs(index - selected) {
+            jk_key(engine, key, 0)
+        }
+        jk_key(engine, UInt32(JK_KEY_ENTER), 0)
+        apply(to: client)
     }
 
     private func text(_ pointer: UnsafePointer<UInt8>?, _ length: Int) -> String {

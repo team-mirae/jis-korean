@@ -518,3 +518,25 @@ fn shift_still_held_after_a_double_types_the_syllable() {
     pre("S-KeyT S-KeyK S-KeyD", "쌍");
     pre("KeyR S-KeyK", "가");
 }
+
+// §6 Shift+Z is F10
+
+#[test]
+fn shift_z_is_f10() {
+    pre("KeyG KeyK KeyS S-KeyZ", "gks");
+    pre("KeyG KeyK KeyS S-KeyZ S-KeyZ", "GKS");
+    pre("KeyG KeyK KeyS S-KeyZ S-KeyZ S-KeyZ", "Gks");
+    pre("KeyG KeyK KeyS S-KeyZ F9", "ｇｋｓ");
+    doc("KeyG KeyK KeyS S-KeyZ F6", "한", "");
+}
+
+#[test]
+fn plain_z_still_types_kieuk() {
+    pre("KeyZ KeyZ", "ㅋㅋ");
+    pre("KeyZ KeyK", "카");
+}
+
+#[test]
+fn shift_z_in_the_f8_escape_is_kieuk() {
+    pre("F8 S-KeyZ KeyK", "카");
+}

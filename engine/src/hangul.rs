@@ -60,6 +60,8 @@ pub struct Options {
     pub standard: bool,
     /// A vowel after a final starts its own syllable on ㅇ instead of taking it (말이).
     pub keep_finals: bool,
+    /// No implied ㅇ: a vowel with no initial stays a bare jamo (ㅠㅠ), all else as JIS Korean.
+    pub no_implied: bool,
 }
 
 /// Composes jamo into text. Feed it jamo, plain characters and markers in order, then call
@@ -67,6 +69,8 @@ pub struct Options {
 #[derive(Default)]
 pub struct Composer {
     options: Options,
+    /// Syllables that got an implied ㅇ (for the predictor).
+    implied_count: usize,
     out: String,
     initial: Option<char>,
     medial: Option<char>,
@@ -158,10 +162,11 @@ impl Composer {
     /// Starts a syllable with vowel `j` and no typed initial.
     fn vowel_syllable(&mut self, j: char) {
         self.medial = Some(j);
-        if !self.bare_next && !self.options.standard {
+        if !self.bare_next && !self.options.standard && !self.options.no_implied {
             // A vowel with no initial gets an implied ㅇ: ㅏ → 아, 가+ㅓ → 가어.
             self.initial = Some('ㅇ');
             self.implied_at = Some(self.fed);
+            self.implied_count += 1;
         }
     }
 
@@ -203,6 +208,12 @@ impl Composer {
         self.initial = Some('ㅇ');
         self.medial = Some(j);
         self.advance();
+    }
+
+    /// How many syllables got an implied ㅇ so far.
+    #[cfg(feature = "predict")]
+    pub fn implied_count(&self) -> usize {
+        self.implied_count
     }
 
     pub fn text(&mut self, c: char) {

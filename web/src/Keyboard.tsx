@@ -40,7 +40,8 @@ export function Keyboard({ engine, escaped, shift, pressed, floating, onPress }:
             {row.codes.map((code) => {
               const fn = FUNCTION_KEYS[code];
               const base = fn ? code : engine.legend(code, false, escaped);
-              const shifted = fn ? fn.label : engine.legend(code, true, escaped);
+              // Shift+Z is F10 (half-width letters) outside the F8 escape.
+              const shifted = fn ? fn.label : code === "KeyZ" && !escaped ? "반각" : engine.legend(code, true, escaped);
               const letter = code.startsWith("Key") ? code.slice(3) : "";
               const className = [
                 "key",

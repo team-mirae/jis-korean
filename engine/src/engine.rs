@@ -4,7 +4,7 @@ use std::sync::Arc;
 
 use crate::hangul::{self, Composer, Options};
 #[cfg(feature = "predict")]
-use crate::predict::{Context, Language, Prediction, Predictor, Readings};
+use crate::predict::{Context, Language, Prediction, Predictor, Readings, Split, Weight, Weights};
 use crate::hanja::{Candidate, Dictionary};
 use crate::key::{Key, Mods};
 use crate::layout::{self, Layout, Out};
@@ -89,6 +89,9 @@ pub struct Engine {
     /// The language of the last committed word, for the predictor.
     #[cfg(feature = "predict")]
     previous: Option<Language>,
+    /// The user's tuning of the predictions.
+    #[cfg(feature = "predict")]
+    weights: Weights,
 }
 
 impl Default for Engine {
@@ -110,6 +113,8 @@ impl Engine {
             predictor: None,
             #[cfg(feature = "predict")]
             previous: None,
+            #[cfg(feature = "predict")]
+            weights: Weights::default(),
         }
     }
 
@@ -156,15 +161,7 @@ impl Engine {
     /// The unconfirmed keystrokes read as English: each key as it types on stock JIS (letters
     /// with their case, digits, JIS symbols). Converted and hanja text stays as shown.
     pub fn english(&self) -> String {
-        self.segment
-            .iter()
-            .filter_map(|t| match *t {
-                Token::Jamo { jamo, raw } | Token::IeungVowel { jamo, raw } => Some(raw.unwrap_or(jamo)),
-                Token::Text(c) => Some(c),
-                Token::Typed(_, english) => Some(english),
-                Token::Bare => None,
-            })
-            .collect()
+        english_of(&self.segment)
     }
 
     /// The unconfirmed text, with the selected hanja candidate in place while a list is open.
@@ -178,6 +175,17 @@ impl Engine {
     pub fn key(&mut self, key: Key, mods: Mods) -> Output {
         if key == Key::Modifier {
             return self.unchanged(false);
+        }
+        // Shift+Z is F10 (spec §6): F10 isn't reachable everywhere (Windows browsers take it for
+        // their menu), and Shift adds nothing to ㅋ. Standard 2-set (the F8 escape) keeps it as ㅋ.
+        if key == Key::KeyZ && mods.shift && !mods.is_shortcut() && self.layout == Layout::JisKorean {
+            // With predictions on, when the top prediction is already exactly what F10 would give,
+            // Shift+Z skips ahead: F10 twice (gks → GKS). F10 itself is unchanged.
+            #[cfg(feature = "predict")]
+            if self.conversion.is_none() && self.top_prediction_is_f10() {
+                self.key(Key::F10, Mods::NONE);
+            }
+            return self.key(Key::F10, Mods::NONE);
         }
         if self.hanja.is_some()
             && let Some(out) = self.hanja_key(key, mods)
@@ -384,6 +392,26 @@ impl Engine {
         self.predictor = predictor;
     }
 
+    /// Tunes one scenario of the predictions (spec §10.5): a multiplier on its learned probability.
+    #[cfg(feature = "predict")]
+    pub fn set_prediction_weight(&mut self, which: Weight, value: f64) {
+        self.weights.set(which, value);
+    }
+
+    #[cfg(feature = "predict")]
+    pub fn prediction_weights(&self) -> Weights {
+        self.weights
+    }
+
+    /// Whether the top prediction is byte-identical to what F10 would make of the staged text now.
+    #[cfg(feature = "predict")]
+    fn top_prediction_is_f10(&self) -> bool {
+        let Some(top) = self.predictions().into_iter().next() else { return false };
+        let mut preview = self.clone();
+        preview.key(Key::F10, Mods::NONE);
+        top.text == preview.preedit()
+    }
+
     /// The readings of the staged text (spec §10).
     #[cfg(feature = "predict")]
     pub fn readings(&self) -> Readings {
@@ -393,10 +421,18 @@ impl Engine {
             // Lean: only a whole word of two syllables or more.
             (reading == korean && reading.chars().count() >= 2).then(|| candidates[0].hanja.clone())
         });
+        // Every way to read the keys as an English start plus a Korean ending (report에), ending
+        // short: the predictor keeps the ones whose ending is a particle.
+        let splits = (self.segment.len().saturating_sub(MAX_ENDING_KEYS).max(1)..self.segment.len())
+            .map(|k| Split { english: english_of(&self.segment[..k]), korean: compose(&self.segment[k..]) })
+            .collect();
         Readings {
             english: self.english(),
-            two_set: compose_with(&two_set_tokens(&self.segment), Options { standard: true, keep_finals: false }),
-            keep_finals: compose_with(&self.segment, Options { standard: false, keep_finals: true }),
+            two_set: compose_with(&two_set_tokens(&self.segment), Options { standard: true, ..Options::default() }),
+            keep_finals: compose_with(&self.segment, Options { keep_finals: true, ..Options::default() }),
+            bare: compose_with(&self.segment, Options { no_implied: true, ..Options::default() }),
+            implied: composer_for(&self.segment).implied_count(),
+            splits,
             hanja,
             korean,
         }
@@ -406,9 +442,11 @@ impl Engine {
     #[cfg(feature = "predict")]
     pub fn predictions(&self) -> Vec<Prediction> {
         match &self.predictor {
-            Some(p) if !self.segment.is_empty() => {
-                p.predict(&self.readings(), Context { previous: self.previous, command: false })
-            }
+            Some(p) if !self.segment.is_empty() => p.predict(
+                &self.readings(),
+                Context { previous: self.previous, command: false, weights: self.weights },
+                self.dictionary.as_deref(),
+            ),
             _ => Vec::new(),
         }
     }
@@ -443,6 +481,23 @@ impl Engine {
         Output { commit: String::new(), preedit: self.preedit(), consumed, candidates, english: self.english() }
     }
 }
+
+/// Keystrokes read as English on stock JIS (see [`Engine::english`]).
+fn english_of(segment: &[Token]) -> String {
+    segment
+        .iter()
+        .filter_map(|t| match *t {
+            Token::Jamo { jamo, raw } | Token::IeungVowel { jamo, raw } => Some(raw.unwrap_or(jamo)),
+            Token::Text(c) => Some(c),
+            Token::Typed(_, english) => Some(english),
+            Token::Bare => None,
+        })
+        .collect()
+}
+
+/// The longest Korean ending considered when splitting into English + Korean (에서는 is 6 keys).
+#[cfg(feature = "predict")]
+const MAX_ENDING_KEYS: usize = 8;
 
 fn composer_for(segment: &[Token]) -> Composer {
     composer_with(segment, Options::default())

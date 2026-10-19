@@ -204,6 +204,20 @@ class StagingTest {
 	}
 
 	@Test
+	void shiftZIsF10() {
+		// Shift+Z converts to half-width letters, as F10 does (spec §6), so English needs no F-key.
+		check("gksZ ", "gks ");
+		check("gksZZ ", "GKS ");
+	}
+
+	@Test
+	void shiftZSkipsAheadWhenEnglishIsAlreadyRanked() {
+		// hello already ranks English, exactly what F10 gives: Shift+Z goes on to HELLO.
+		check("helloZ ", "HELLO ");
+		check("helloZZ ", "Hello ");
+	}
+
+	@Test
 	void dedicatedKeysAndEscapeWork() {
 		check("1k ", "빠 ");
 		check("{F8}1{S-F8}1k ", "1빠 ");

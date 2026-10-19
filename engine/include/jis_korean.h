@@ -159,9 +159,12 @@ enum {
     JK_PREDICTION_TWO_SET = 4,
     JK_PREDICTION_KOREAN_KEEP_FINALS = 5,
     JK_PREDICTION_HANJA = 6,
+    JK_PREDICTION_BARE_VOWELS = 7,
+    JK_PREDICTION_MIXED = 8,
 };
 JkPredictor *jk_predictor_new(const uint8_t *model, size_t model_len, const uint8_t *english_words,
-                              size_t english_len, const uint8_t *korean_words, size_t korean_len);
+                              size_t english_len, const uint8_t *korean_words, size_t korean_len,
+                              const uint8_t *english_nouns, size_t nouns_len); /* nouns may be NULL */
 void jk_predictor_free(JkPredictor *predictor);
 void jk_set_predictor(JkEngine *engine, const JkPredictor *predictor); /* NULL: lite */
 size_t jk_predict(JkEngine *engine); /* ranks the staged text; returns the count */
@@ -169,6 +172,18 @@ const uint8_t *jk_prediction_ptr(JkEngine *engine, size_t index);
 size_t jk_prediction_len(JkEngine *engine, size_t index);
 uint32_t jk_prediction_kind(JkEngine *engine, size_t index);
 void jk_commit_prediction(JkEngine *engine, size_t index); /* then read jk_commit_* */
+/* User tuning (spec §10.5): a multiplier on each scenario's learned probability, 1.0 = as learned,
+ * clamped to 0.1-10. */
+enum {
+    JK_WEIGHT_KOREAN = 0,
+    JK_WEIGHT_ENGLISH = 1,
+    JK_WEIGHT_IMPLIED = 2,
+    JK_WEIGHT_MIXED = 3,
+    JK_WEIGHT_TWO_SET = 4,
+    JK_WEIGHT_KEEP_FINALS = 5,
+    JK_WEIGHT_HANJA = 6,
+};
+void jk_set_prediction_weight(JkEngine *engine, uint32_t which, double value);
 
 /* Memory in the engine's address space, for wasm hosts passing the dictionary in. */
 uint8_t *jk_alloc(size_t len);

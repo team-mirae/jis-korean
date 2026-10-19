@@ -117,6 +117,13 @@ public final class Staging {
 			default:
 				break;
 		}
+		// Shift+Z is F10 (spec §6). When the ranked reading is already what F10 would give (English,
+		// plain letters as typed), it skips ahead: F10 twice (gks → GKS).
+		// Only on the first press: once converted, the two readings are the same and F10 just cycles.
+		if (code.equals("KeyZ") && shift && !isEmpty() && !korean.equals(english)
+				&& english.chars().allMatch(Character::isLetter) && ranking(before).language() == Language.ENGLISH) {
+			update(engine.key("F10", false));
+		}
 		WasmEngine.Output out = engine.key(code, shift);
 		update(out);
 		return new Result(out.consumed(), out.commit());

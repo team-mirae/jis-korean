@@ -7,11 +7,32 @@ inserted text and marked text.
 Built without Xcode: the Command Line Tools are enough.
 
 ```sh
-make            # build/JISKorean.app, universal (arm64 + x86_64)
-make install    # copy to ~/Library/Input Methods, register it, restart it
+make                 # build/full/JISKorean.app, universal (arm64 + x86_64), with predictions
+make PREDICT=0       # build/lite/JISKorean.app: the predictive layer stripped out entirely
+make install         # copy to ~/Library/Input Methods, register it, restart it (PREDICT=0 works too)
 make uninstall
-make dist       # build/JISKorean-<version>.zip
+make dist            # build/<variant>/JISKorean-<version>[-lite].zip
 ```
+
+## Predictions (spec §10)
+
+The full build includes the engine's predictive layer and its model (`Resources/predict/`). With it
+on, the marked text shows the **top reading** of what you typed: `hello` shows as hello, not
+옫이애, and `bb` as ㅠㅠ. Space, Enter, Tab, Escape, arrows, shortcuts and clicking away commit what's
+shown. F6 still forces Korean and F10 English letters.
+
+Tune it per scenario (spec §10.5) with multipliers on each reading's learned probability, applied
+when the input method activates:
+
+```sh
+defaults write me.sjun.inputmethod.JISKorean Weight.English -float 0.8   # English readings 0.8× as likely
+defaults write me.sjun.inputmethod.JISKorean Weight.Korean -float 1.2
+# Also Weight.Implied, Weight.Mixed, Weight.TwoSet, Weight.KeepFinals, Weight.Hanja (default 1.0)
+```
+
+Turn it off with **Predictions** in the input menu (on by default): the input method then behaves
+exactly like the lite build. `make PREDICT=0` builds that lite version, with no prediction code in
+the Rust library or the Swift binary and no model in the bundle (about 140 KB smaller).
 
 Requirements: Rust with the `aarch64-apple-darwin` and `x86_64-apple-darwin` targets.
 
