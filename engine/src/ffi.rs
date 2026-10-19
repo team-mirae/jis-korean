@@ -6,11 +6,13 @@
 use std::panic::{AssertUnwindSafe, catch_unwind};
 use std::sync::Arc;
 
+use crate::plan::{self, Counts};
 use crate::{Candidate, Dictionary, Engine, Key, Layout, Mods, Output, PAGE_SIZE, output};
 
 pub struct JkEngine {
     engine: Engine,
     last: Output,
+    counts: Counts,
 }
 
 /// A parsed hanja dictionary, shareable by many engines.
@@ -31,7 +33,7 @@ fn with<T>(handle: *mut JkEngine, fallback: T, f: impl FnOnce(&mut JkEngine) -> 
 
 #[unsafe(no_mangle)]
 pub extern "C" fn jk_new() -> *mut JkEngine {
-    Box::into_raw(Box::new(JkEngine { engine: Engine::new(), last: Output::default() }))
+    Box::into_raw(Box::new(JkEngine { engine: Engine::new(), last: Output::default(), counts: Counts::default() }))
 }
 
 /// # Safety
@@ -240,4 +242,47 @@ pub extern "C" fn jk_clear(handle: *mut JkEngine) {
         h.engine.clear();
         h.last = Output::default();
     })
+}
+
+// --- Key-press counts (the web playground's comparison)
+
+/// Counts the key presses `text` (UTF-8) takes on JIS Korean and on conventional 2-set, using this
+/// engine's hanja dictionary if it has one. Read the results with `jk_plan_*`.
+///
+/// # Safety
+/// `ptr` must point to `len` readable bytes.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn jk_plan(handle: *mut JkEngine, ptr: *const u8, len: usize) {
+    if ptr.is_null() {
+        return;
+    }
+    // SAFETY: per the contract above.
+    let bytes = unsafe { std::slice::from_raw_parts(ptr, len) };
+    let text = String::from_utf8_lossy(bytes).into_owned();
+    with(handle, (), |h| h.counts = plan::count(&text, h.engine.dictionary()))
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn jk_plan_jis(handle: *mut JkEngine) -> usize {
+    with(handle, 0, |h| h.counts.jis)
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn jk_plan_conventional(handle: *mut JkEngine) -> usize {
+    with(handle, 0, |h| h.counts.conventional)
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn jk_plan_chars(handle: *mut JkEngine) -> usize {
+    with(handle, 0, |h| h.counts.chars)
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn jk_plan_off_keyboard(handle: *mut JkEngine) -> usize {
+    with(handle, 0, |h| h.counts.off_keyboard)
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn jk_plan_dropped(handle: *mut JkEngine) -> usize {
+    with(handle, 0, |h| h.counts.dropped)
 }

@@ -29,6 +29,22 @@ interface Exports {
   jk_candidate_len(h: number, i: number): number;
   jk_candidate_comment_ptr(h: number, i: number): number;
   jk_candidate_comment_len(h: number, i: number): number;
+  jk_plan(h: number, ptr: number, len: number): void;
+  jk_plan_jis(h: number): number;
+  jk_plan_conventional(h: number): number;
+  jk_plan_chars(h: number): number;
+  jk_plan_off_keyboard(h: number): number;
+  jk_plan_dropped(h: number): number;
+}
+
+/** Key presses for a text, both ways (Shift counted; symbols off a layout's legends count 3). */
+export interface Counts {
+  jis: number;
+  conventional: number;
+  chars: number;
+  /** Characters no key types (①, ×, …): 3 presses each on both layouts. */
+  off_keyboard: number;
+  dropped: number;
 }
 
 export interface Mods {
@@ -62,6 +78,7 @@ const MODIFIER_CODES = new Set([
 ]);
 
 const decoder = new TextDecoder();
+const encoder = new TextEncoder();
 
 export class Engine {
   private readonly ids = new Map<string, number>();
@@ -117,6 +134,23 @@ export class Engine {
     x.jk_set_dictionary(this.handle, dict);
     // The engine keeps its own reference.
     x.jk_dict_free(dict);
+  }
+
+  /** Counts the key presses `text` takes on JIS Korean and on conventional 2-set. */
+  plan(text: string): Counts {
+    const { x, handle: h } = this;
+    const bytes = encoder.encode(text);
+    const ptr = x.jk_alloc(bytes.length);
+    new Uint8Array(x.memory.buffer, ptr, bytes.length).set(bytes);
+    x.jk_plan(h, ptr, bytes.length);
+    x.jk_dealloc(ptr, bytes.length);
+    return {
+      jis: x.jk_plan_jis(h),
+      conventional: x.jk_plan_conventional(h),
+      chars: x.jk_plan_chars(h),
+      off_keyboard: x.jk_plan_off_keyboard(h),
+      dropped: x.jk_plan_dropped(h),
+    };
   }
 
   key(code: string, mods: Mods = {}): Output {

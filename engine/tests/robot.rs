@@ -5,10 +5,10 @@
 //! `python3 -I tests/data/fetch_corpus.py` from `tests/data`). Without it, only the built-in
 //! sample runs.
 
-#[path = "support/robot.rs"]
-mod robot;
+use std::sync::Arc;
 
-use robot::Robot;
+use jis_korean::Dictionary;
+use jis_korean::plan::Robot;
 
 /// Covers every part of the layout: dedicated keys, the implied ㅇ and the double press, F8
 /// symbols, Latin words in all cases, digits, hanja and a bare jamo.
@@ -23,7 +23,7 @@ fn dictionary() -> String {
 }
 
 fn run(name: &str, text: &str) -> Robot {
-    let mut robot = Robot::new(&dictionary());
+    let mut robot = Robot::new(Some(Arc::new(Dictionary::parse(&dictionary()))));
     let expected = robot.type_text(text);
     eprintln!("── robot: {name}\n{}", robot.report);
     assert!(robot.report.failures.is_empty(), "{name}: {} failures", robot.report.failures.len());
@@ -50,4 +50,37 @@ fn robot_types_samsung_business() {
     };
     let robot = run("Samsung Electronics, 사업의 내용", &text);
     assert!(robot.report.chars > 10_000);
+}
+
+#[test]
+fn count_compares_jis_korean_with_conventional() {
+    let counts = jis_korean::plan::count("말이 오이 같이 하자", None);
+    assert_eq!(counts.chars, 11);
+    assert_eq!(counts.dropped, 0);
+    assert!(counts.jis < counts.conventional, "{counts:?}");
+    // 말이: a k f ⇧l (5 with Shift) vs a k f d l (5); 오이: h ⇧l (3) vs d h d l (4) …
+    assert_eq!(jis_korean::plan::conventional("까"), 3);
+    assert_eq!(jis_korean::plan::count("까", None).jis, 2);
+}
+
+#[test]
+fn symbols_off_the_legends_cost_three_on_both_layouts() {
+    // ( ) are on stock JIS but not on the JIS Korean legends; · is the reverse.
+    assert_eq!(jis_korean::plan::count("(", None).jis, 3);
+    assert_eq!(jis_korean::plan::conventional("("), 2);
+    assert_eq!(jis_korean::plan::count("·", None).jis, 1);
+    assert_eq!(jis_korean::plan::conventional("·"), 3);
+    // Digits after a ( still cost Shift+digit: the escape doesn't linger.
+    assert_eq!(jis_korean::plan::count("(1", None).jis, 5);
+}
+
+#[test]
+fn characters_no_key_types_cost_three_on_both_layouts() {
+    let counts = jis_korean::plan::count("①", None);
+    assert_eq!((counts.jis, counts.conventional, counts.off_keyboard, counts.dropped), (3, 3, 1, 0));
+    // A hanja without a dictionary is entered from outside too.
+    assert_eq!(jis_korean::plan::count("學", None).jis, 3);
+    // Spaces and line breaks are one press each, both ways.
+    assert_eq!(jis_korean::plan::count(" \n", None).jis, 2);
+    assert_eq!(jis_korean::plan::conventional(" \n"), 2);
 }

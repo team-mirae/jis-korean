@@ -9,6 +9,7 @@ mod hangul;
 mod hanja;
 mod key;
 mod layout;
+pub mod plan;
 
 pub use engine::{Candidates, Engine, Output, PAGE_SIZE, full_width};
 pub use hanja::{Candidate, Dictionary};

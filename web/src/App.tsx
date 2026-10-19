@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState } from "react";
 import type { KeyboardEvent as ReactKeyboardEvent } from "react";
-import type { Candidates, Engine, Mods, Output } from "./engine";
+import type { Candidates, Counts, Engine, Mods, Output } from "./engine";
 import { Keyboard } from "./Keyboard";
+import benchmarks from "./stats.json";
 
 const REPO = "https://github.com/team-mirae/jis-korean";
 
@@ -23,9 +24,18 @@ export function App({ engine }: { engine: Engine }) {
   const [focused, setFocused] = useState(false);
   const [candidates, setCandidates] = useState<Candidates | null>(null);
   const [hanjaReady, setHanjaReady] = useState(false);
+  const [sample, setSample] = useState("한글을 입력해 보세요");
+  const [counts, setCounts] = useState<Counts | null>(null);
   const surface = useRef<HTMLDivElement>(null);
 
   useEffect(() => surface.current?.focus(), []);
+  useEffect(() => {
+    // Placeholder text from public/sample.txt, editable without a rebuild.
+    fetch(`${import.meta.env.BASE_URL}sample.txt`)
+      .then((response) => (response.ok ? response.text() : Promise.reject(response.status)))
+      .then((text) => setSample(text.trim()))
+      .catch(() => {});
+  }, []);
   useEffect(() => {
     engine
       .loadDictionary(`${import.meta.env.BASE_URL}hanja.tsv`)
@@ -37,6 +47,13 @@ export function App({ engine }: { engine: Engine }) {
   }, [doc, preedit]);
 
   // Applies an engine result, then what a passed-through key does in a plain text field.
+  // Key presses for what's in the box (or the sample when it's empty), once typing pauses.
+  const counted = doc + preedit || sample;
+  useEffect(() => {
+    const timer = setTimeout(() => setCounts(engine.plan(counted)), 150);
+    return () => clearTimeout(timer);
+  }, [engine, counted]);
+
   function apply(out: Output, code: string, mods: Mods) {
     setDoc((d) => {
       let next = d + out.commit;
@@ -135,7 +152,7 @@ export function App({ engine }: { engine: Engine }) {
           {preedit && <span className="preedit">{preedit}</span>}
           {focused && <span className="caret" aria-hidden="true" />}
           {candidates && <CandidateList candidates={candidates} pageSize={engine.pageSize} onPick={onScreenKey} />}
-          {!doc && !preedit && !focused && <span className="placeholder">한글을 입력해 보세요</span>}
+          {!doc && !preedit && <span className="placeholder">{sample}</span>}
         </div>
         <div className="controls">
           <button
@@ -167,6 +184,10 @@ export function App({ engine }: { engine: Engine }) {
           </button>
         </div>
       </section>
+
+      {counts && <KeyCounts counts={counts} sample={!doc && !preedit} />}
+
+      <Benchmarks />
 
       <Keyboard engine={engine} escaped={escaped} shift={shift} pressed={pressed} onPress={onScreenKey} />
 
@@ -251,5 +272,79 @@ function CandidateList({ candidates, pageSize, onPick }: { candidates: Candidate
         </span>
       )}
     </span>
+  );
+}
+
+function KeyCounts({ counts, sample }: { counts: Counts; sample: boolean }) {
+  const saved = counts.conventional - counts.jis;
+  const percent = counts.conventional ? Math.round((saved / counts.conventional) * 1000) / 10 : 0;
+  const format = (n: number) => n.toLocaleString("en-US");
+  return (
+    <section className="counts" aria-label="Key presses" aria-live="polite">
+      <span className="counts-label">{sample ? "Key presses for the sample text" : "Key presses for your text"}</span>
+      <span className="count">
+        <span className="count-name">Conventional 2-set</span>
+        <strong>{format(counts.conventional)}</strong>
+      </span>
+      <span className="count jis">
+        <span className="count-name">JIS Korean</span>
+        <strong>{format(counts.jis)}</strong>
+      </span>
+      <span className="count saved">
+        <span className="count-name">{saved >= 0 ? "Fewer" : "More"}</span>
+        <strong>{format(Math.abs(saved))} ({Math.abs(percent)}%)</strong>
+      </span>
+      <span className="counts-note">
+        {format(counts.chars)} characters. Shift counts as a press; a symbol a layout has no key for counts as 3.
+        {counts.dropped > 0 && ` ${format(counts.dropped)} untypable characters left out.`}
+      </span>
+    </section>
+  );
+}
+
+/** Precomputed with the same planner by tools/build_stats.py (texts from Korean Wikisource). */
+function Benchmarks() {
+  const format = (n: number) => n.toLocaleString("en-US");
+  return (
+    <section className="benchmarks" aria-label="Benchmarks">
+      <h2>Key presses for well-known texts</h2>
+      <table>
+        <thead>
+          <tr>
+            <th scope="col">Text</th>
+            <th scope="col" className="number">Characters</th>
+            <th scope="col" className="number">Conventional 2-set</th>
+            <th scope="col" className="number">JIS Korean</th>
+            <th scope="col" className="number">Fewer</th>
+          </tr>
+        </thead>
+        <tbody>
+          {benchmarks.map((b) => {
+            const saved = b.conventional - b.jis;
+            return (
+              <tr key={b.id}>
+                <th scope="row">
+                  <a href={b.source} target="_blank" rel="noreferrer">
+                    {b.title}
+                  </a>
+                  <span className="subtitle">{b.subtitle}</span>
+                </th>
+                <td className="number">{format(b.chars)}</td>
+                <td className="number">{format(b.conventional)}</td>
+                <td className="number jis">{format(b.jis)}</td>
+                <td className="number jis">
+                  {format(saved)} ({Math.round((saved / b.conventional) * 1000) / 10}%)
+                </td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+      <p className="counts-note">
+        Same rules as above: Shift counts as a press, and a character neither layout has a key for (such as the
+        circled paragraph numbers ①②③ in the laws) counts as 3 on both. Texts from Korean Wikisource; each title
+        links to the exact revision.
+      </p>
+    </section>
   );
 }

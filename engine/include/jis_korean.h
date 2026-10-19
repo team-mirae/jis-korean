@@ -139,6 +139,15 @@ size_t jk_english_len(JkEngine *engine);
 /* Discards everything unconfirmed without committing it. */
 void jk_clear(JkEngine *engine);
 
+/* Key presses for a text on JIS Korean and on conventional 2-set (plan.rs; Shift counts as a
+ * press, symbols off a layout's legends count 3). Uses the engine's hanja dictionary if set. */
+void jk_plan(JkEngine *engine, const uint8_t *text, size_t len);
+size_t jk_plan_jis(JkEngine *engine);
+size_t jk_plan_conventional(JkEngine *engine);
+size_t jk_plan_chars(JkEngine *engine);
+size_t jk_plan_off_keyboard(JkEngine *engine); /* characters no key types, counted 3 each */
+size_t jk_plan_dropped(JkEngine *engine);
+
 /* Memory in the engine's address space, for wasm hosts passing the dictionary in. */
 uint8_t *jk_alloc(size_t len);
 void jk_dealloc(uint8_t *ptr, size_t len);

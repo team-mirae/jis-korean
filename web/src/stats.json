@@ -1,0 +1,35 @@
+[
+  {
+    "id": "constitution",
+    "title": "대한민국헌법",
+    "subtitle": "Constitution of the Republic of Korea (full text)",
+    "source": "https://ko.wikisource.org/w/index.php?title=%EB%8C%80%ED%95%9C%EB%AF%BC%EA%B5%AD%ED%97%8C%EB%B2%95%20%28%EC%A0%9C10%ED%98%B8%29&oldid=407850",
+    "chars": 18623,
+    "jis": 37110,
+    "conventional": 40716,
+    "off_keyboard": 241,
+    "dropped": 0
+  },
+  {
+    "id": "commercial-act",
+    "title": "상법 제1조~제10조",
+    "subtitle": "Commercial Act, articles 1–10",
+    "source": "https://ko.wikisource.org/w/index.php?title=%EC%83%81%EB%B2%95%20%28%EB%8C%80%ED%95%9C%EB%AF%BC%EA%B5%AD%2C%20%EC%A0%9C14096%ED%98%B8%29&oldid=409137",
+    "chars": 643,
+    "jis": 1340,
+    "conventional": 1408,
+    "off_keyboard": 2,
+    "dropped": 0
+  },
+  {
+    "id": "anthem",
+    "title": "애국가 1~4절",
+    "subtitle": "National anthem, all four verses (with the chorus, as sung)",
+    "source": "https://ko.wikisource.org/w/index.php?title=%EC%95%A0%EA%B5%AD%EA%B0%80%20%28%EB%8C%80%ED%95%9C%EB%AF%BC%EA%B5%AD%29&oldid=393061",
+    "chars": 281,
+    "jis": 565,
+    "conventional": 592,
+    "off_keyboard": 0,
+    "dropped": 0
+  }
+]

@@ -44,6 +44,11 @@ impl Dictionary {
         self.entries.is_empty()
     }
 
+    /// Every reading with its candidates, in no particular order.
+    pub fn entries(&self) -> impl Iterator<Item = (&str, &[Candidate])> {
+        self.entries.iter().map(|(reading, candidates)| (reading.as_str(), candidates.as_slice()))
+    }
+
     pub fn lookup(&self, reading: &str) -> &[Candidate] {
         self.entries.get(reading).map_or(&[], Vec::as_slice)
     }

@@ -59,8 +59,9 @@ Build order: macOS → Minecraft → Windows → iPadOS. Android and iPhone are 
 - The engine gets **golden tables**: key sequences → expected commit and preedit, covering every
   automaton transition, backspace, each F-key, and every core-principle example in the spec.
 - Every spec example (e.g. `한 F6 ㅏ → 한아`, the F9/F10 cycle in §6.2) must be a test.
-- **The robot** (`engine/tests/robot.rs`, `tests/support/robot.rs`) types real text key by key and
-  checks the screen after every character. It reads keys from the engine's layout tables, so a
+- **The robot** (`engine/src/plan.rs`, run by `engine/tests/robot.rs`) types real text key by key
+  and checks the screen after every character. The web playground's key-press comparison uses the
+  same planner (`plan::count`). It reads keys from the engine's layout tables, so a
   layout change that breaks typability shows up there. Its corpus, Samsung Electronics' latest
   "사업의 내용", is fetched by `tests/data/fetch_corpus.py` and gitignored (it's the filer's
   text). See the report with `cargo test --test robot -- --nocapture`.

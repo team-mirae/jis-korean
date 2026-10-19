@@ -1,18 +1,61 @@
-//! The typing robot: plans keystrokes for a text on the JIS Korean layout, types them through the
-//! engine, and checks after every character that the screen (committed + unconfirmed text) shows
-//! exactly the text so far. Keys come from the engine's own layout tables, not a copy.
+//! Keystroke planning: how many key presses a text takes on JIS Korean, and on conventional 2-set.
 //!
-//! It plays the layout the way a fluent typist would: dedicated keys, the implied ㅇ and the double
-//! press where they save keystrokes, F8 for symbols that only stock JIS has, F10 for Latin words,
-//! and F7 for hanja. Where several plans work it takes the cheapest (Shift counts as a press).
-
-#![allow(dead_code)]
+//! [`Robot`] plans keystrokes for a text on the JIS Korean layout, types them through the engine,
+//! and checks after every character that the screen (committed + unconfirmed text) shows exactly
+//! the text so far. Keys come from the engine's own layout tables, not a copy. It plays the layout
+//! the way a fluent typist would: dedicated keys, the implied ㅇ, Shift+vowel and the double press
+//! where they save keystrokes, F8 for symbols only stock JIS has, F10 or an input-source switch for
+//! Latin words, and F7 for hanja. Where several plans work it takes the cheapest (Shift counts as
+//! a press).
+//!
+//! [`count`] wraps it for hosts (the web playground) together with the conventional estimate.
 
 use std::collections::{BTreeMap, HashMap};
 use std::fmt;
 use std::sync::Arc;
 
-use jis_korean::{Dictionary, Engine, Key, Layout, Mods, Out, Output, PAGE_SIZE, output};
+use crate::{Dictionary, Engine, Key, Layout, Mods, Out, Output, PAGE_SIZE, output};
+
+/// What a symbol costs when it isn't on a layout's legends: an OS shortcut, the character palette or
+/// copying it from a search all take at least this many presses. Applies to both layouts.
+pub const OFF_LEGEND: usize = 3;
+
+/// Key presses for one text, both ways (Shift counted as a press).
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct Counts {
+    /// Characters counted (after normalization; untypable ones are left out).
+    pub chars: usize,
+    /// JIS Korean, as the robot types it.
+    pub jis: usize,
+    /// Conventional 2-set on a JIS keyboard (estimate, see [`conventional`]).
+    pub conventional: usize,
+    /// Characters no key types (①, ×, …), counted as [`OFF_LEGEND`] presses on both layouts.
+    pub off_keyboard: usize,
+    /// Characters left out of both counts (invisible control characters, robot failures).
+    pub dropped: usize,
+}
+
+/// Counts the key presses for `text` on JIS Korean and on conventional 2-set. With a dictionary,
+/// hanja are typed with F7; without one they're left out.
+pub fn count(text: &str, dictionary: Option<Arc<Dictionary>>) -> Counts {
+    let mut robot = Robot::new(dictionary);
+    let typed = robot.type_text(text);
+    let report = &robot.report;
+    Counts {
+        chars: report.chars,
+        jis: report.presses,
+        conventional: report.baseline,
+        off_keyboard: report.pasted,
+        dropped: report.dropped.values().sum::<usize>() + report.failures.len(),
+    }
+    .with_typed(&typed)
+}
+
+impl Counts {
+    fn with_typed(self, typed: &str) -> Counts {
+        Counts { chars: typed.chars().count(), ..self }
+    }
+}
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Press {
@@ -55,12 +98,18 @@ pub struct Report {
     pub double_presses: usize,
     pub hanja: usize,
     pub latin_words: usize,
+    /// Latin words typed by switching the input source to English and back (when cheaper than F10).
+    pub latin_switches: usize,
+    /// Syllables started with Shift+vowel.
+    pub shift_vowels: usize,
     pub escapes: usize,
     /// Estimated presses for the same text on standard 2-set with stock JIS symbols.
     pub baseline: usize,
     /// Characters the robot couldn't type, with what was on screen.
     pub failures: Vec<String>,
-    /// Characters with no way to type them, removed during normalization.
+    /// Characters no key types, entered from outside the keyboard at [`OFF_LEGEND`] presses each.
+    pub pasted: usize,
+    /// Invisible control characters, removed during normalization.
     pub dropped: BTreeMap<char, usize>,
 }
 
@@ -80,8 +129,11 @@ impl fmt::Display for Report {
         writeln!(f, "implied ㅇ        {}", self.implied_ieung)?;
         writeln!(f, "double presses    {}", self.double_presses)?;
         writeln!(f, "hanja via F7      {}", self.hanja)?;
+        writeln!(f, "Shift+vowel       {}", self.shift_vowels)?;
         writeln!(f, "Latin via F10     {}", self.latin_words)?;
+        writeln!(f, "Latin via switch  {}", self.latin_switches)?;
         writeln!(f, "F8 escapes        {}", self.escapes)?;
+        writeln!(f, "off the keyboard  {} (×{OFF_LEGEND} presses)", self.pasted)?;
         writeln!(f, "failures          {}", self.failures.len())?;
         if !self.dropped.is_empty() {
             let dropped: Vec<String> = self.dropped.iter().map(|(c, n)| format!("{c}×{n}")).collect();
@@ -202,7 +254,9 @@ fn decompose(s: char) -> (char, char, Option<char>) {
 // --- Normalization
 
 /// Replaces characters that have a typable equivalent and drops the rest.
-pub fn normalize(text: &str, typable: impl Fn(char) -> bool) -> (String, BTreeMap<char, usize>) {
+/// Replaces characters that have a typable equivalent and drops invisible control characters.
+/// Anything else stays: what neither layout has a key for costs [`OFF_LEGEND`] presses.
+pub fn normalize(text: &str) -> (String, BTreeMap<char, usize>) {
     let mut out = String::new();
     let mut dropped = BTreeMap::new();
     for c in text.chars() {
@@ -216,10 +270,10 @@ pub fn normalize(text: &str, typable: impl Fn(char) -> bool) -> (String, BTreeMa
             '–' => "-",
             '\u{a0}' | '\t' => " ",
             _ => {
-                if typable(c) {
-                    out.push(c);
-                } else {
+                if c.is_control() && c != '\n' {
                     *dropped.entry(c).or_insert(0) += 1;
+                } else {
+                    out.push(c);
                 }
                 continue;
             }
@@ -268,6 +322,7 @@ struct Plan {
     dedicated: usize,
     implied: bool,
     double: bool,
+    shift_vowel: bool,
 }
 
 impl Plan {
@@ -287,24 +342,27 @@ pub struct Robot {
 }
 
 impl Robot {
-    /// `dictionary_tsv`: the contents of `dict/hanja.tsv`.
-    pub fn new(dictionary_tsv: &str) -> Robot {
+    /// Without a dictionary, hanja can't be typed and are left out.
+    pub fn new(dictionary: Option<Arc<Dictionary>>) -> Robot {
         let mut engine = Engine::new();
-        engine.set_dictionary(Arc::new(Dictionary::parse(dictionary_tsv)));
+        // hanja → its single-syllable reading where it ranks highest.
         let mut readings: HashMap<char, (String, usize)> = HashMap::new();
-        let mut index: HashMap<&str, usize> = HashMap::new();
-        for line in dictionary_tsv.lines() {
-            let mut fields = line.split('\t');
-            let (Some(reading), Some(hanja)) = (fields.next(), fields.next()) else { continue };
-            let position = index.entry(reading).or_insert(0);
-            let mut chars = hanja.chars();
-            if let (Some(h), None, 1) = (chars.next(), chars.next(), reading.chars().count()) {
-                let best = readings.entry(h).or_insert((reading.to_string(), *position));
-                if *position < best.1 {
-                    *best = (reading.to_string(), *position);
+        if let Some(dictionary) = dictionary {
+            for (reading, candidates) in dictionary.entries() {
+                if reading.chars().count() != 1 {
+                    continue;
+                }
+                for (position, candidate) in candidates.iter().enumerate() {
+                    let mut chars = candidate.hanja.chars();
+                    if let (Some(h), None) = (chars.next(), chars.next()) {
+                        let best = readings.entry(h).or_insert((reading.to_string(), position));
+                        if position < best.1 {
+                            *best = (reading.to_string(), position);
+                        }
+                    }
                 }
             }
-            *position += 1;
+            engine.set_dictionary(dictionary);
         }
         Robot {
             keymap: Keymap::new(),
@@ -329,7 +387,7 @@ impl Robot {
 
     /// Types `text` after normalizing it. Returns the normalized text the screen should show.
     pub fn type_text(&mut self, text: &str) -> String {
-        let (target, dropped) = normalize(text, |c| self.can_type(c));
+        let (target, dropped) = normalize(text);
         self.report.dropped = dropped;
         let chars: Vec<char> = target.chars().collect();
         let mut i = 0;
@@ -401,6 +459,16 @@ impl Robot {
         Some(plan)
     }
 
+    /// A character no key types (①, ×, emoji, a hanja without a dictionary): entered from outside
+    /// the keyboard, which commits what's composing, for a flat [`OFF_LEGEND`] presses.
+    fn paste(&mut self, c: char) {
+        let out = self.screen.engine.flush();
+        self.screen.doc.push_str(&out.commit);
+        self.screen.doc.push(c);
+        self.report.presses += OFF_LEGEND;
+        self.report.pasted += 1;
+    }
+
     /// Commits first if the unconfirmed text ends in Hangul that F7 or F10 would pick up.
     fn break_word(&mut self) {
         if self.screen.ends_in_hangul() {
@@ -417,9 +485,12 @@ impl Robot {
             let plan = self.try_plans(plans, &want).ok_or(())?;
             self.report.dedicated_keys += plan.dedicated;
             self.report.implied_ieung += plan.implied as usize;
+            self.report.shift_vowels += plan.shift_vowel as usize;
             self.report.double_presses += plan.double as usize;
-        } else if is_hanja(c) {
+        } else if is_hanja(c) && self.readings.contains_key(&c) {
             self.type_hanja(c, &want)?;
+        } else if is_hanja(c) {
+            self.paste(c);
         } else if is_compat_jamo(c) {
             self.break_word();
             let ways = self.keymap.jamo_ways(self.layout(), c);
@@ -437,19 +508,25 @@ impl Robot {
         } else if c == '\n' {
             self.press_all(&[Press::new(Key::Enter)]);
         } else {
-            let here = self.layout();
-            let there = if here == Layout::JisKorean { Layout::Escaped } else { Layout::JisKorean };
-            let press = match (self.keymap.char_press(here, c), self.keymap.char_press(there, c)) {
-                (Some(p), _) => p,
-                (None, Some(p)) => {
-                    let switch = Press { key: Key::F8, shift: there == Layout::JisKorean };
-                    self.press_all(&[switch]);
-                    self.report.escapes += (there == Layout::Escaped) as usize;
-                    p
+            match (self.keymap.char_press(Layout::JisKorean, c), self.keymap.char_press(Layout::Escaped, c)) {
+                (Some(p), _) => {
+                    self.press_all(&[p]);
                 }
-                (None, None) => return Err(()),
-            };
-            self.press_all(&[press]);
+                (None, Some(p)) => {
+                    // Not on the JIS Korean legends (( ) % @ …): a flat OFF_LEGEND presses, as for
+                    // any symbol a layout lacks. Typed through the F8 escape so the screen check
+                    // still holds, but those keys aren't counted, and the escape ends right away.
+                    let escape = Press::new(Key::F8);
+                    let back = Press { key: Key::F8, shift: true };
+                    for press in [escape, p, back] {
+                        self.screen.press(press);
+                        self.log.push(press);
+                    }
+                    self.report.presses += OFF_LEGEND;
+                    self.report.escapes += 1;
+                }
+                (None, None) => self.paste(c),
+            }
         }
         if self.screen.text() != want {
             return Err(());
@@ -468,26 +545,59 @@ impl Robot {
             Some(f) => self.keymap.jamo_ways(layout, f),
         };
         let mut plans = Vec::new();
+        /// How a syllable's keys begin: what comes before the vowel, the vowel's own keys, and
+        /// which shortcut that is.
+        struct Start {
+            before: Vec<Press>,
+            vowel: Vec<Press>,
+            implied: bool,
+            double: bool,
+            shift_vowel: bool,
+        }
+        let start = |before: Vec<Press>, vowel: Vec<Press>, implied, double, shift_vowel| Start {
+            before,
+            vowel,
+            implied,
+            double,
+            shift_vowel,
+        };
         for m in &medials {
-            let mut starts: Vec<(Vec<Press>, bool, bool)> = Vec::new();
+            let mut starts: Vec<Start> = Vec::new();
             if initial == 'ㅇ' && allow_implied {
                 // Implied ㅇ, and the double press for when a final would move: 말+ㅣ+ㅣ → 말이.
-                starts.push((vec![], true, false));
-                starts.push((vec![m[0]], false, true));
+                starts.push(start(vec![], m.clone(), true, false, false));
+                starts.push(start(vec![m[0]], m.clone(), false, true, false));
+                // Shift+vowel starts a syllable on ㅇ (spec §4.2), where Shift adds nothing else.
+                if layout == Layout::JisKorean
+                    && !m[0].shift
+                    && output(layout, m[0].key, true) == output(layout, m[0].key, false)
+                {
+                    let mut shifted = m.clone();
+                    shifted[0].shift = true;
+                    starts.push(start(vec![], shifted, false, false, true));
+                }
             }
             for i in self.keymap.jamo_ways(layout, initial) {
-                starts.push((i, false, false));
+                starts.push(start(i, m.clone(), false, false, false));
             }
-            for (start, implied, double) in &starts {
+            for s in &starts {
                 for f in &finals {
-                    let presses: Vec<Press> = start.iter().chain(m).chain(f).copied().collect();
+                    let presses: Vec<Press> = s.before.iter().chain(&s.vowel).chain(f).copied().collect();
                     let used = dedicated(&presses);
-                    plans.push(Plan { presses, dedicated: used, implied: *implied, double: *double });
+                    plans.push(Plan {
+                        presses,
+                        dedicated: used,
+                        implied: s.implied,
+                        double: s.double,
+                        shift_vowel: s.shift_vowel,
+                    });
                 }
             }
         }
         // Prefer the IME's own shortcuts on ties (the sort in try_plans is stable).
-        plans.sort_by_key(|p| std::cmp::Reverse(p.dedicated + p.implied as usize + p.double as usize));
+        plans.sort_by_key(|p| {
+            std::cmp::Reverse(p.dedicated + p.implied as usize + p.double as usize + p.shift_vowel as usize)
+        });
         plans
     }
 
@@ -510,10 +620,33 @@ impl Robot {
     }
 
     /// A Latin word: its keys, then F10 once (as typed), twice (UPPER) or three times
-    /// (Capitalized), whichever is cheapest.
+    /// (Capitalized), or a switch to English and back, whichever is cheapest.
     fn type_latin(&mut self, word: &str) -> bool {
-        self.break_word();
         let want = format!("{}{word}", self.expected);
+        // Switching the input source to English and back: two presses, plus the word as typed.
+        let switch = 2 + word.chars().map(|c| 1 + c.is_ascii_uppercase() as usize).sum::<usize>();
+        // F10 plans: as typed (Shift on capitals), or lowercase keys then UPPER / Capitalized.
+        let upper = word.chars().filter(|c| c.is_ascii_uppercase()).count();
+        let mut f10 = word.len() + upper + 1;
+        if upper == word.len() {
+            f10 = f10.min(word.len() + 2);
+        } else if upper == 1 && word.starts_with(|c: char| c.is_ascii_uppercase()) {
+            f10 = f10.min(word.len() + 3);
+        }
+        // Plus F6 first if the unconfirmed text ends in Hangul.
+        let f10 = f10 + self.screen.ends_in_hangul() as usize;
+        if switch < f10 {
+            // Switching input sources commits whatever is composing, then types the word as is.
+            let out = self.screen.engine.flush();
+            self.screen.doc.push_str(&out.commit);
+            self.screen.doc.push_str(word);
+            self.report.presses += switch;
+            self.report.shifts += word.chars().filter(|c| c.is_ascii_uppercase()).count();
+            self.report.latin_switches += 1;
+            self.expected = want;
+            return true;
+        }
+        self.break_word();
         let key = |c: char, shift: bool| Press { key: Key::from_code(&format!("Key{}", c.to_ascii_uppercase())), shift };
         let f10 = |n: usize| vec![Press::new(Key::F10); n];
         let as_typed: Vec<Press> = word.chars().map(|c| key(c, c.is_ascii_uppercase())).chain(f10(1)).collect();
@@ -531,9 +664,14 @@ impl Robot {
     }
 }
 
-/// Estimated presses on standard 2-set with stock JIS symbols and a 한/영 key: no dedicated
-/// keys, digits unshifted, a toggle into and out of English for Latin, and three presses for
-/// symbols stock JIS lacks (—, ·, 「」).
+/// Estimated presses on conventional 2-set (Apple's 2-Set Korean on a JIS keyboard): no dedicated
+/// keys, Shift for doubles and ㅒ ㅖ, two keys for compound vowels, digits unshifted, stock JIS
+/// symbols, a 한/영 switch into and out of each Latin run, [`OFF_LEGEND`] presses for symbols stock
+/// JIS lacks (—, ·, 「」), and three for each hanja (reading + 한자 + pick, counted low).
+pub fn conventional(text: &str) -> usize {
+    baseline(&Keymap::new(), text)
+}
+
 fn baseline(keymap: &Keymap, text: &str) -> usize {
     let jamo_cost = |j: char| {
         keymap
@@ -562,7 +700,7 @@ fn baseline(keymap: &Keymap, text: &str) -> usize {
         } else if c == ' ' || c == '\n' || is_compat_jamo(c) {
             1
         } else {
-            3
+            OFF_LEGEND
         };
     }
     total

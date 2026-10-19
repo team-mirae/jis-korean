@@ -111,6 +111,11 @@ impl Engine {
         self.dictionary = Some(dictionary);
     }
 
+    /// The hanja dictionary, if one was set.
+    pub fn dictionary(&self) -> Option<Arc<Dictionary>> {
+        self.dictionary.clone()
+    }
+
     /// Whether F8 has escaped to standard 2-set.
     pub fn is_escaped(&self) -> bool {
         self.layout == Layout::Escaped
