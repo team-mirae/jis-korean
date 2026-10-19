@@ -19,7 +19,7 @@ impl Out {
     }
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum Layout {
     /// The JIS Korean layout.
     JisKorean,

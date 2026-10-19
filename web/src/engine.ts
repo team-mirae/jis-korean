@@ -17,6 +17,18 @@ interface Exports {
   jk_key_code_ptr(key: number): number;
   jk_key_code_len(key: number): number;
   jk_legend(key: number, shift: number, escaped: number): number;
+  jk_alloc(len: number): number;
+  jk_dealloc(ptr: number, len: number): void;
+  jk_dict_new(ptr: number, len: number): number;
+  jk_dict_free(dict: number): void;
+  jk_set_dictionary(h: number, dict: number): void;
+  jk_candidate_count(h: number): number;
+  jk_candidate_selected(h: number): number;
+  jk_candidate_page_size(): number;
+  jk_candidate_ptr(h: number, i: number): number;
+  jk_candidate_len(h: number, i: number): number;
+  jk_candidate_comment_ptr(h: number, i: number): number;
+  jk_candidate_comment_len(h: number, i: number): number;
 }
 
 export interface Mods {
@@ -26,10 +38,22 @@ export interface Mods {
   meta?: boolean;
 }
 
+export interface Candidate {
+  hanja: string;
+  comment: string;
+}
+
+export interface Candidates {
+  items: Candidate[];
+  selected: number;
+}
+
 export interface Output {
   commit: string;
   preedit: string;
   consumed: boolean;
+  /** The hanja list, while one is open (F7). */
+  candidates: Candidates | null;
 }
 
 const MODIFIER_CODES = new Set([
@@ -61,11 +85,38 @@ export class Engine {
 
   private output(consumed: boolean): Output {
     const { x, handle: h } = this;
+    const count = x.jk_candidate_count(h);
+    const items: Candidate[] = [];
+    for (let i = 0; i < count; i++) {
+      items.push({
+        hanja: this.text(x.jk_candidate_ptr(h, i), x.jk_candidate_len(h, i)),
+        comment: this.text(x.jk_candidate_comment_ptr(h, i), x.jk_candidate_comment_len(h, i)),
+      });
+    }
     return {
       commit: this.text(x.jk_commit_ptr(h), x.jk_commit_len(h)),
       preedit: this.text(x.jk_preedit_ptr(h), x.jk_preedit_len(h)),
       consumed,
+      candidates: count ? { items, selected: x.jk_candidate_selected(h) } : null,
     };
+  }
+
+  get pageSize(): number {
+    return this.x.jk_candidate_page_size();
+  }
+
+  /** Loads the hanja dictionary (dict/hanja.tsv) so F7 works. */
+  async loadDictionary(url: string): Promise<void> {
+    const bytes = new Uint8Array(await (await fetch(url)).arrayBuffer());
+    const { x } = this;
+    const ptr = x.jk_alloc(bytes.length);
+    new Uint8Array(x.memory.buffer, ptr, bytes.length).set(bytes);
+    const dict = x.jk_dict_new(ptr, bytes.length);
+    x.jk_dealloc(ptr, bytes.length);
+    if (!dict) throw new Error("hanja dictionary is not UTF-8");
+    x.jk_set_dictionary(this.handle, dict);
+    // The engine keeps its own reference.
+    x.jk_dict_free(dict);
   }
 
   key(code: string, mods: Mods = {}): Output {

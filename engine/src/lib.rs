@@ -6,9 +6,11 @@
 mod engine;
 pub mod ffi;
 mod hangul;
+mod hanja;
 mod key;
 mod layout;
 
-pub use engine::{Engine, Output, full_width};
+pub use engine::{Candidates, Engine, Output, PAGE_SIZE, full_width};
+pub use hanja::{Candidate, Dictionary};
 pub use key::{Key, Mods};
 pub use layout::{Layout, Out, output};

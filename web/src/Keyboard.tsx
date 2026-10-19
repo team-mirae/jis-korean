@@ -15,7 +15,7 @@ const ROWS: { offset: number; codes: string[] }[] = [
 
 const FUNCTION_KEYS: Record<string, { label: string; planned?: boolean }> = {
   F6: { label: "한글" },
-  F7: { label: "한자", planned: true },
+  F7: { label: "한자" },
   F8: { label: "두벌식" },
   F9: { label: "전각" },
   F10: { label: "반각" },

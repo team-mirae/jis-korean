@@ -77,8 +77,13 @@ enum {
     JK_KEY_SPACE = 53,
     JK_KEY_ENTER = 54,
     JK_KEY_BACKSPACE = 55,
-    JK_KEY_MODIFIER = 56,
-    JK_KEY_OTHER = 57,
+    JK_KEY_ESCAPE = 56,
+    JK_KEY_ARROWUP = 57,
+    JK_KEY_ARROWDOWN = 58,
+    JK_KEY_ARROWLEFT = 59,
+    JK_KEY_ARROWRIGHT = 60,
+    JK_KEY_MODIFIER = 61,
+    JK_KEY_OTHER = 62,
 };
 
 enum {
@@ -110,6 +115,26 @@ const uint8_t *jk_key_code_ptr(uint32_t key);
 size_t jk_key_code_len(uint32_t key);
 /* The character a key types (Unicode scalar), or 0 if none. For drawing key legends. */
 uint32_t jk_legend(uint32_t key, uint32_t shift, uint32_t escaped);
+
+/* Hanja (F7). Parse the dictionary once and share it; engines keep their own reference. */
+typedef struct JkDict JkDict;
+JkDict *jk_dict_new(const uint8_t *tsv, size_t len); /* NULL if not UTF-8 */
+void jk_dict_free(JkDict *dict);
+void jk_set_dictionary(JkEngine *engine, const JkDict *dict);
+
+/* The open candidate list on the last result. Count 0 = no list. Show a page of
+ * jk_candidate_page_size() around the selected one; keys 1-9 pick on that page. */
+size_t jk_candidate_count(JkEngine *engine);
+size_t jk_candidate_selected(JkEngine *engine);
+size_t jk_candidate_page_size(void);
+const uint8_t *jk_candidate_ptr(JkEngine *engine, size_t index);
+size_t jk_candidate_len(JkEngine *engine, size_t index);
+const uint8_t *jk_candidate_comment_ptr(JkEngine *engine, size_t index);
+size_t jk_candidate_comment_len(JkEngine *engine, size_t index);
+
+/* Memory in the engine's address space, for wasm hosts passing the dictionary in. */
+uint8_t *jk_alloc(size_t len);
+void jk_dealloc(uint8_t *ptr, size_t len);
 
 #ifdef __cplusplus
 }

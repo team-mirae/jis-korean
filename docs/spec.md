@@ -21,7 +21,7 @@ adds a shortcut; it never takes anything away.
 - Double finals (ㄹ+ㄱ → ㄺ etc.) compose as usual.
 
 The one deliberate exception is the implied ㅇ (§4.2): a vowel with no initial types a full syllable
-(ㅏ → 아) instead of a bare jamo. F6 right after gives the bare jamo back.
+(ㅏ → 아) instead of a bare jamo. F6 right after commits the bare jamo instead.
 
 Any change that breaks this principle is a spec change, not an implementation detail.
 
@@ -172,10 +172,28 @@ the segment, after a symbol, or after a syllable whose vowel it can't combine wi
 | ㄱ ㅗ 0 | 고와 |
 | ㅏ ㄴ ㅏ | 아나 (the implied ㅇ behaves like a typed one) |
 
-**F6 right after** removes the implied ㅇ and leaves the bare vowel, finished: ㅏ F6 → ㅏ,
-가어 F6 → 가ㅓ, 와 F6 → ㅘ. This works while the syllable has no final yet. Once it has one
-(안), F6 just ends the syllable. The next vowel after a bare one gets an implied ㅇ again
-(ㅏ F6 ㅏ → ㅏ아). Backspace on a bare vowel removes it, and the next vowel gets an implied ㅇ.
+**F6 right after** commits with the implied ㅇ removed: ㅏ F6 → ㅏ, 가어 F6 → 가ㅓ,
+와 F6 → ㅘ. This works while the syllable has no final yet. Once it has one (안), F6 commits it as
+it is. Being a commit, F6 ends everything: the next vowel gets an implied ㅇ again
+(ㅏ F6 ㅏ → ㅏ, then 아 unconfirmed).
+
+**Same vowel again keeps the final.** A vowel after a final takes it (말 ㅣ → 마리), but the
+writer may have meant 말이. Pressing the **same vowel key again right away** puts the final back
+and starts the vowel's own syllable on an implied ㅇ:
+
+| Keys | Result |
+|---|---|
+| ㅁ ㅏ ㄹ ㅣ | 마리 |
+| ㅁ ㅏ ㄹ ㅣ ㅣ | 말이 |
+| ㄷ ㅏ ㄹ ㄱ ㅏ ㅏ | 닭아 (a double final goes back whole) |
+| ㅁ ㅏ ㄹ 0 0 | 말와 |
+| ㅁ ㅏ ㄹ ㅣ ㅣ ㅣ | 말이이 (only the first repeat toggles) |
+| ㅁ ㅏ ㄹ ㅣ ㅏ | 마리아 (a different vowel doesn't toggle) |
+| ㅁ ㅏ ㄹ ㅣ F6 ㅣ | 마리 committed, then 이 (F6 commits in between) |
+
+The ㅇ from a double press was asked for, so F6 commits it as it is (말이 F6 → 말이), unlike a
+plain implied ㅇ. Backspace removes the
+repeat and gives the first reading back (말이 → 마리).
 
 ### 4.3 Backspace
 
@@ -199,6 +217,7 @@ Korean IME, and it is what F9/F10 need **[decide]**.
 | Input | Effect |
 |---|---|
 | Space | Commit the segment, then type a space. Space **never converts** (unlike the Japanese kana IME). |
+| F6 | Commit the segment (§6). Nothing else is typed. |
 | Shift+Enter | Commit the segment. Nothing else is typed. *(planned)* |
 | Enter | Default: commit the segment, then pass Enter to the app. Setting "Enter commits": commit only, as Shift+Enter does. *(planned)* **[decide]** |
 | Focus loss, app switch, IME switch | Commit the segment. |
@@ -208,15 +227,18 @@ Korean IME, and it is what F9/F10 need **[decide]**.
 ### 5.2 Words
 
 A **word**, for F9/F10, is the trailing run of jamo keystrokes in the segment that each came from a
-letter or digit key. A symbol, a digit typed with Shift, an F6 boundary or a conversion ends the
+letter or digit key. A symbol, a digit typed with Shift or a conversion ends the
 run *(from prototype)*. Each keystroke keeps its **raw character**: the Latin letter of a letter
 key (uppercase when typed with Shift), or the digit of a number-row key (so key 1 = ㅃ has raw
 character `1`).
 
-### 5.3 Pending symbols *(planned)*
+### 5.3 Symbols and digits with F9/F10
 
-A symbol that has a full-width form stays in the segment after typing, so F9 can convert it to
-full-width. The full-width form of U+0021–U+007E is the code point + 0xFEE0; space becomes U+3000.
+Typed symbols and Shift+digits stay in the segment like everything else. When the segment **ends in
+a run of ASCII symbols or digits**, F9/F10 convert that run instead of a word: `2026` F9 →
+`２０２６`, 한! F9 → 한！. The run and a word never mix: a word ends at the first symbol, and a
+symbol run ends at the first jamo. Case cycling and F6 (restore and commit) work the same way.
+The full-width form of U+0021–U+007E is the code point + 0xFEE0; space becomes U+3000.
 
 ---
 
@@ -224,8 +246,8 @@ full-width. The full-width form of U+0021–U+007E is the code point + 0xFEE0; s
 
 | Key | Label | Behavior | Status |
 |---|---|---|---|
-| F6 | 한글 | **Right after F9/F10:** restore the Hangul of the converted word. **On an implied ㅇ:** drop it (§4.2). **Otherwise:** end the syllable being composed, as switching to English and back does (한 F6 ㅏ → 한아, and one more F6 → 한ㅏ). No-op if nothing is composing. Also the return path from 한자 (F7). | done in prototype |
-| F7 | 한자 | Hanja conversion of the current syllable or word, with a candidate list. Pairs with F6 (native / borrowed script), mirroring JIS F6 hiragana / F7 katakana. | planned |
+| F6 | 한글 | **Right after F9/F10:** restore the Hangul of the converted word. **On a plain implied ㅇ:** drop it (§4.2). Then **commit** everything unconfirmed, as switching to English and back does (한 F6 ㅏ → 한 committed, 아 unconfirmed; one more F6 → 한ㅏ). F6 changes nothing else. No-op if nothing is unconfirmed. Also the return path from 한자 (F7). | done in prototype |
+| F7 | 한자 | Hanja conversion of the word at the end of the unconfirmed text, with a candidate list (§7). Pairs with F6 (native / borrowed script), mirroring JIS F6 hiragana / F7 katakana. | done |
 | F8 | 두벌식 | Transient escape to standard 2-set on JIS (§6.1). | done in prototype (IME switching not simulated) |
 | F9 | 전각영숫자 | Convert the current word to full-width alphanumerics, from the raw characters (§5.2). | done in prototype |
 | F10 | 반각영숫자 | Same, half-width. | done in prototype |
@@ -244,20 +266,56 @@ full-width. The full-width form of U+0021–U+007E is the code point + 0xFEE0; s
 - The first press converts the word as typed (raw case kept).
 - Repeated presses of the same key cycle **as typed → UPPER → Capitalized → as typed …**
 - Pressing the other key switches width and keeps the current case step.
-- F6 right after either key restores the original Hangul keystrokes.
+- F6 right after either key restores the original Hangul and commits it.
 - Any other input ends the conversion state. The converted text stays in the segment as plain
   characters.
 - With no word to convert, F9/F10 are no-ops.
 
-Example: ㅎ ㅏ ㄴ (keys G K S) → 한. F10 → `gks`. F10 → `GKS`. F10 → `Gks`. F9 → `Ｇｋｓ`. F6 → 한.
+Example: ㅎ ㅏ ㄴ (keys G K S) → 한. F10 → `gks`. F10 → `GKS`. F10 → `Gks`. F9 → `Ｇｋｓ`. F6 → 한, committed.
 
 ---
 
-## 7. Hanja (F7) *(planned)*
+## 7. Hanja (F7)
 
-Not specified yet. Starting points: syllable-level candidates from Unicode Unihan (`kHangul`), plus a
-word-level dictionary. Check the license of any dictionary data before shipping it (libhangul is
-LGPL; its `hanja.txt` license needs checking separately).
+Basic support: dictionary lookup with a candidate list. No learning, no reconversion of committed
+text.
+
+### 7.1 Dictionary
+
+`engine/dict/hanja.tsv`, built by `engine/dict/build_dict.py` from:
+
+- **libhangul `data/hanja/hanja.txt`** (BSD-3-Clause; the data file is BSD even though libhangul's
+  code is LGPL): every single-syllable entry with its meaning (學: 배울 학), and the first two
+  forms of each word up to four syllables.
+- **Unicode Unihan `kHangul`** (Unicode License v3): syllables in KS X 1001 or the education set
+  that `hanja.txt` lacks.
+
+Candidates keep source order, which is roughly by frequency. The engine does no I/O: each shell
+loads the file and hands it to the engine (`jk_dict_new`), and engines share one parsed copy. The
+license files sit next to the dictionary and ship with it.
+
+### 7.2 Keys
+
+| State | Key | Effect |
+|---|---|---|
+| no list | F7 | Open a list for the **longest dictionary word at the end of the unconfirmed text**: 나는학교 → 학교. Only whole syllables count. No match, or no dictionary: nothing happens. |
+| list open | F7, ↓ | Next candidate (wraps) |
+| | Shift+F7, ↑ | Previous candidate (wraps) |
+| | → / ← | Next / previous page of 9 |
+| | 1–9 (number row, no Shift) | Pick that candidate on the current page |
+| | Enter | Pick the selected candidate. No new line. |
+| | Esc, Backspace | Close the list; the Hangul stays unconfirmed and editable |
+| | F6 | Close the list and commit the Hangul (back to Hangul, spec §6) |
+| | anything else | Pick the selected candidate, then handle the key as usual (가 F7 Space → 可 committed + space) |
+| | focus loss | Commit the selected candidate |
+
+While the list is open, the preedit shows the **selected candidate in place** of the reading. A
+pick stays unconfirmed like any other text. Earlier syllables keep their jamo, so Backspace still
+works on them by jamo. When the reading doesn't start on a keystroke boundary (말이 typed with
+the double press, then F7 on 이), the text before it becomes plain characters first.
+
+Shells show the page that holds the selected candidate, numbered 1–9, with comments. The web
+playground draws it under the caret; the macOS shell for now shows only the inline preview.
 
 ---
 
@@ -288,9 +346,9 @@ From the note:
 3. **~ vs -.** ~ is also used with numbers (3~5일, 10:00~12:00) and now needs Shift released. A
    second ~ on Shift+^ would cover it.
 4. **F8 and composition.** The prototype carries the syllable being composed across the F8 switch.
-   Should F8 commit first, like F6?
-5. **F6 vs Shift+Enter.** Proposed split: F6 ends the current syllable only. Shift+Enter commits
-   everything unconfirmed, including symbols pending for F9.
+   Should F8 commit first, like F6 does?
+5. ~~**F6 vs Shift+Enter.**~~ Settled: F6 commits everything unconfirmed (after dropping a plain
+   implied ㅇ or undoing F9/F10). Shift+Enter commits as-is.
 6. **Shift on the jamo number keys.** Shift on 1–0 types digits, and the jamo on those keys exist
    only unshifted. Confirm this is final.
 
@@ -301,7 +359,8 @@ Raised by this spec:
    and users of Korean IMEs expect)?
 8. **Plain Enter default (§5.1).** Commit + newline by default, with "Enter commits" as the opt-in.
    Is that the intended reading?
-9. **Digits inside a word (§5.2).** Shift+digit currently ends the F9 word, so `abc123` can't be
-   typed as one word and converted. Should Shift+digits join the word?
-10. **Arrows, Tab, Esc (§5.1).** Commit then pass through, or should Esc cancel the segment?
+9. **Digits inside a word (§5.2).** Shift+digit ends the F9 word, so `abc123` converts as `abc`
+   then `123` (each with its own F9/F10, §5.3). Is that enough?
+10. **Arrows, Tab, Esc (§5.1).** Outside the hanja list they commit then pass through. Should Esc
+    cancel the segment instead?
 11. **Non-JIS hardware.** Supported at all on desktop (ANSI has no ¥ or ろ key), or JIS only?

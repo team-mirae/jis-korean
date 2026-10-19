@@ -38,6 +38,9 @@ keys! {
     Comma = "Comma", Period = "Period", Slash = "Slash", IntlRo = "IntlRo",
     F6 = "F6", F7 = "F7", F8 = "F8", F9 = "F9", F10 = "F10",
     Space = "Space", Enter = "Enter", Backspace = "Backspace",
+    // Used by the hanja candidate list; elsewhere they commit and pass through like any other key.
+    Escape = "Escape", ArrowUp = "ArrowUp", ArrowDown = "ArrowDown",
+    ArrowLeft = "ArrowLeft", ArrowRight = "ArrowRight",
     // A modifier pressed on its own: ignored, never commits.
     Modifier = "Modifier",
     // Any other key: commits, then passes through to the app.

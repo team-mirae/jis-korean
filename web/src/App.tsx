@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import type { KeyboardEvent as ReactKeyboardEvent } from "react";
-import type { Engine, Mods, Output } from "./engine";
+import type { Candidates, Engine, Mods, Output } from "./engine";
 import { Keyboard } from "./Keyboard";
 
 export function App({ engine }: { engine: Engine }) {
@@ -11,9 +11,17 @@ export function App({ engine }: { engine: Engine }) {
   const [enterCommits, setEnterCommits] = useState(false);
   const [pressed, setPressed] = useState<Set<string>>(new Set());
   const [focused, setFocused] = useState(false);
+  const [candidates, setCandidates] = useState<Candidates | null>(null);
+  const [hanjaReady, setHanjaReady] = useState(false);
   const surface = useRef<HTMLDivElement>(null);
 
   useEffect(() => surface.current?.focus(), []);
+  useEffect(() => {
+    engine
+      .loadDictionary(`${import.meta.env.BASE_URL}hanja.tsv`)
+      .then(() => setHanjaReady(true))
+      .catch((error) => console.error("hanja dictionary:", error));
+  }, [engine]);
   useEffect(() => {
     surface.current?.scrollTo({ top: surface.current.scrollHeight });
   }, [doc, preedit]);
@@ -29,6 +37,7 @@ export function App({ engine }: { engine: Engine }) {
       return next;
     });
     setPreedit(out.preedit);
+    setCandidates(out.candidates);
     setEscaped(engine.escaped);
   }
 
@@ -73,6 +82,7 @@ export function App({ engine }: { engine: Engine }) {
     engine.activate();
     setDoc("");
     setPreedit("");
+    setCandidates(null);
     setEscaped(false);
     surface.current?.focus();
   }
@@ -109,6 +119,7 @@ export function App({ engine }: { engine: Engine }) {
           {doc}
           {preedit && <span className="preedit">{preedit}</span>}
           {focused && <span className="caret" aria-hidden="true" />}
+          {candidates && <CandidateList candidates={candidates} pageSize={engine.pageSize} onPick={onScreenKey} />}
           {!doc && !preedit && !focused && <span className="placeholder">한글을 입력해 보세요</span>}
         </div>
         <div className="controls">
@@ -157,11 +168,19 @@ export function App({ engine }: { engine: Engine }) {
           </div>
           <div>
             <dt>Lone vowel</dt>
-            <dd>Gets an implied ㅇ: ㅏ → 아, 가 + ㅓ → 가어. F6 right after leaves the bare vowel.</dd>
+            <dd>Gets an implied ㅇ: ㅏ → 아, 가 + ㅓ → 가어. F6 right after commits the bare vowel.</dd>
           </div>
           <div>
             <dt>F6 한글</dt>
-            <dd>Ends the syllable being composed (한 F6 ㅏ → 한아), or undoes F9/F10.</dd>
+            <dd>Commits. Right after F9/F10, commits the Hangul instead.</dd>
+          </div>
+          <div>
+            <dt>Same vowel twice</dt>
+            <dd>말 + ㅣ → 마리. Press ㅣ again for 말이.</dd>
+          </div>
+          <div>
+            <dt>F7 한자</dt>
+            <dd>{hanjaReady ? "Hanja for the word you just typed. F7 or ↓ for the next, 1–9 to pick, Esc to go back." : "Loading the hanja dictionary…"}</dd>
           </div>
           <div>
             <dt>F8 두벌식</dt>
@@ -178,5 +197,37 @@ export function App({ engine }: { engine: Engine }) {
         </dl>
       </section>
     </main>
+  );
+}
+
+function CandidateList({ candidates, pageSize, onPick }: { candidates: Candidates; pageSize: number; onPick(code: string): void }) {
+  const { items, selected } = candidates;
+  const start = Math.floor(selected / pageSize) * pageSize;
+  const page = items.slice(start, start + pageSize);
+  const pages = Math.ceil(items.length / pageSize);
+  return (
+    <span className="candidates" role="listbox" aria-label="Hanja candidates">
+      {page.map((c, i) => (
+        <span
+          key={start + i}
+          role="option"
+          aria-selected={start + i === selected}
+          className={"candidate" + (start + i === selected ? " selected" : "")}
+          onMouseDown={(e) => {
+            e.preventDefault();
+            onPick(`Digit${i + 1}`);
+          }}
+        >
+          <span className="number">{i + 1}</span>
+          <span className="hanja">{c.hanja}</span>
+          {c.comment && <span className="comment">{c.comment}</span>}
+        </span>
+      ))}
+      {pages > 1 && (
+        <span className="pager">
+          {start / pageSize + 1} / {pages} · ← →
+        </span>
+      )}
+    </span>
   );
 }

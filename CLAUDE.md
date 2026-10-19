@@ -17,14 +17,14 @@ double consonants, compound vowels, Korean punctuation and Japanese-IME-style F6
 
 Every valid standard 2-set key and combination still types what it always did. Dedicated keys add
 shortcuts; they never remove anything. Shift+Q is still ㅃ, ㅗ+ㅏ is still ㅘ, and double finals
-still compose. The one sanctioned exception is the implied ㅇ (spec §4.2): ㅏ → 아, undone by F6.
+still compose. The one sanctioned exception is the implied ㅇ (spec §4.2): ㅏ → 아; F6 commits the bare vowel instead.
 
 ## Layout
 
 | Path | What |
 |---|---|
 | `/engine` | Core engine: key map, Hangul automaton, segment/commit logic, F6–F10. Platform-independent, no OS APIs, no I/O. |
-| `/mac` | macOS input method (InputMethodKit) that wraps the engine. |
+| `/mac` | macOS input method (InputMethodKit, Swift) that wraps the engine. Built with `make` (no Xcode needed). |
 | `/windows` | Windows TSF text input processor that wraps the engine. |
 | `/android`, `/ios` | Planned mobile input methods. Empty for now. |
 | `/web` | React playground that runs the engine in the browser so people can try it before installing. |
@@ -41,11 +41,24 @@ still compose. The one sanctioned exception is the implied ㅇ (spec §4.2): ㅏ
 - The engine must be deterministic and never panic or crash on any input. On Windows it runs inside
   every app's process.
 
+## Building
+
+- Engine: `cargo test` in `/engine`.
+- Web: `npm run dev` in `/web` (builds the engine to wasm first).
+- macOS: `make` / `make install` in `/mac` (see `mac/README.md`).
+- `cargo` lives in `~/.cargo/bin`, which may not be on PATH in non-interactive shells.
+
 ## Testing
 
 - The engine gets **golden tables**: key sequences → expected commit and preedit, covering every
   automaton transition, backspace, each F-key, and every core-principle example in the spec.
 - Every spec example (e.g. `한 F6 ㅏ → 한아`, the F9/F10 cycle in §6.2) must be a test.
+- **The robot** (`engine/tests/robot.rs`, `tests/support/robot.rs`) types real text key by key and
+  checks the screen after every character. It reads keys from the engine's layout tables, so a
+  layout change that breaks typability shows up there. Its corpus, Samsung Electronics' latest
+  "사업의 내용", is fetched by `tests/data/fetch_corpus.py` and gitignored (it's the filer's
+  text). See the report with `cargo test --test robot -- --nocapture`.
+- The hanja dictionary is generated: edit `engine/dict/build_dict.py`, not `hanja.tsv`.
 - Run with `cargo test` in `/engine`. `tests/header.rs` fails if `include/jis_korean.h` drifts from
   the key list.
 - Shells are tested by hand against the app matrix (to be written per platform).

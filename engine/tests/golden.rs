@@ -197,33 +197,53 @@ fn vowel_that_cannot_join_gets_implied_ieung() {
 }
 
 #[test]
-fn f6_drops_implied_ieung() {
-    pre("KeyK F6", "ㅏ");
-    pre("KeyR KeyK KeyJ F6", "가ㅓ");
-    pre("KeyH KeyK F6", "ㅘ");
-    pre("KeyR KeyH Digit0 F6", "고ㅘ");
+fn f6_drops_implied_ieung_and_commits() {
+    doc("KeyK F6", "ㅏ", "");
+    doc("KeyR KeyK KeyJ F6", "가ㅓ", "");
+    doc("KeyH KeyK F6", "ㅘ", "");
+    doc("KeyR KeyH Digit0 F6", "고ㅘ", "");
 }
 
 #[test]
-fn bare_vowel_is_finished() {
-    pre("KeyK F6 KeyK", "ㅏ아");
-    pre("KeyK F6 KeyS", "ㅏㄴ");
-    pre("KeyK F6 F6", "ㅏ");
+fn f6_keeps_implied_ieung_once_it_has_a_final() {
+    doc("KeyK KeyS F6", "안", "");
 }
 
 #[test]
-fn f6_after_a_final_just_ends_the_syllable() {
-    pre("KeyK KeyS F6 KeyK", "안아");
-}
-
-#[test]
-fn backspace_after_bare_vowel_restores_implied_ieung() {
-    pre("KeyK F6 Backspace KeyJ", "어");
+fn vowel_after_f6_gets_implied_ieung_again() {
+    doc("KeyK F6 KeyK", "ㅏ", "아");
+    doc("KeyK F6 Backspace KeyJ", "", "어");
 }
 
 #[test]
 fn implied_ieung_moves_like_a_real_initial() {
     pre("KeyK KeyS KeyK", "아나");
+}
+
+// §4.2 Same vowel again keeps the final
+
+#[test]
+fn same_vowel_again_puts_the_final_back() {
+    pre("KeyA KeyK KeyF KeyL", "마리");
+    pre("KeyA KeyK KeyF KeyL KeyL", "말이");
+    pre("KeyE KeyK KeyF KeyR KeyK KeyK", "닭아");
+    pre("KeyR KeyK KeyD KeyK KeyK", "강아");
+    pre("KeyA KeyK KeyF Digit0 Digit0", "말와");
+}
+
+#[test]
+fn final_toggle_needs_the_same_vowel_right_away() {
+    pre("KeyA KeyK KeyF KeyL KeyK", "마리아");
+    pre("KeyA KeyK KeyF KeyH KeyK", "마롸");
+    doc("KeyA KeyK KeyF KeyL F6 KeyL", "마리", "이");
+    pre("KeyA KeyK KeyF KeyL KeyL KeyL", "말이이");
+}
+
+#[test]
+fn final_toggle_then_f6_and_backspace() {
+    // F6 commits the double-press ㅇ as it is.
+    doc("KeyA KeyK KeyF KeyL KeyL F6", "말이", "");
+    pre("KeyA KeyK KeyF KeyL KeyL Backspace", "마리");
 }
 
 // §4.3 Backspace
@@ -293,17 +313,18 @@ fn flush_commits_everything() {
 // §6 F6
 
 #[test]
-fn f6_ends_the_syllable() {
-    pre("KeyG KeyK KeyS F6 KeyK", "한아");
-    pre("KeyG KeyK KeyS F6 KeyR", "한ㄱ");
-    pre("KeyR KeyK F6 KeyS", "가ㄴ");
-    pre("KeyG KeyK KeyS F6 KeyK F6", "한ㅏ");
+fn f6_commits() {
+    doc("KeyG KeyK KeyS F6", "한", "");
+    doc("KeyG KeyK KeyS F6 KeyK", "한", "아");
+    doc("KeyG KeyK KeyS F6 KeyR", "한", "ㄱ");
+    doc("KeyR KeyK F6 KeyS", "가", "ㄴ");
+    doc("KeyG KeyK KeyS F6 KeyK F6", "한ㅏ", "");
+    doc("Minus F6", "!", "");
 }
 
 #[test]
-fn f6_with_nothing_composing_is_a_no_op() {
-    pre("F6", "");
-    pre("Minus F6", "!");
+fn f6_with_nothing_unconfirmed_is_a_no_op() {
+    doc("F6", "", "");
 }
 
 // §6.1 F8
@@ -349,7 +370,8 @@ fn f9_f10_cycle() {
     step("F10", "GKS");
     step("F10", "Gks");
     step("F9", "Ｇｋｓ");
-    step("F6", "한");
+    step("F6", "");
+    assert_eq!(h.doc, "한", "F6 restores the Hangul and commits it");
 }
 
 #[test]
@@ -367,19 +389,19 @@ fn conversion_uses_raw_keys() {
 #[test]
 fn conversion_word_ends_at_symbols_and_f6() {
     pre("KeyG KeyK KeyS Minus KeyG KeyK KeyS F10", "한!gks");
-    pre("KeyG KeyK F6 KeyG KeyK F10", "하gk");
+    doc("KeyG KeyK F6 KeyG KeyK F10", "하", "gk");
 }
 
 #[test]
 fn conversion_with_no_word_is_a_no_op() {
-    pre("Minus F9", "!");
     pre("F10", "");
+    doc("KeyG KeyK KeyS F6 F9", "한", "");
 }
 
 #[test]
 fn input_after_conversion_ends_it() {
     pre("KeyG KeyK KeyS F10 KeyK", "gks아");
-    pre("KeyG KeyK KeyS F10 KeyR F6", "gksㄱ");
+    doc("KeyG KeyK KeyS F10 KeyR F6", "gksㄱ", "");
 }
 
 #[test]

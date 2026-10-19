@@ -42,6 +42,17 @@ fn double_final(a: char, b: char) -> Option<char> {
     })
 }
 
+/// A syllable as it was before a vowel took its final, kept so pressing that vowel again can put
+/// the final back: 말+ㅣ → 마리, +ㅣ → 말이.
+#[derive(Clone, Copy)]
+struct MovedFinal {
+    out_len: usize,
+    initial: Option<char>,
+    medial: Option<char>,
+    finals: (Option<char>, Option<char>),
+    vowel: char,
+}
+
 /// Composes jamo into text. Feed it jamo, plain characters and markers in order, then call
 /// [`Composer::finish`].
 #[derive(Default)]
@@ -58,12 +69,18 @@ pub struct Composer {
     implied_at: Option<usize>,
     /// Set by [`Composer::bare`]: the next vowel gets no implied ㅇ.
     bare_next: bool,
+    /// Set right after a vowel took the previous syllable's final.
+    moved: Option<MovedFinal>,
 }
 
 impl Composer {
     pub fn jamo(&mut self, j: char) {
+        let moved = self.moved.take();
         if is_medial(j) {
-            self.vowel(j);
+            match moved {
+                Some(m) if m.vowel == j => self.restore_final(m),
+                _ => self.vowel(j),
+            }
         } else {
             self.consonant(j);
         }
@@ -79,6 +96,13 @@ impl Composer {
             self.medial = Some(compound);
         } else if let (Some(first), second) = self.finals {
             // The (last) final moves to the next syllable: 닭+ㅏ → 달가.
+            let before = MovedFinal {
+                out_len: self.out.len(),
+                initial: self.initial,
+                medial: self.medial,
+                finals: self.finals,
+                vowel: j,
+            };
             let moved = match second {
                 Some(second) => {
                     self.finals.1 = None;
@@ -92,14 +116,33 @@ impl Composer {
             self.flush();
             self.initial = Some(moved);
             self.medial = Some(j);
+            self.moved = Some(before);
         } else {
             self.flush();
-            self.medial = Some(j);
-            if !self.bare_next {
-                // A vowel with no initial gets an implied ㅇ: ㅏ → 아, 가+ㅓ → 가어.
-                self.initial = Some('ㅇ');
-                self.implied_at = Some(self.fed);
-            }
+            self.vowel_syllable(j);
+        }
+    }
+
+    /// The same vowel again right after it took a final: the final goes back, and the vowel
+    /// starts its own syllable. 마리+ㅣ → 말이, 달가+ㅏ → 닭아.
+    fn restore_final(&mut self, m: MovedFinal) {
+        self.out.truncate(m.out_len);
+        self.initial = m.initial;
+        self.medial = m.medial;
+        self.finals = m.finals;
+        self.flush();
+        // This ㅇ was asked for by the double press, so F6 keeps it: no `implied_at`.
+        self.medial = Some(m.vowel);
+        self.initial = Some('ㅇ');
+    }
+
+    /// Starts a syllable with vowel `j` and no typed initial.
+    fn vowel_syllable(&mut self, j: char) {
+        self.medial = Some(j);
+        if !self.bare_next {
+            // A vowel with no initial gets an implied ㅇ: ㅏ → 아, 가+ㅓ → 가어.
+            self.initial = Some('ㅇ');
+            self.implied_at = Some(self.fed);
         }
     }
 
@@ -121,19 +164,15 @@ impl Composer {
     }
 
     pub fn text(&mut self, c: char) {
+        self.moved = None;
         self.flush();
         self.out.push(c);
         self.advance();
     }
 
-    /// Ends the syllable being composed (F6).
-    pub fn syllable_break(&mut self) {
-        self.flush();
-        self.advance();
-    }
-
     /// Ends the syllable being composed and lets the next vowel stand without an implied ㅇ.
     pub fn bare(&mut self) {
+        self.moved = None;
         self.flush();
         self.advance();
         self.bare_next = true;

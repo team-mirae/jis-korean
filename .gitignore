@@ -3,3 +3,6 @@ node_modules
 /web/dist
 /web/src/engine.wasm
 .DS_Store
+/mac/build
+/engine/tests/data/samsung-business.txt
+/web/public/hanja.tsv
