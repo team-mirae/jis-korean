@@ -3,6 +3,16 @@ import type { KeyboardEvent as ReactKeyboardEvent } from "react";
 import type { Candidates, Engine, Mods, Output } from "./engine";
 import { Keyboard } from "./Keyboard";
 
+const REPO = "https://github.com/team-mirae/jis-korean";
+
+function GitHubMark() {
+  return (
+    <svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true" fill="currentColor">
+      <path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z" />
+    </svg>
+  );
+}
+
 export function App({ engine }: { engine: Engine }) {
   const [doc, setDoc] = useState("");
   const [preedit, setPreedit] = useState("");
@@ -90,7 +100,12 @@ export function App({ engine }: { engine: Engine }) {
   return (
     <main>
       <header>
-        <h1>JIS Korean</h1>
+        <div className="title">
+          <h1>JIS Korean</h1>
+          <a className="repo" href={REPO} target="_blank" rel="noreferrer">
+            <GitHubMark /> GitHub
+          </a>
+        </div>
         <p className="lede">
           Korean 2-set (두벌식) for JIS keyboards: double consonants and compound vowels on the number row, Korean
           punctuation on the symbol keys, and Japanese-IME-style F6–F10. Try it here before installing.
@@ -196,6 +211,13 @@ export function App({ engine }: { engine: Engine }) {
           </div>
         </dl>
       </section>
+      <footer>
+        <a href={REPO} target="_blank" rel="noreferrer">
+          Source on GitHub
+        </a>
+        <span aria-hidden="true">·</span>
+        <span>MIT license</span>
+      </footer>
     </main>
   );
 }
