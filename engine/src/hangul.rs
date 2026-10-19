@@ -8,7 +8,7 @@ fn index_of(table: &str, c: char) -> Option<usize> {
     table.chars().position(|t| t == c)
 }
 
-fn is_medial(c: char) -> bool {
+pub fn is_medial(c: char) -> bool {
     index_of(MEDIALS, c).is_some()
 }
 
@@ -161,6 +161,24 @@ impl Composer {
                 self.initial = Some(j);
             }
         }
+    }
+
+    /// Shift+vowel after a syllable: that syllable is finished as it is (its final stays) and the
+    /// vowel starts a new one on ㅇ: 말+⇧ㅣ → 말이, 오+⇧ㅣ → 오이. The ㅇ was asked for, so F6
+    /// keeps it (no `implied_at`).
+    pub fn ieung_vowel(&mut self, j: char) {
+        self.moved = None;
+        if self.initial.is_some() && self.medial.is_none() {
+            // An initial waiting for its vowel takes it as usual, so Shift still held from a
+            // double (⇧ㄲ ⇧ㅏ) types 까.
+            self.vowel(j);
+            self.advance();
+            return;
+        }
+        self.flush();
+        self.initial = Some('ㅇ');
+        self.medial = Some(j);
+        self.advance();
     }
 
     pub fn text(&mut self, c: char) {

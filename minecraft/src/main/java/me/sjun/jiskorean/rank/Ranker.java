@@ -40,6 +40,11 @@ public final class Ranker {
 	private static final int END = 26;
 	/** Shifted letters that type a tense consonant or ㅒ ㅖ: Shift there can be Korean. */
 	private static final String KOREAN_SHIFTS = "QWERTOP";
+	/**
+	 * Vowel keys whose Shift starts a syllable on ㅇ (spec §4.2): Korean mid-word (말이 =
+	 * a k f ⇧L), so on those only a capital at the start of a word proves English.
+	 */
+	private static final String IEUNG_SHIFTS = "YUIHJKLBNM";
 	/** Canonical 2-set keys for the dedicated number-row jamo (1–5 ㅃ ㅉ ㄸ ㄲ ㅆ, 6–0 ㅟ ㅝ ㅚ ㅢ ㅘ). */
 	private static final String[] DIGIT_KEYS = {"hk", "q", "w", "e", "r", "t", "nl", "nj", "hl", "ml"};
 
@@ -84,8 +89,11 @@ public final class Ranker {
 		if (override != null) {
 			return new Choice(override, override == Language.KOREAN ? 99 : -99, "override");
 		}
-		for (char c : englishText.toCharArray()) {
-			if (c >= 'A' && c <= 'Z' && KOREAN_SHIFTS.indexOf(c) < 0) {
+		for (int i = 0; i < englishText.length(); i++) {
+			char c = englishText.charAt(i);
+			boolean midWord = i > 0 && Character.isLetter(englishText.charAt(i - 1));
+			if (c >= 'A' && c <= 'Z' && KOREAN_SHIFTS.indexOf(c) < 0
+					&& !(midWord && IEUNG_SHIFTS.indexOf(c) >= 0)) {
 				return new Choice(Language.ENGLISH, -99, "shift");
 			}
 		}

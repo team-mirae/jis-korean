@@ -20,8 +20,12 @@ adds a shortcut; it never takes anything away.
 - ㅗ then ㅏ is still ㅘ, even though 0 also types ㅘ.
 - Double finals (ㄹ+ㄱ → ㄺ etc.) compose as usual.
 
-The one deliberate exception is the implied ㅇ (§4.2): a vowel with no initial types a full syllable
-(ㅏ → 아) instead of a bare jamo. F6 right after commits the bare jamo instead.
+Two deliberate exceptions, both in §4.2:
+
+- **Implied ㅇ:** a vowel with no initial types a full syllable (ㅏ → 아) instead of a bare jamo. F6
+  right after commits the bare jamo instead.
+- **Shift+vowel** (vowel keys whose Shift types nothing else: all but O and P) after a syllable
+  starts a new syllable on ㅇ instead of acting like the plain vowel (마ㄹ+⇧ㅣ → 말이, not 마리).
 
 Any change that breaks this principle is a spec change, not an implementation detail.
 
@@ -194,6 +198,25 @@ and starts the vowel's own syllable on an implied ㅇ:
 The ㅇ from a double press was asked for, so F6 commits it as it is (말이 F6 → 말이), unlike a
 plain implied ㅇ. Backspace removes the
 repeat and gives the first reading back (말이 → 마리).
+
+**Shift+vowel starts a syllable on ㅇ.** Shift on a vowel key whose Shift types nothing else (Y U I
+H J K L B N M; not O and P, which type ㅒ ㅖ) finishes the syllable before it as it is, final
+included, and starts a new syllable with ㅇ and that vowel. It's the single-keystroke alternative
+to the double press, and it also keeps two vowels apart that would otherwise combine.
+
+| Keys | Result |
+|---|---|
+| ㅁ ㅏ ㄹ ⇧ㅣ | 말이 (plain ㅣ: 마리) |
+| ㄷ ㅏ ㄹ ㄱ ⇧ㅏ | 닭아 (a double final stays whole) |
+| ㅗ ⇧ㅣ | 오이 (plain ㅣ: 외) |
+| ㄱ ㅏ ㄴ ⇧ㅗ ㅏ | 간와 (the new vowel can still combine with the next one) |
+| ⇧ㅏ | 아 (same as the implied ㅇ) |
+| ⇧ㄲ ⇧ㅏ | 까: an initial waiting for its vowel takes it as usual, so Shift held over from a double is harmless |
+| ㄱ ⇧ㅒ, 간 ⇧ㅖ | 걔, 가녜: O and P are unchanged |
+
+The ㅇ was asked for, so F6 commits it as it is (unlike an implied ㅇ). Backspace removes the
+whole Shift+vowel in one press. In the F8 escape, Shift behaves as in standard 2-set. The English
+reading keeps the shifted letter (⇧L → `L`).
 
 ### 4.3 Backspace
 

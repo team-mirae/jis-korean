@@ -175,8 +175,8 @@ export function App({ engine }: { engine: Engine }) {
             <dd>Commits. Right after F9/F10, commits the Hangul instead.</dd>
           </div>
           <div>
-            <dt>Same vowel twice</dt>
-            <dd>말 + ㅣ → 마리. Press ㅣ again for 말이.</dd>
+            <dt>Shift+vowel</dt>
+            <dd>Starts a syllable on ㅇ and keeps the final: 말 + ⇧ㅣ → 말이, 오 + ⇧ㅣ → 오이. Pressing ㅣ twice works too.</dd>
           </div>
           <div>
             <dt>F7 한자</dt>

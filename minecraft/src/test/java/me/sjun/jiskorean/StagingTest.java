@@ -129,6 +129,14 @@ class StagingTest {
 	}
 
 	@Test
+	void shiftVowelMidWordIsKorean() {
+		// Spec §4.2: ⇧ㅣ starts a syllable on ㅇ, so 말이 is a k f ⇧L and 오이 is h ⇧L.
+		check("akfL ", "말이 ");
+		check("tkfkaL ", "사람이 ");
+		check("hL ", "오이 ");
+	}
+
+	@Test
 	void f7ForcesEnglishAndIsRemembered() {
 		check("dkssud{F7}", "dkssud");
 		type(" dkssud ");

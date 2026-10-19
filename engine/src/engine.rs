@@ -2,7 +2,7 @@
 
 use std::sync::Arc;
 
-use crate::hangul::Composer;
+use crate::hangul::{self, Composer};
 use crate::hanja::{Candidate, Dictionary};
 use crate::key::{Key, Mods};
 use crate::layout::{self, Layout, Out};
@@ -21,6 +21,9 @@ enum Token {
     Typed(char, char),
     /// F6 on an implied ㅇ: the vowel after it stands bare. Only exists while F6 commits.
     Bare,
+    /// Shift+vowel (spec §4.2): the vowel starts its own syllable on ㅇ, leaving the previous
+    /// final where it is.
+    IeungVowel { jamo: char, raw: Option<char> },
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -139,7 +142,7 @@ impl Engine {
         self.segment
             .iter()
             .filter_map(|t| match *t {
-                Token::Jamo { jamo, raw } => Some(raw.unwrap_or(jamo)),
+                Token::Jamo { jamo, raw } | Token::IeungVowel { jamo, raw } => Some(raw.unwrap_or(jamo)),
                 Token::Text(c) => Some(c),
                 Token::Typed(_, english) => Some(english),
                 Token::Bare => None,
@@ -205,7 +208,14 @@ impl Engine {
             _ => match layout::output(self.layout, key, mods.shift) {
                 Some(Out::Jamo(jamo)) => {
                     let raw = key.letter().map(|c| if mods.shift { c.to_ascii_uppercase() } else { c });
-                    self.segment.push(Token::Jamo { jamo, raw: raw.or(key.digit()) });
+                    let raw = raw.or(key.digit());
+                    // Shift on a vowel key whose Shift types nothing else (all but O P): the vowel
+                    // starts its own syllable on ㅇ (spec §4.2).
+                    let ieung = mods.shift
+                        && self.layout == Layout::JisKorean
+                        && hangul::is_medial(jamo)
+                        && layout::output(self.layout, key, false) == Some(Out::Jamo(jamo));
+                    self.segment.push(if ieung { Token::IeungVowel { jamo, raw } } else { Token::Jamo { jamo, raw } });
                     self.unchanged(true)
                 }
                 Some(Out::Char(c)) => {
@@ -310,7 +320,7 @@ impl Engine {
                     .rev()
                     .take_while(|t| match t {
                         Token::Text(c) | Token::Typed(c, _) => symbols && c.is_ascii_graphic(),
-                        Token::Jamo { raw, .. } => !symbols && raw.is_some(),
+                        Token::Jamo { raw, .. } | Token::IeungVowel { raw, .. } => !symbols && raw.is_some(),
                         Token::Bare => false,
                     })
                     .count();
@@ -327,7 +337,7 @@ impl Engine {
             .original
             .iter()
             .filter_map(|t| match t {
-                Token::Jamo { raw, .. } => *raw,
+                Token::Jamo { raw, .. } | Token::IeungVowel { raw, .. } => *raw,
                 Token::Text(c) | Token::Typed(c, _) => Some(*c),
                 Token::Bare => None,
             })
@@ -380,6 +390,7 @@ fn composer_for(segment: &[Token]) -> Composer {
             Token::Jamo { jamo, .. } => composer.jamo(jamo),
             Token::Text(c) | Token::Typed(c, _) => composer.text(c),
             Token::Bare => composer.bare(),
+            Token::IeungVowel { jamo, .. } => composer.ieung_vowel(jamo),
         }
     }
     composer

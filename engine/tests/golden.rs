@@ -444,3 +444,77 @@ fn clear_discards_without_committing() {
     assert_eq!((e.preedit().as_str(), e.english().as_str()), ("", ""));
     assert_eq!(e.flush().commit, "");
 }
+
+// §4.2 Shift+vowel starts a syllable on ㅇ
+
+#[test]
+fn shift_vowel_starts_a_syllable_and_leaves_the_final() {
+    pre("KeyA KeyK KeyF S-KeyL", "말이");
+    pre("KeyR KeyK KeyS S-KeyK", "간아");
+    pre("KeyE KeyK KeyF KeyR S-KeyK", "닭아");
+    pre("KeyR KeyK KeyS S-KeyJ KeyS", "간언");
+}
+
+#[test]
+fn shift_vowel_does_not_combine_with_the_vowel_before() {
+    pre("KeyH S-KeyL", "오이");
+    pre("KeyH KeyL", "외");
+    pre("KeyR KeyN S-KeyJ", "구어");
+}
+
+#[test]
+fn shift_vowel_can_still_combine_with_the_vowel_after() {
+    pre("KeyR KeyK KeyS S-KeyH KeyK", "간와");
+}
+
+#[test]
+fn shift_vowel_on_its_own_is_like_the_implied_ieung() {
+    pre("S-KeyK", "아");
+    pre("Minus S-KeyK", "!아");
+}
+
+#[test]
+fn f6_keeps_a_shift_vowel_ieung() {
+    // Asked for with Shift, so unlike the implied ㅇ, F6 commits it as it is.
+    doc("KeyA KeyK KeyF S-KeyL F6", "말이", "");
+    doc("KeyA KeyK KeyF KeyL F6", "마리", "");
+}
+
+#[test]
+fn backspace_removes_the_shift_vowel_in_one_press() {
+    pre("KeyA KeyK KeyF S-KeyL Backspace", "말");
+}
+
+#[test]
+fn shift_on_o_and_p_still_types_yae_and_ye() {
+    pre("KeyR S-KeyO", "걔");
+    pre("KeyR KeyK KeyS S-KeyO", "가냬");
+    pre("KeyR KeyK KeyS S-KeyP", "가녜");
+}
+
+#[test]
+fn shift_on_consonants_is_unchanged() {
+    pre("KeyR KeyK S-KeyS KeyK", "가나");
+    pre("KeyR KeyK S-KeyR KeyK", "가까");
+}
+
+#[test]
+fn f8_escape_keeps_standard_shift_on_vowels() {
+    pre("F8 KeyA KeyK KeyF S-KeyL", "마리");
+}
+
+#[test]
+fn english_reading_keeps_the_shifted_vowel_letter() {
+    let mut e = Engine::new();
+    for (code, shift) in [("KeyA", false), ("KeyK", false), ("KeyF", false), ("KeyL", true)] {
+        e.key(Key::from_code(code), if shift { Mods::SHIFTED } else { Mods::NONE });
+    }
+    assert_eq!((e.preedit().as_str(), e.english().as_str()), ("말이", "akfL"));
+}
+
+#[test]
+fn shift_still_held_after_a_double_types_the_syllable() {
+    pre("S-KeyR S-KeyK", "까");
+    pre("S-KeyT S-KeyK S-KeyD", "쌍");
+    pre("KeyR S-KeyK", "가");
+}
