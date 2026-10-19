@@ -10,6 +10,7 @@ Built without Xcode: the Command Line Tools are enough.
 make            # build/JISKorean.app, universal (arm64 + x86_64)
 make install    # copy to ~/Library/Input Methods, register it, restart it
 make uninstall
+make dist       # build/JISKorean-<version>.zip
 ```
 
 Requirements: Rust with the `aarch64-apple-darwin` and `x86_64-apple-darwin` targets.

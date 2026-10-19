@@ -27,6 +27,7 @@ still compose. The one sanctioned exception is the implied ㅇ (spec §4.2): ㅏ
 | `/mac` | macOS input method (InputMethodKit, Swift) that wraps the engine. Built with `make` (no Xcode needed). |
 | `/windows` | Windows TSF text input processor that wraps the engine. |
 | `/android`, `/ios` | Planned mobile input methods. Empty for now. |
+| `/minecraft` | Minecraft. Stub for now. |
 | `/web` | React playground that runs the engine in the browser so people can try it before installing. |
 | `/docs` | Spec and design notes. |
 

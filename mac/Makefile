@@ -1,6 +1,7 @@
 # Builds JISKorean.app (universal arm64 + x86_64) without Xcode: Command Line Tools are enough.
 #   make            build build/JISKorean.app
 #   make install    copy it to ~/Library/Input Methods, register it, and restart it
+#   make dist       build/JISKorean-<version>.zip for a release
 
 ENGINE     := ../engine
 HEADER     := $(ENGINE)/include/jis_korean.h
@@ -13,7 +14,7 @@ CARGO      := $(shell command -v cargo || echo $(HOME)/.cargo/bin/cargo)
 
 export MACOSX_DEPLOYMENT_TARGET := $(MIN_MACOS)
 
-.PHONY: all engine install uninstall clean
+.PHONY: all engine install uninstall dist clean
 
 all: $(APP)
 
@@ -71,6 +72,13 @@ install: $(APP)
 uninstall:
 	@killall JISKorean 2>/dev/null || true
 	rm -rf "$(INSTALL_TO)/JISKorean.app"
+
+VERSION := $(shell plutil -extract CFBundleShortVersionString raw Info.plist)
+
+dist: $(APP)
+	rm -f $(BUILD)/JISKorean-$(VERSION).zip
+	ditto -c -k --keepParent $(APP) $(BUILD)/JISKorean-$(VERSION).zip
+	@echo $(BUILD)/JISKorean-$(VERSION).zip
 
 clean:
 	rm -rf $(BUILD)

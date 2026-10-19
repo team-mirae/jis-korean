@@ -6,3 +6,4 @@ node_modules
 /mac/build
 /engine/tests/data/samsung-business.txt
 /web/public/hanja.tsv
+/hhkb-migration
