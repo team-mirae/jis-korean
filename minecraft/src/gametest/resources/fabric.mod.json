@@ -1,0 +1,15 @@
+{
+	"schemaVersion": 1,
+	"id": "jiskorean-gametest",
+	"version": "0.1.0",
+	"name": "JIS Korean in-game tests",
+	"environment": "client",
+	"entrypoints": {
+		"fabric-client-gametest": [
+			"me.sjun.jiskorean.gametest.TypingGameTest"
+		]
+	},
+	"depends": {
+		"jiskorean": "*"
+	}
+}

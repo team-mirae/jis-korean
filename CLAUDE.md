@@ -49,6 +49,9 @@ Build order: macOS → Minecraft → Windows → iPadOS. Android and iPhone are 
 - Engine: `cargo test` in `/engine`.
 - Web: `npm run dev` in `/web` (builds the engine to wasm first).
 - macOS: `make` / `make install` in `/mac` (see `mac/README.md`).
+- Minecraft: `./gradlew build`, `./gradlew test`, `./gradlew runClientGameTest` (boots the real
+  client and types through the mod) in `/minecraft` (see `minecraft/README.md`). Gradle runs on
+  Java 25 via `gradle/gradle-daemon-jvm.properties`.
 - `cargo` lives in `~/.cargo/bin`, which may not be on PATH in non-interactive shells.
 
 ## Testing

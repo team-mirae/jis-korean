@@ -1,0 +1,107 @@
+plugins {
+	id 'net.fabricmc.fabric-loom' version "${loom_version}"
+}
+
+base {
+	archivesName = "jis-korean"
+}
+
+loom {
+	splitEnvironmentSourceSets()
+
+	mods {
+		"jiskorean" {
+			sourceSet sourceSets.main
+			sourceSet sourceSets.client
+		}
+	}
+}
+
+dependencies {
+	minecraft "com.mojang:minecraft:${project.minecraft_version}"
+	implementation "net.fabricmc:fabric-loader:${project.loader_version}"
+	implementation "net.fabricmc.fabric-api:fabric-api:${project.fabric_api_version}"
+
+	// The JIS Korean engine ships as WebAssembly and runs on Chicory, a pure-Java Wasm runtime:
+	// one engine for every OS, no native libraries. Bundled into the mod jar (jar-in-jar).
+	implementation "com.dylibso.chicory:runtime:${project.chicory_version}"
+	implementation "com.dylibso.chicory:wasm:${project.chicory_version}"
+	include "com.dylibso.chicory:runtime:${project.chicory_version}"
+	include "com.dylibso.chicory:wasm:${project.chicory_version}"
+
+	testImplementation "org.junit.jupiter:junit-jupiter:${project.junit_version}"
+	testRuntimeOnly "org.junit.platform:junit-platform-launcher"
+}
+
+// Build the engine (../engine) to wasm and put it in the mod's resources.
+def cargo = ["${System.getProperty('user.home')}/.cargo/bin/cargo", "cargo"].find { it == "cargo" || new File(it).exists() }
+def engineDir = file("../engine")
+def engineWasm = layout.buildDirectory.dir("generated/engine")
+
+tasks.register("buildEngine", Exec) {
+	inputs.dir(file("../engine/src"))
+	inputs.file(file("../engine/Cargo.toml"))
+	outputs.file(file("../engine/target/wasm32-unknown-unknown/release/jis_korean.wasm"))
+	workingDir engineDir
+	commandLine cargo, "build", "--release", "--target", "wasm32-unknown-unknown"
+}
+
+tasks.register("copyEngine", Copy) {
+	dependsOn "buildEngine"
+	from(file("../engine/target/wasm32-unknown-unknown/release/jis_korean.wasm"))
+	into(engineWasm.map { it.dir("assets/jiskorean") })
+	rename { "engine.wasm" }
+}
+
+sourceSets.main.resources.srcDir(engineWasm)
+processResources.dependsOn "copyEngine"
+tasks.matching { it.name == "sourcesJar" }.configureEach { dependsOn "copyEngine" }
+
+processResources {
+	def version = project.version
+	inputs.property "version", version
+	filesMatching("fabric.mod.json") {
+		expand "version": version
+	}
+}
+
+test {
+	useJUnitPlatform()
+	dependsOn "copyEngine"
+	testLogging {
+		events "failed"
+		showStandardStreams = true
+	}
+}
+
+tasks.withType(JavaCompile).configureEach {
+	it.options.release = 25
+	it.options.encoding = "UTF-8"
+}
+
+java {
+	// Minecraft 26.x runs on Java 25. A toolchain keeps the build independent of the daemon's JVM.
+	toolchain {
+		languageVersion = JavaLanguageVersion.of(25)
+	}
+}
+
+jar {
+	from("../LICENSE") {
+		rename { "${it}_jis-korean" }
+	}
+	// ranker.bin is trained partly on libhangul hanja.txt readings (BSD-3-Clause).
+	from("../engine/dict/LICENSE-libhangul-hanja.txt")
+}
+
+// In-game tests: boots the real client, opens chat in a test world and has a robot type through
+// the mod (./gradlew runClientGameTest). Lives in src/gametest.
+fabricApi {
+	configureTests {
+		createSourceSet = true
+		modId = "jiskorean-gametest"
+		enableGameTests = false
+		enableClientGameTests = true
+		eula = true
+	}
+}

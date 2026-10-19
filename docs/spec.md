@@ -328,7 +328,10 @@ engine:
 - **Windows** (`/windows`): a TSF text input processor. It runs on the Japanese (106/109) hardware
   keyboard setting so JIS scan codes arrive intact. Password fields and the secure desktop do not load
   TIPs. That is a known limit.
-- **Minecraft** (`/minecraft`): a Fabric mod running the engine in-game.
+- **Minecraft** (`/minecraft`): a Fabric mod running the engine (as wasm) in-game. It adds its own
+  layer on top of the engine: each staging area is read as Korean and as English (`Engine::english`),
+  Space/Enter/Tab commit the more likely one, F6 forces Korean and **F7 forces English instead of
+  hanja**. See `minecraft/README.md`.
 - **iPadOS** (`/ipados`): planned, empty for now. Android and iPhone are out of scope.
 - **Web** (`/web`): a React playground that runs the same engine in the browser, keyed on
   `KeyboardEvent.code`. On non-JIS keyboards, `IntlYen` and `IntlRo` don't exist, so the page needs

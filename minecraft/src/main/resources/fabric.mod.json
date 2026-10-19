@@ -1,0 +1,27 @@
+{
+	"schemaVersion": 1,
+	"id": "jiskorean",
+	"version": "${version}",
+	"name": "JIS Korean",
+	"description": "Type Korean in Minecraft with the JIS Korean layout (2-set for JIS keyboards). Each word is read as Korean and as English from the same keys, and Space, Enter or Tab commits the more likely one. F6 forces Korean, F7 forces English.",
+	"authors": [
+		"Min Jun Sung"
+	],
+	"contact": {
+		"homepage": "https://jis-korean.sjun.me",
+		"sources": "https://github.com/team-mirae/jis-korean"
+	},
+	"license": "MIT",
+	"environment": "client",
+	"entrypoints": {
+		"client": [
+			"me.sjun.jiskorean.client.JisKoreanClient"
+		]
+	},
+	"depends": {
+		"fabricloader": ">=0.19.3",
+		"minecraft": ">=26.3 <26.4-",
+		"java": ">=25",
+		"fabric-api": "*"
+	}
+}
