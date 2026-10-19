@@ -26,12 +26,14 @@ interface Props {
   escaped: boolean;
   shift: boolean;
   pressed: Set<string>;
+  /** Float over the page (fixed to the bottom of the window) while the text is long. */
+  floating: boolean;
   onPress(code: string): void;
 }
 
-export function Keyboard({ engine, escaped, shift, pressed, onPress }: Props) {
+export function Keyboard({ engine, escaped, shift, pressed, floating, onPress }: Props) {
   return (
-    <div className="board">
+    <div className={"board" + (floating ? " floating" : "")}>
       <div className="plate" role="group" aria-label="JIS Korean keyboard">
         {ROWS.map((row, i) => (
           <div key={i} className={"row" + (i === 0 ? " fn-row" : "")} style={{ "--offset": row.offset } as CSSProperties}>

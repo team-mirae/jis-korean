@@ -7,6 +7,15 @@ import benchmarks from "./stats.json";
 
 const REPO = "https://github.com/team-mirae/jis-korean";
 
+/** Practice texts in public/: the gray guide in the typing area, and what's counted when it's empty. */
+const SAMPLES = [
+  { id: "short", file: "sample.txt", label: "Short" },
+  { id: "long", file: "long-sample-text.txt", label: "AI since ChatGPT (long)" },
+];
+
+/** The keyboard floats over the page once the typing area is taller than this many lines. */
+const FLOAT_AFTER_LINES = 15;
+
 function GitHubMark() {
   return (
     <svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true" fill="currentColor">
@@ -25,17 +34,35 @@ export function App({ engine }: { engine: Engine }) {
   const [focused, setFocused] = useState(false);
   const [candidates, setCandidates] = useState<Candidates | null>(null);
   const [hanjaReady, setHanjaReady] = useState(false);
-  const [sample, setSample] = useState("한글을 입력해 보세요");
+  const [sampleId, setSampleId] = useState(SAMPLES[0].id);
+  const [samples, setSamples] = useState<Record<string, string>>({});
+  const sample = samples[sampleId] ?? "한글을 입력해 보세요";
   const [counts, setCounts] = useState<Counts | null>(null);
+  const [floating, setFloating] = useState(false);
   const surface = useRef<HTMLDivElement>(null);
+  const caret = useRef<HTMLSpanElement>(null);
 
   useEffect(() => surface.current?.focus(), []);
   useEffect(() => {
-    // Placeholder text from public/sample.txt, editable without a rebuild.
-    fetch(`${import.meta.env.BASE_URL}sample.txt`)
-      .then((response) => (response.ok ? response.text() : Promise.reject(response.status)))
-      .then((text) => setSample(text.trim()))
-      .catch(() => {});
+    // Practice texts from public/, editable without a rebuild.
+    for (const { id, file } of SAMPLES) {
+      fetch(`${import.meta.env.BASE_URL}${file}`)
+        .then((response) => (response.ok ? response.text() : Promise.reject(response.status)))
+        .then((text) => setSamples((s) => ({ ...s, [id]: text.trim() })))
+        .catch(() => {});
+    }
+  }, []);
+  useEffect(() => {
+    // Past FLOAT_AFTER_LINES lines, the keyboard floats so it stays in view while typing.
+    const box = surface.current;
+    if (!box) return;
+    const observer = new ResizeObserver(() => {
+      const style = getComputedStyle(box);
+      const lines = (box.clientHeight - parseFloat(style.paddingTop) - parseFloat(style.paddingBottom)) / parseFloat(style.lineHeight);
+      setFloating(lines > FLOAT_AFTER_LINES);
+    });
+    observer.observe(box);
+    return () => observer.disconnect();
   }, []);
   useEffect(() => {
     engine
@@ -44,7 +71,8 @@ export function App({ engine }: { engine: Engine }) {
       .catch((error) => console.error("hanja dictionary:", error));
   }, [engine]);
   useEffect(() => {
-    surface.current?.scrollTo({ top: surface.current.scrollHeight });
+    // Keep the caret in view (and clear of a floating keyboard) as the text grows.
+    caret.current?.scrollIntoView({ block: "nearest" });
   }, [doc, preedit]);
 
   // Applies an engine result, then what a passed-through key does in a plain text field.
@@ -117,8 +145,14 @@ export function App({ engine }: { engine: Engine }) {
     surface.current?.focus();
   }
 
+  function chooseSample(id: string) {
+    // A new practice text starts from an empty box.
+    clear();
+    setSampleId(id);
+  }
+
   return (
-    <main>
+    <main className={floating ? "floating-keyboard" : undefined}>
       <header>
         <div className="title">
           <h1>JIS Korean</h1>
@@ -138,6 +172,20 @@ export function App({ engine }: { engine: Engine }) {
             {escaped ? "Standard 2-set · Shift+F8 returns" : "JIS Korean"}
           </span>
           <span className="hint">{focused ? "Use an English input source on your OS." : "Click the box to type."}</span>
+          <span className="spacer" />
+          <span className="samples" role="group" aria-label="Practice text">
+            {SAMPLES.map(({ id, label }) => (
+              <button
+                key={id}
+                type="button"
+                aria-pressed={sampleId === id}
+                onMouseDown={(e) => e.preventDefault()}
+                onClick={() => chooseSample(id)}
+              >
+                {label}
+              </button>
+            ))}
+          </span>
         </div>
         <div
           ref={surface}
@@ -153,7 +201,7 @@ export function App({ engine }: { engine: Engine }) {
         >
           {doc}
           {preedit && <span className="preedit">{preedit}</span>}
-          {focused && <span className="caret" aria-hidden="true" />}
+          {focused && <span ref={caret} className="caret" aria-hidden="true" />}
           {candidates && <CandidateList candidates={candidates} pageSize={engine.pageSize} onPick={onScreenKey} />}
           {rest && <span className="placeholder">{rest}</span>}
         </div>
@@ -188,7 +236,14 @@ export function App({ engine }: { engine: Engine }) {
         </div>
       </section>
 
-      <Keyboard engine={engine} escaped={escaped} shift={shift} pressed={pressed} onPress={onScreenKey} />
+      <Keyboard
+        engine={engine}
+        escaped={escaped}
+        shift={shift}
+        pressed={pressed}
+        floating={floating}
+        onPress={onScreenKey}
+      />
 
       {counts && <KeyCounts counts={counts} sample={!doc && !preedit} />}
 
