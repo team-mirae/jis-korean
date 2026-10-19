@@ -35,3 +35,6 @@ required-features = ["predict"]
 [[example]]
 name = "easy"
 required-features = ["predict"]
+
+[[example]]
+name = "legends"

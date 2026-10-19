@@ -102,6 +102,10 @@ pub struct Engine {
     learner: Learner,
     #[cfg(feature = "predict")]
     learning: bool,
+    /// Whether choices are recorded while learning is on: off for apps the user excluded (what was
+    /// learned still applies there).
+    #[cfg(feature = "predict")]
+    recording: bool,
     /// Scenarios the user set by hand: their weight wins over the learned one.
     #[cfg(feature = "predict")]
     manual: [bool; Weight::ALL.len()],
@@ -140,6 +144,8 @@ impl Engine {
             learner: Learner::default(),
             #[cfg(feature = "predict")]
             learning: false,
+            #[cfg(feature = "predict")]
+            recording: true,
             #[cfg(feature = "predict")]
             manual: [false; Weight::ALL.len()],
             #[cfg(feature = "predict")]
@@ -454,6 +460,14 @@ impl Engine {
         self.accepted = None;
     }
 
+    /// Whether choices are recorded (spec §10.11): off in an app the user excluded from learning,
+    /// where what was learned still applies. On by default.
+    #[cfg(feature = "predict")]
+    pub fn set_recording(&mut self, on: bool) {
+        self.recording = on;
+        self.accepted = None;
+    }
+
     #[cfg(feature = "predict")]
     pub fn learner(&self) -> &Learner {
         &self.learner
@@ -513,7 +527,7 @@ impl Engine {
 
     #[cfg(feature = "predict")]
     fn learn(&mut self, event: &Event) {
-        if self.learning {
+        if self.learning && self.recording {
             self.learner = self.learner.after(event);
             self.learned_changed = true;
         }

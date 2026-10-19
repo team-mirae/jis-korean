@@ -199,6 +199,7 @@ void jk_set_ranker(JkEngine *engine, uint32_t ranker);
  * A weight set with jk_set_prediction_weight wins over the learned one until cleared. */
 void jk_clear_prediction_weight(JkEngine *engine, uint32_t which);
 void jk_set_learning(JkEngine *engine, uint32_t on);
+void jk_set_recording(JkEngine *engine, uint32_t on);       /* 0: learned weights apply, nothing recorded */
 double jk_learned_weight(JkEngine *engine, uint32_t which); /* 0.5-2, 1.0 = no change */
 uint32_t jk_learner_changed(JkEngine *engine);              /* 1 once after each change */
 size_t jk_learner_export(JkEngine *engine);                 /* then read jk_learner_ptr */

@@ -180,3 +180,22 @@ fn the_owners_texts_stay_clean_while_learning() {
     eprintln!("↓ per round on the owner's texts: {arrows:?}");
     assert!(arrows.last() <= arrows.first(), "{arrows:?}");
 }
+
+#[test]
+fn an_excluded_app_uses_what_was_learned_but_records_nothing() {
+    let (_, learner) = simulate(&BARE_VOWELS, 12);
+    let mut e = Engine::new();
+    e.set_predictor(Some(predictor()));
+    e.set_learner(learner.clone());
+    e.set_learning(true);
+    e.set_recording(false);
+    // The learned weights apply…
+    assert_eq!(e.effective_weights().get(Weight::Implied), learner.weight(Weight::Implied));
+    // …but choices aren't recorded.
+    for c in "hh".chars() {
+        e.key(Key::from_code(&format!("Key{}", c.to_ascii_uppercase())), Mods::NONE);
+    }
+    e.commit_prediction(1);
+    e.key(Key::Backspace, Mods::NONE);
+    assert_eq!(*e.learner(), learner);
+}

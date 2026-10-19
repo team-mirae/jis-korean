@@ -65,13 +65,16 @@ fn count_compares_jis_korean_with_conventional() {
 
 #[test]
 fn symbols_off_the_legends_cost_three_on_both_layouts() {
-    // ( ) are on stock JIS but not on the JIS Korean legends; · is the reverse.
-    assert_eq!(jis_korean::plan::count("(", None).jis, 3);
-    assert_eq!(jis_korean::plan::conventional("("), 2);
+    // @ is on stock JIS but not on the JIS Korean legends; · is the reverse.
+    assert_eq!(jis_korean::plan::count("@", None).jis, 3);
+    assert_eq!(jis_korean::plan::conventional("@"), 1);
     assert_eq!(jis_korean::plan::count("·", None).jis, 1);
     assert_eq!(jis_korean::plan::conventional("·"), 3);
-    // Digits after a ( still cost Shift+digit: the escape doesn't linger.
-    assert_eq!(jis_korean::plan::count("(1", None).jis, 5);
+    // Digits after an @ still cost Shift+digit: the escape doesn't linger.
+    assert_eq!(jis_korean::plan::count("@1", None).jis, 5);
+    // ( ) are on the ^ key: one press, and Shift for ); stock JIS has them on Shift+8 / Shift+9.
+    assert_eq!(jis_korean::plan::count("()", None).jis, 3);
+    assert_eq!(jis_korean::plan::conventional("()"), 4);
 }
 
 #[test]

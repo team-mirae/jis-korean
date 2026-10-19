@@ -484,6 +484,13 @@ mod predict_ffi {
         with(handle, (), |h| h.engine.set_learning(on != 0))
     }
 
+    /// Whether choices are recorded while learning is on (on by default). Off for an app the user
+    /// excluded from learning: what was learned still applies there.
+    #[unsafe(no_mangle)]
+    pub extern "C" fn jk_set_recording(handle: *mut JkEngine, on: u32) {
+        with(handle, (), |h| h.engine.set_recording(on != 0))
+    }
+
     /// The learned multiplier for a scenario (`JK_WEIGHT_*`); 1.0 for unknown ids.
     #[unsafe(no_mangle)]
     pub extern "C" fn jk_learned_weight(handle: *mut JkEngine, which: u32) -> f64 {

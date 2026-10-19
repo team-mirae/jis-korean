@@ -131,14 +131,28 @@ fn phone_numbers_type_with_shift_held() {
 #[test]
 fn symbol_keys() {
     pre("Minus S-Minus", "!?");
-    pre("Equal S-Equal", "^^");
-    pre("IntlYen S-IntlYen", "——");
+    pre("Equal S-Equal", "()");
+    pre("IntlYen S-IntlYen", "—^");
     pre("BracketLeft S-BracketLeft", "'\"");
     pre("BracketRight S-BracketRight Backslash S-Backslash", "[「]」");
     pre("Semicolon S-Semicolon", "~-");
     pre("Quote S-Quote", ":;");
     pre("Comma S-Comma Period S-Period Slash S-Slash", ",,..··");
     pre("IntlRo S-IntlRo", "\\_");
+}
+
+#[test]
+fn parentheses_on_the_caret_key_and_caret_on_shift_yen() {
+    // The ^ key types ( and ) (spec §3.1); ^ is on Shift+¥, so ^^ is two Shift+¥.
+    pre("Equal KeyG KeyK KeyS S-Equal", "(한)");
+    pre("S-IntlYen S-IntlYen", "^^");
+    // The F8 escape still types the stock JIS characters there.
+    pre("F8 Equal S-Equal IntlYen", "^~¥");
+    // F9 / F10 never turn them into ^ ~: a word after ( converts and ( stays; text ending in )
+    // converts that symbol run, as typed (§6.1: ) half-width is ) ).
+    pre("Equal KeyR KeyK F10", "(rk");
+    pre("Equal KeyR KeyK S-Equal F10", "(가)");
+    pre("Equal KeyR KeyK S-Equal F9", "(가）");
 }
 
 #[test]

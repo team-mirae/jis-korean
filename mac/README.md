@@ -48,10 +48,13 @@ quits the running copy. If it doesn't show up in the list, log out and back in o
 | `Sources/InputController.swift` | One controller and engine per text client: key events in, insert/marked text out, focus-loss commit, the "Enter commits" menu item. |
 | `Sources/KeyMap.swift` | macOS virtual key codes → engine key ids (spec §2). |
 | `Info.plist` | Bundle and input source metadata. Bundle id `me.sjun.inputmethod.JISKorean`. |
-| `tools/make-icon.swift` | Draws the menu bar icon (template image). |
+| `tools/make-icon.swift` | Draws the 한 badge (`icon.tiff`). `Info.plist` names it `icon.png` on one input mode, as Apple's Korean input method does; macOS still draws it slightly differently from Apple's badges in System Settings (see docs/troubleshooting/macos-input-method-not-launching.md). |
 | `tools/register.swift` | `TISRegisterInputSource`, so a fresh install appears without logging out. |
 
 ## Notes
 
 - Shortcuts (Ctrl, Option, Cmd) commit first, then go to the app unchanged.
-- Debug logs: `log stream --predicate 'process == "JISKorean"'`.
+- Debug logs: `/usr/bin/log stream --predicate 'process == "JISKorean"'` (in zsh, `log` alone is a shell builtin), and the input method's own `~/Library/Logs/JISKorean.log`.
+
+- Input method installed but not launching after a reinstall, or Keyboard Viewer showing ABC
+  legends: see [docs/troubleshooting/macos-input-method-not-launching.md](../docs/troubleshooting/macos-input-method-not-launching.md).

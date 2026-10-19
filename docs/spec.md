@@ -81,8 +81,8 @@ except Hangul jamo, which go into the composition automaton (§4).
 | 9 | ㅢ | 9 | placed for ergonomics |
 | 0 | ㅘ | 0 | JIS kana わ is on this key |
 | − | ! | ? | |
-| ^ | ^ | ^ | unassigned (types ^ either way) |
-| ¥ | — | — | em dash, U+2014 |
+| ^ | ( | ) | parentheses, the most-missed symbols (were F8 only) |
+| ¥ | — | ^ | em dash (U+2014); ^ moved here from the ^ key (^^ in chat) |
 
 Digits are on Shift, so numbers type with Shift held.
 
@@ -369,11 +369,10 @@ engine:
 From the note:
 
 1. **Symbols with no key.** Compared with stock JIS, these are now unreachable:
-   ( ) # $ % & * + = | @ ` { } < > / and ¥. Most urgent: ( ) (common in Korean text), plus @ and /
-   (email addresses, URLs, dates). The F8 escape covers them for now.
-2. **Free key.** ^ is the only unassigned key on the number row.
-3. **~ vs -.** ~ is also used with numbers (3~5일, 10:00~12:00) and now needs Shift released. A
-   second ~ on Shift+^ would cover it.
+   # $ % & * + = | @ ` { } < > / and ¥. Most urgent: @ and / (email addresses, URLs, dates). The
+   F8 escape covers them for now. ~~( )~~ Settled: on the ^ key (( unshifted, ) with Shift).
+2. ~~**Free key.**~~ Settled: the ^ key types ( and ); ^ moved to Shift+¥.
+3. ~~**~ vs -.**~~ Settled: ~ stays on the ; key unshifted; the ^ key went to ( ) instead.
 4. **F8 and composition.** The prototype carries the syllable being composed across the F8 switch.
    Should F8 commit first, like F6 does?
 5. ~~**F6 vs Shift+Enter.**~~ Settled: F6 commits everything unconfirmed (after dropping a plain
@@ -677,6 +676,40 @@ one line of counts and show the setting.
   - Learning off learns nothing, and a trained profile leaves ordinary words alone.
   - The owner's texts, typed attentively with learning on five times over, stay at 0 failures with
     no extra ↓.
+
+### 10.11.1 Per app (macOS)
+
+- **Disable / Resume Learning from <app>** (input menu): choices made in that app aren't recorded
+  (`jk_set_recording`); what was learned still applies there.
+- **Disable / Resume Predicting in <app>**: no predictions there (the deterministic engine).
+- **Off by default:** predictions start off, until the user turns them on, in apps where typing is
+  commands, paths, passwords or a game's chat:
+  - terminals;
+  - file transfer and SSH (Transmit, Cyberduck, FileZilla, ForkLift, Termius…);
+  - containers and VMs (Docker, OrbStack, Parallels, UTM…);
+  - remote desktop;
+  - password managers;
+  - Finder and launchers;
+  - Minecraft Java Edition, where the JIS Korean mod is the dedicated integration;
+  - any bundle id with "terminal", "ssh", "sftp" or ".ftp".
+  It's detected when JIS Korean is first used there: nothing is added to the settings until the
+  user changes it. The first time, a small notice under the input menu's icon gives the reason
+  (sensitive app, or dedicated mod recommended).
+- **Manage Disabled Apps…**: a list of the apps with a setting, each with its canonical full path,
+  fetched when the list opens. An uninstalled app stays listed, marked with an ⓘ saying it was
+  deleted, until the user removes it (with a confirmation).
+
+### 8.1 Keyboard Viewer (macOS)
+
+While JIS Korean is active, macOS uses a private layout bundled with the input method
+(`JISKorean.keylayout`, selected with `TISSetInputMethodKeyboardLayoutOverride` on each
+activation).
+- **Generated at build time** by `mac/tools/make-keylayout` from the engine's own legends
+  (`cargo run --example legends`), so it can't drift from §3.
+- **Its plain and Shift layers** carry JIS Korean's legends. Shift+Z shows F10.
+- **Its Cmd, Ctrl and Option layers, and unlabelled keys,** are ABC's on a JIS keyboard, so
+  shortcuts and Option characters are unchanged.
+- **Typing is unaffected:** the input method reads key codes, not characters.
 
 ### 10.12 Training files (the training contract)
 

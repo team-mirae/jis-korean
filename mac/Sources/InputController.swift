@@ -25,6 +25,8 @@ final class JKInputController: IMKInputController {
     /// The reading shown as the marked text in place of the Korean one: the chosen row, or the top
     /// prediction when it isn't the Korean reading. Nil: the engine's own preedit shows.
     private var shown: String?
+    /// The bundle identifier of the app this controller types into (for the per-app settings).
+    private var clientApp: String?
     #endif
 
     override init!(server: IMKServer!, delegate: Any!, client inputClient: Any!) {
@@ -70,7 +72,13 @@ final class JKInputController: IMKInputController {
 
     override func activateServer(_ sender: Any!) {
         super.activateServer(sender)
+        KeyboardViewerLayout.note("activated in \((sender as? IMKTextInput)?.bundleIdentifier() ?? "?")")
+        #if PREDICT
+        clientApp = (sender as? IMKTextInput)?.bundleIdentifier()
+        DefaultOffApps.noticeIfFirst(clientApp)
+        #endif
         jk_activate(engine)
+        KeyboardViewerLayout.select(for: sender as? IMKTextInput)
         #if PREDICT
         applyPredictionsSetting()
         // A new or changed training file (docs/training-contract.md): applied, then settings again.
@@ -116,6 +124,24 @@ final class JKInputController: IMKInputController {
         submenu.addItem(NSMenuItem(title: "Open Training Folder", action: #selector(openTrainingFolder(_:)), keyEquivalent: ""))
         learned.submenu = submenu
         menu.addItem(learned)
+        // Per app (spec §10.11): what this app does, and the list of excluded apps.
+        menu.addItem(.separator())
+        let app = clientApp ?? (client() as IMKTextInput?)?.bundleIdentifier()
+        if let app {
+            let name = DisabledApps.displayName(app)
+            let entry = DisabledApps.entry(app)
+            let learning = NSMenuItem(title: entry?.noLearning == true ? "Resume Learning from \(name)" : "Disable Learning from \(name)",
+                                      action: #selector(toggleAppLearning(_:)), keyEquivalent: "")
+            learning.representedObject = app
+            menu.addItem(learning)
+            let on = DefaultOffApps.predicting(app)
+            let why = DefaultOffApps.reason(app).map { " (off by default: \($0.notice))" } ?? ""
+            let predicting = NSMenuItem(title: on ? "Disable Predicting in \(name)" : "Resume Predicting in \(name)\(why)",
+                                        action: #selector(toggleAppPredictions(_:)), keyEquivalent: "")
+            predicting.representedObject = app
+            menu.addItem(predicting)
+        }
+        menu.addItem(NSMenuItem(title: "Manage Disabled Apps…", action: #selector(manageDisabledApps(_:)), keyEquivalent: ""))
         #endif
         let item = NSMenuItem(title: "Enter Commits Without a New Line", action: #selector(toggleEnterCommits(_:)), keyEquivalent: "")
         item.state = UserDefaults.standard.bool(forKey: enterCommitsDefault) ? .on : .off
@@ -140,6 +166,34 @@ final class JKInputController: IMKInputController {
         applyPredictionsSetting()
     }
 
+    @objc func toggleAppLearning(_ sender: Any?) {
+        guard let app = (sender as? NSMenuItem)?.representedObject as? String ?? clientApp else { return }
+        DisabledApps.update(app) { $0.noLearning.toggle() }
+        applyPredictionsSetting()
+    }
+
+    @objc func toggleAppPredictions(_ sender: Any?) {
+        guard let app = (sender as? NSMenuItem)?.representedObject as? String ?? clientApp else { return }
+        let defaultOff = DefaultOffApps.reason(app) != nil
+        if DefaultOffApps.predicting(app) {
+            // Turning off: back to the default where it starts off, else an explicit "off".
+            DisabledApps.update(app) {
+                $0.allowPredictions = false
+                $0.noPredictions = !defaultOff
+            }
+        } else {
+            DisabledApps.update(app) {
+                $0.noPredictions = false
+                $0.allowPredictions = defaultOff
+            }
+        }
+        applyPredictionsSetting()
+    }
+
+    @objc func manageDisabledApps(_ sender: Any?) {
+        DisabledAppsWindow.shared.show()
+    }
+
     @objc func openTrainingFolder(_ sender: Any?) {
         Training.openFolder()
     }
@@ -155,7 +209,11 @@ final class JKInputController: IMKInputController {
     /// (a weight set this way wins over the learned one), and what was learned (spec §10.11).
     private func applyPredictionsSetting() {
         let defaults = UserDefaults.standard
-        jk_set_predictor(engine, defaults.bool(forKey: predictionsDefault) ? Training.predictor() : nil)
+        // Per app (spec §10.11): no predictions, or no learning recorded, where the user said so.
+        let app = DisabledApps.entry(clientApp)
+        let predicting = defaults.bool(forKey: predictionsDefault) && DefaultOffApps.predicting(clientApp)
+        jk_set_predictor(engine, predicting ? Training.predictor() : nil)
+        jk_set_recording(engine, app?.noLearning == true ? 0 : 1)
         for (id, name) in weightNames.enumerated() {
             if let value = defaults.object(forKey: "Weight.\(name)") as? Double {
                 jk_set_prediction_weight(engine, UInt32(id), value)

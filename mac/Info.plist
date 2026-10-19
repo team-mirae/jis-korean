@@ -4,13 +4,13 @@
 <dict>
 	<key>CFBundleDevelopmentRegion</key>
 	<string>en</string>
+	<key>CFBundleDisplayName</key>
+	<string>JIS Korean</string>
 	<key>CFBundleExecutable</key>
 	<string>JISKorean</string>
 	<key>CFBundleIdentifier</key>
 	<string>me.sjun.inputmethod.JISKorean</string>
 	<key>CFBundleName</key>
-	<string>JIS Korean</string>
-	<key>CFBundleDisplayName</key>
 	<string>JIS Korean</string>
 	<key>CFBundlePackageType</key>
 	<string>APPL</string>
@@ -18,29 +18,64 @@
 	<string>0.1.0</string>
 	<key>CFBundleVersion</key>
 	<string>1</string>
-	<key>LSMinimumSystemVersion</key>
-	<string>13.0</string>
-	<key>LSBackgroundOnly</key>
-	<true/>
-	<key>NSPrincipalClass</key>
-	<string>NSApplication</string>
 	<key>InputMethodConnectionName</key>
 	<string>me.sjun.inputmethod.JISKorean_Connection</string>
 	<key>InputMethodServerControllerClass</key>
 	<string>JKInputController</string>
 	<key>InputMethodServerDelegateClass</key>
 	<string>JKInputController</string>
+	<key>ComponentInputModeDict</key>
+	<dict>
+		<!-- One input mode, shaped like Apple's Korean input method: macOS draws the input source
+		     icon from a mode's TISIconLabels and tsInputModeMenuIconFileKey. On the bundle alone
+		     it drew our icon as an outline. -->
+		<key>tsInputModeListKey</key>
+		<dict>
+			<key>me.sjun.inputmethod.JISKorean.2Set</key>
+			<dict>
+				<key>TISIconLabels</key>
+				<dict>
+					<key>Primary</key>
+					<string>한</string>
+				</dict>
+				<key>TISInputSourceID</key>
+				<string>me.sjun.inputmethod.JISKorean.2Set</string>
+				<key>TISIntendedLanguage</key>
+				<string>ko</string>
+				<key>tsInputModeIsVisibleKey</key>
+				<true/>
+				<key>tsInputModeMenuIconFileKey</key>
+				<string>icon.png</string>
+				<key>tsInputModePaletteIconFileKey</key>
+				<string>icon.png</string>
+				<key>tsInputModePrimaryInScriptKey</key>
+				<true/>
+				<key>tsInputModeScriptKey</key>
+				<string>smKorean</string>
+			</dict>
+		</dict>
+		<key>tsVisibleInputModeOrderedArrayKey</key>
+		<array>
+			<string>me.sjun.inputmethod.JISKorean.2Set</string>
+		</array>
+	</dict>
+	<key>LSBackgroundOnly</key>
+	<true/>
+	<key>LSMinimumSystemVersion</key>
+	<string>13.0</string>
+	<key>NSPrincipalClass</key>
+	<string>NSApplication</string>
+	<key>TISIconIsTemplate</key>
+	<true/>
 	<key>TISInputSourceID</key>
 	<string>me.sjun.inputmethod.JISKorean</string>
 	<key>TISIntendedLanguage</key>
 	<string>ko</string>
+	<key>tsInputMethodIconFileKey</key>
+	<string>icon.png</string>
 	<key>tsInputMethodCharacterRepertoireKey</key>
 	<array>
 		<string>Hang</string>
 	</array>
-	<key>tsInputMethodIconFileKey</key>
-	<string>icon.tiff</string>
-	<key>TISIconIsTemplate</key>
-	<true/>
 </dict>
 </plist>

@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!-- The layout Keyboard Viewer shows while JIS Korean is active (spec §8.1), private to the input
+     method and not selectable on its own: the same shape as Apple's Korean input method's
+     HangulIMKeyboardLayouts-Info.plist. The input method names it to the client on activation. -->
+<plist version="1.0">
+<dict>
+	<key>CFBundleDevelopmentRegion</key>
+	<string>English</string>
+	<key>CFBundleIdentifier</key>
+	<string>me.sjun.keyboardlayout.JISKoreanKeyboardLayouts</string>
+	<key>CFBundleInfoDictionaryVersion</key>
+	<string>6.0</string>
+	<key>CFBundleName</key>
+	<string>JISKoreanKeyboardLayouts</string>
+	<key>CFBundleShortVersionString</key>
+	<string>1.0</string>
+	<key>CFBundleVersion</key>
+	<string>1</string>
+	<key>CSResourcesFileMapped</key>
+	<string>yes</string>
+	<key>KLInfo_JISKorean</key>
+	<dict>
+		<key>ISOCode</key>
+		<string>ko</string>
+		<key>TSMInvisibleKey</key>
+		<true/>
+	</dict>
+</dict>
+</plist>

@@ -28,11 +28,16 @@ MIN_MACOS  := 13.0
 SOURCES    := $(wildcard Sources/*.swift)
 CARGO      := $(shell command -v cargo || echo $(HOME)/.cargo/bin/cargo)
 
+LSREGISTER := /System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister
+
 export MACOSX_DEPLOYMENT_TARGET := $(MIN_MACOS)
 
 .PHONY: all engine install uninstall dist clean
 
 all: $(APP)
+
+# Spotlight would register build copies with LaunchServices (see install); keep it out of build/.
+$(shell mkdir -p build && touch build/.metadata_never_index)
 
 # --- engine: Rust static library, one per arch, merged with lipo
 
@@ -65,6 +70,22 @@ $(BUILD)/icon.tiff: tools/make-icon.swift
 	swift tools/make-icon.swift $(BUILD)/icon
 	tiffutil -cathidpicheck $(BUILD)/icon/icon.png $(BUILD)/icon/icon@2x.png -out $@
 
+# --- Keyboard Viewer layout: JIS Korean's legends on ABC (JIS), from the engine's layout tables
+
+$(BUILD)/legends.tsv: $(wildcard $(ENGINE)/src/*.rs) $(ENGINE)/examples/legends.rs
+	@mkdir -p $(BUILD)
+	$(CARGO) run -q --manifest-path $(ENGINE)/Cargo.toml --example legends --target-dir $(TARGET_DIR) > $@
+
+$(BUILD)/make-keylayout: tools/make-keylayout/main.swift Sources/KeyMap.swift $(HEADER)
+	@mkdir -p $(BUILD)
+	swiftc -O -import-objc-header $(HEADER) Sources/KeyMap.swift tools/make-keylayout/main.swift -o $@
+
+$(BUILD)/JISKorean.keylayout: $(BUILD)/make-keylayout $(BUILD)/legends.tsv
+	$(BUILD)/make-keylayout $(BUILD)/legends.tsv $@
+
+# An earlier build installed the layout as its own bundle here; install removes it.
+LAYOUTS_TO    := $(HOME)/Library/Keyboard Layouts
+
 # --- bundle
 
 DICT    := $(ENGINE)/dict
@@ -72,13 +93,16 @@ PREDICT_FILES := $(ENGINE)/predict/ranker.bin $(ENGINE)/predict/common-en.txt $(
                  $(ENGINE)/predict/english-nouns.txt $(ENGINE)/predict/LICENSE-wordnet.txt \
                  $(ENGINE)/predict/LICENSE-corpora.txt
 
-$(APP): $(BUILD)/JISKorean $(BUILD)/icon.tiff Info.plist $(DICT)/hanja.tsv
+$(APP): $(BUILD)/JISKorean $(BUILD)/icon.tiff Info.plist $(DICT)/hanja.tsv $(BUILD)/JISKorean.keylayout \
+       Resources/JISKoreanKeyboardLayouts-Info.plist Resources/en.lproj/InfoPlist.strings Resources/ko.lproj/InfoPlist.strings
 	rm -rf $@
 	mkdir -p $@/Contents/MacOS $@/Contents/Resources
 	cp Info.plist $@/Contents/Info.plist
 	cp $(BUILD)/JISKorean $@/Contents/MacOS/JISKorean
 	cp $(BUILD)/icon.tiff $@/Contents/Resources/icon.tiff
 	cp $(DICT)/hanja.tsv $(DICT)/LICENSE-libhangul-hanja.txt $(DICT)/LICENSE-unicode.txt $@/Contents/Resources/
+	cp $(BUILD)/JISKorean.keylayout Resources/JISKoreanKeyboardLayouts-Info.plist $@/Contents/Resources/
+	cp -R Resources/en.lproj Resources/ko.lproj $@/Contents/Resources/
 ifeq ($(PREDICT),1)
 	mkdir -p $@/Contents/Resources/predict
 	cp $(PREDICT_FILES) $@/Contents/Resources/predict/
@@ -88,13 +112,27 @@ endif
 install: $(APP)
 	@killall JISKorean 2>/dev/null || true
 	mkdir -p "$(INSTALL_TO)"
-	rm -rf "$(INSTALL_TO)/JISKorean.app"
-	cp -R $(APP) "$(INSTALL_TO)/"
+	@# Swap the bundle in with renames: while the path is missing (an uninstall followed by a long
+	@# rebuild), macOS drops the input source from running apps and re-registering doesn't bring it
+	@# back (docs/troubleshooting/macos-input-method-not-launching.md).
+	rm -rf "$(INSTALL_TO)/.JISKorean.app.new" "$(INSTALL_TO)/.JISKorean.app.old"
+	ditto $(APP) "$(INSTALL_TO)/.JISKorean.app.new"
+	if [ -d "$(INSTALL_TO)/JISKorean.app" ]; then mv "$(INSTALL_TO)/JISKorean.app" "$(INSTALL_TO)/.JISKorean.app.old"; fi
+	mv "$(INSTALL_TO)/.JISKorean.app.new" "$(INSTALL_TO)/JISKorean.app"
+	rm -rf "$(INSTALL_TO)/.JISKorean.app.old"
+	rm -rf "$(LAYOUTS_TO)/JISKorean.bundle"
+	@# Only the installed copy may be known to LaunchServices: input methods are launched by bundle
+	@# id, and a build copy (or a deleted one) can be picked instead, so the input method never starts.
+	@for app in build/JISKorean.app build/full/JISKorean.app build/lite/JISKorean.app; do \
+		$(LSREGISTER) -u "$(CURDIR)/$$app" 2>/dev/null || true; done
+	$(LSREGISTER) -f "$(INSTALL_TO)/JISKorean.app"
 	swift tools/register.swift "$(INSTALL_TO)/JISKorean.app"
 
+# To reinstall, run install alone: uninstall first leaves the input source broken in running apps
+# until it is removed and re-added in System Settings.
 uninstall:
 	@killall JISKorean 2>/dev/null || true
-	rm -rf "$(INSTALL_TO)/JISKorean.app"
+	rm -rf "$(INSTALL_TO)/JISKorean.app" "$(LAYOUTS_TO)/JISKorean.bundle"
 
 VERSION := $(shell plutil -extract CFBundleShortVersionString raw Info.plist)
 

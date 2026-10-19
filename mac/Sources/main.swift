@@ -40,6 +40,7 @@ let sharedPredictor: OpaquePointer? = {
 }()
 #endif
 
+KeyboardViewerLayout.note("launched from \(Bundle.main.bundlePath)")
 let server = IMKServer(name: connectionName, bundleIdentifier: Bundle.main.bundleIdentifier)
 _ = server
 NSApplication.shared.run()
