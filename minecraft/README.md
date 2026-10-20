@@ -90,8 +90,9 @@ python3 -I tools/build_ranker.py words_alpha.txt [--eval-korean <Korean text>]
   know (the numeric keypad, Option combinations) type nothing in those fields.
 - **The mode follows JIS Korean's.** On macOS the mod reads the input method's current mode
   (`defaults read me.sjun.inputmethod.JISKorean CurrentModeID`, spec §8.2) each time a screen
-  opens, and types Mode A (JIS) or Mode B (US ANSI) to match. Elsewhere, or if JIS Korean has never
-  run, it's Mode A. The macOS input method isn't changed for this: the mod only reads its public
+  opens, and types Mode A (JIS) or Mode B (US ANSI) to match. On Windows it reads the input
+  method's `Mode` setting the same way (`reg query "HKCU\Software\JIS Korean" /v Mode`, then HKLM,
+  spec §8.4). Elsewhere, or if JIS Korean has never been set up, it's Mode A. The macOS input method isn't changed for this: the mod only reads its public
   API.
 - **Karabiner ろ rule:** on Macs where a Karabiner rule turns ろ into Option+¥ (as in
   hhkb-ekj-trilingual), the mod reads Option+¥ back as ろ.

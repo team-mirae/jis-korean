@@ -866,7 +866,8 @@ every key through there only.
 **Settings** are the macOS ones, stored in `HKCU\Software\JIS Korean` (`Mode`, `Predictions`,
 `EnterCommits`, `LearnFromChoices`, `Learned`, `Weight.<Scenario>`, per app
 `Apps\<program.exe>\Predictions`); the default-off apps (§10.11.1) are matched by program file name.
-The training file is `%APPDATA%\JIS Korean\training.json`.
+The training file is `%APPDATA%\JIS Korean\training.json`. The Minecraft mod reads `Mode` to type
+the same mode in the game.
 
 ---
 
