@@ -1,0 +1,11 @@
+{
+	"required": true,
+	"package": "me.sjun.jiskorean.client.mixin",
+	"compatibilityLevel": "JAVA_25",
+	"client": [
+		"TextInputManagerMixin"
+	],
+	"injectors": {
+		"defaultRequire": 1
+	}
+}

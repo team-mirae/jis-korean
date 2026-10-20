@@ -13,6 +13,12 @@
 	},
 	"license": "MIT",
 	"environment": "client",
+	"mixins": [
+		{
+			"config": "jiskorean.client.mixins.json",
+			"environment": "client"
+		}
+	],
 	"entrypoints": {
 		"client": [
 			"me.sjun.jiskorean.client.JisKoreanClient"

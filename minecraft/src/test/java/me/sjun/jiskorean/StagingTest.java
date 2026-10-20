@@ -37,7 +37,9 @@ class StagingTest {
 			Map.entry("Ro", new int[] {Keys.INTERNATIONAL1, 0}),
 			Map.entry("AltYen", new int[] {Keys.INTERNATIONAL3, Keys.MOD_ALT}),
 			Map.entry("Ctrl-A", new int[] {4, Keys.MOD_CONTROL}),
-			Map.entry("Left", new int[] {80, 0}));
+			Map.entry("Left", new int[] {80, 0}),
+			Map.entry("S-2", new int[] {31, Keys.MOD_SHIFT}),
+			Map.entry("Grave", new int[] {53, 0}));
 
 	private Staging staging;
 	/** The text field, as a game text box would end up after the inserts and passed keys. */
@@ -47,6 +49,7 @@ class StagingTest {
 
 	@BeforeEach
 	void setUp() {
+		ENGINE.setMode(0);
 		ENGINE.clear();
 		ENGINE.activate();
 		staging = new Staging(ENGINE, RANKER);
@@ -234,6 +237,21 @@ class StagingTest {
 	void dedicatedKeysAndEscapeWork() {
 		check("1k ", "빠 ");
 		check("{F8}1{S-F8}1k ", "1빠 ");
+	}
+
+	@Test
+	void modeBTypesUsSymbols() {
+		// Mode A reads the keys as JIS (Shift+2 is "), Mode B as US ANSI (Shift+2 is @, and ` has a key).
+		check("{F8}{S-2} ", "\" ");
+		setUp();
+		staging.setMode(1);
+		type("{F8}{S-2}{Grave} ");
+		assertEquals("@` ", field.toString());
+		// Korean is the same in both modes.
+		setUp();
+		staging.setMode(1);
+		type("gksrmf ");
+		assertEquals("한글 ", field.toString());
 	}
 
 	@Test
