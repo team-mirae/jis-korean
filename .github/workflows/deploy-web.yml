@@ -1,0 +1,86 @@
+# Deploys the web playground and docs (web/) to Vercel, jis-korean.sjun.me, on every push to main
+# that touches the site or the engine it runs. The engine tests run first and gate the deploy.
+#
+# The site is built here, not on Vercel: its build compiles the engine to wasm with Rust, which
+# Vercel's build image doesn't have. The workflow builds with `vercel build` and uploads the result
+# with `vercel deploy --prebuilt`, the same as deploying by hand from web/.
+#
+# Needs the repository secret VERCEL_TOKEN (a Vercel access token for the themrsungs-projects team).
+
+name: Deploy web
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "web/**"
+      - "engine/**"
+      - ".github/workflows/deploy-web.yml"
+  workflow_dispatch:
+
+# One deploy at a time; a newer push waits rather than cancelling one halfway.
+concurrency:
+  group: deploy-web
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+env:
+  # Not secrets: they name the Vercel team and project (web/.vercel/project.json).
+  VERCEL_ORG_ID: team_CzVKrhjMVhZUWfSbyNlJbMSP
+  VERCEL_PROJECT_ID: prj_SKyw548zQeAU6uCaezDNTGPx1JZK
+
+jobs:
+  test:
+    name: Engine tests
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: engine
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: engine
+      # Tests that read the gitignored corpus (tests/data) skip themselves without it.
+      - run: cargo test --release
+      - run: cargo test --release --no-default-features
+
+  deploy:
+    name: Build and deploy
+    needs: test
+    runs-on: ubuntu-latest
+    environment:
+      name: production
+      url: https://jis-korean.sjun.me
+    defaults:
+      run:
+        working-directory: web
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-unknown-unknown
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: engine
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+      - run: npm ci
+      - name: Pull the project settings
+        run: npx --yes vercel@62 pull --yes --environment=production --token="$VERCEL_TOKEN"
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+      - name: "Build (npm run build: the engine to wasm, then Vite)"
+        run: npx --yes vercel@62 build --prod --token="$VERCEL_TOKEN"
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+      - name: Deploy to production
+        run: npx --yes vercel@62 deploy --prebuilt --prod --token="$VERCEL_TOKEN"
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
