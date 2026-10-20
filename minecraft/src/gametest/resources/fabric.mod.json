@@ -1,7 +1,7 @@
 {
 	"schemaVersion": 1,
 	"id": "jiskorean-gametest",
-	"version": "0.1.0",
+	"version": "0.2.0-preview",
 	"name": "JIS Korean in-game tests",
 	"environment": "client",
 	"entrypoints": {

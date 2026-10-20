@@ -62,7 +62,7 @@ Rules on top of the model:
 ## Build and test
 
 ```sh
-./gradlew build               # build/libs/jis-korean-0.1.0.jar (engine, model and Chicory inside)
+./gradlew build               # build/libs/jis-korean-0.2.0-preview.jar (engine, model and Chicory inside)
 ./gradlew test                # staging, ranking and engine tests (no game)
 ./gradlew runClientGameTest   # boots the real client, opens chat and types through the mod
 ./gradlew runClient           # play with it
