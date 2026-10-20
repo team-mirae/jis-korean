@@ -80,6 +80,9 @@ private:
     // Whether a key-down goes through the engine. Decided the same way in OnTestKeyDown and
     // OnKeyDown; keys the engine then doesn't consume go on to the app after its commit.
     bool Wants(unsigned vk, std::uint32_t key, std::uint32_t mods) const;
+    // A password or PIN field (input scope), or one the app turned the keyboard off for.
+    bool PrivateField(ITfContext* context);
+    bool Private(const wchar_t* why);  // logs why a field is private, returns true
     bool Composing() const;
     void HandleKey(ITfContext* context, unsigned vk, std::uint32_t key, std::uint32_t mods,
                    BOOL* eaten);
@@ -147,6 +150,9 @@ private:
     unsigned mode_ = 0xFF;  // none yet: the first ApplySettings sets it
     bool open_ = true;  // false: 한/영 switched to English
     bool predicting_ = false;
+    bool private_ = false;     // the focused field is a password field: keys pass through
+    bool app_off_ = false;     // JIS Korean is off in this program (settings::AppOff)
+    std::wstring last_scopes_;  // for the log
     bool data_ready_ = false;  // the shared dictionary and predictor are set on the engine
 #ifdef JK_PREDICT
     std::vector<std::wstring> predictions_;

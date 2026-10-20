@@ -9,7 +9,8 @@
 //   Weight.<Scenario>  SZ        user tuning (spec §10.5): Korean English Implied Mixed TwoSet
 //                                KeepFinals Hanja ImpliedL, e.g. "0.8"
 //   DiagnosticLog      DWORD  0  log.h
-//   Apps\<exe>         key       per app: Predictions DWORD, overriding the default-off list
+//   Apps\<exe>         key       per app: Predictions DWORD, overriding the default-off list;
+//                                Off DWORD 1: JIS Korean passes every key through there (as ABC)
 #pragma once
 
 #include <optional>
@@ -32,5 +33,10 @@ const wchar_t* DefaultOffReason(const std::wstring& exe);
 // Whether predictions are on in `exe`: the user's choice for it, else the default-off list.
 bool AppPredicting(const std::wstring& exe);
 void SetAppPredicting(const std::wstring& exe, bool on);
+
+// Whether JIS Korean is off in `exe`: every key passes through, as in ABC, there only. For
+// programs whose password boxes don't say they are (banking and certificate programs).
+bool AppOff(const std::wstring& exe);
+void SetAppOff(const std::wstring& exe, bool off);
 
 }  // namespace jk::settings

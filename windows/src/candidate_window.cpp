@@ -48,6 +48,9 @@ void CandidateWindow::Show(std::vector<Row> rows, int selected, std::wstring foo
                                 DllInstance(), nullptr);
         if (!hwnd_) return;
         SetWindowLongPtrW(hwnd_, GWLP_USERDATA, reinterpret_cast<LONG_PTR>(this));
+        // Never in screen recordings, screenshots or screen sharing: the list shows readings of
+        // what's being typed, which may be private (Windows 10 2004+; older: no effect).
+        SetWindowDisplayAffinity(hwnd_, WDA_EXCLUDEFROMCAPTURE);
     }
     rows_ = std::move(rows);
     selected_ = selected;

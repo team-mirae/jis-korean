@@ -1,5 +1,6 @@
 // The list under the text: hanja candidates after F7 (spec §7), or the predictions while typing
-// (spec §10). A small topmost popup that never takes focus; a click picks a row.
+// (spec §10). A small topmost popup that never takes focus; a click picks a row. Excluded from
+// screen capture.
 #pragma once
 
 #include <windows.h>

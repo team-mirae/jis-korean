@@ -42,6 +42,11 @@ constexpr DefaultOff kDefaultOff[] = {
     {L"minecraft.windows.exe", kMinecraft},
 };
 
+// Programs JIS Korean is off in by default: certificate and keyboard-security programs whose
+// password boxes don't mark themselves as password fields. By program file name, measured from
+// the diagnostic log (which names the program on every line); empty until confirmed.
+constexpr const wchar_t* kOffByDefault[] = {nullptr};
+
 }  // namespace
 
 unsigned long ReadDword(const wchar_t* name, unsigned long fallback) {
@@ -120,6 +125,27 @@ bool AppPredicting(const std::wstring& exe) {
         }
     }
     return DefaultOffReason(exe) == nullptr;
+}
+
+bool AppOff(const std::wstring& exe) {
+    const std::wstring key = AppKey(exe);
+    for (HKEY root : {HKEY_CURRENT_USER, HKEY_LOCAL_MACHINE}) {
+        DWORD value = 0;
+        DWORD size = sizeof(value);
+        if (RegGetValueW(root, key.c_str(), L"Off", RRF_RT_REG_DWORD, nullptr, &value, &size) ==
+            ERROR_SUCCESS) {
+            return value != 0;
+        }
+    }
+    for (const wchar_t* name : kOffByDefault) {
+        if (name && exe == name) return true;
+    }
+    return false;
+}
+
+void SetAppOff(const std::wstring& exe, bool off) {
+    const DWORD v = off ? 1 : 0;
+    RegSetKeyValueW(HKEY_CURRENT_USER, AppKey(exe).c_str(), L"Off", REG_DWORD, &v, sizeof(v));
 }
 
 void SetAppPredicting(const std::wstring& exe, bool on) {

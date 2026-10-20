@@ -56,6 +56,23 @@ app in the session, never stored). The open/close compartment only mirrors it, f
 indicator: a change from anywhere else is put back. 한/영, the indicator's button and the menu are
 the only ways to switch.
 
+## The prediction list showed a certificate password
+
+**Symptom (owner, 2026-10-21).** In a certificate program's password box, the prediction list
+showed readings of the password: a screen recording would have captured it.
+
+**What Windows does.** Fields marked as passwords get no TIP at all: an `ES_PASSWORD` Edit and a
+TSF RichEdit with `IS_PASSWORD` never sent JIS Korean a key (`type-test.ps1 -Filter password`). The
+certificate program's box isn't marked, so to Windows and to JIS Korean it's ordinary text.
+
+**Solution.** The list window is excluded from capture (`SetWindowDisplayAffinity`,
+`WDA_EXCLUDEFROMCAPTURE`). Fields that are marked are passed through by JIS Korean too, in case
+one reaches it. Unmarked ones can't be detected: ABC (한/영) or the menu's "Off in <program>". The
+log names the program on every line, so programs that need to be off by default can be added to
+`kOffByDefault` in `windows/src/settings.cpp` once measured. A notice while the screen is recorded
+was considered and left out: Windows has no API saying the screen is captured, guessing from
+program names misfires, and the list is already out of captures.
+
 ## Loading the dictionary blocked the first focus
 
 Parsing the embedded hanja dictionary takes 80–110 ms and the predictor 16–31 ms per process

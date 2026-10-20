@@ -1,4 +1,4 @@
-# Types key sequences through the installed TIP into jk_testpad and checks the text: a classic
+﻿# Types key sequences through the installed TIP into jk_testpad and checks the text: a classic
 # Edit control and a RichEdit through the IMM compatibility layer, and a RichEdit on TSF itself. The testpad is the foreground window while it runs: don't touch
 # the keyboard. Settings that change what's typed (Mode, Predictions) are set for the run and
 # restored after.
@@ -37,6 +37,11 @@ $cases = @(
     @('predictions: hello', 1, 1, 'KeyH KeyE KeyL KeyL KeyO Space', 'hello '),
     @('predictions: 한글 stays Korean', 1, 1, 'KeyG KeyK KeyS KeyR KeyM KeyF Space', '한글 ')
 )
+# Password fields: every key passes through untouched (ABC), with predictions on.
+# (The leading comma keeps a one-case list a list of cases: PowerShell would unroll it.)
+$passwordCases = @(
+    ,@('password field passes keys through', 1, 1, 'KeyG KeyK KeyS S-KeyR Digit1 KeyH KeyE KeyL KeyL KeyO', 'gksR1hello')
+)
 
 $saved = @{}
 foreach ($name in 'Mode', 'Predictions') {
@@ -45,11 +50,12 @@ foreach ($name in 'Mode', 'Predictions') {
 $failed = 0
 $out = Join-Path $env:TEMP 'jk-type-test.txt'
 try {
-    foreach ($c in $cases) {
+    foreach ($c in @($cases) + @($passwordCases)) {
         if ($Filter -and $c[0] -notlike "*$Filter*") { continue }
         Set-ItemProperty $key Mode $c[1] -Type DWord
         Set-ItemProperty $key Predictions $c[2] -Type DWord
-        foreach ($t in $Target) {
+        $targets = if ([object]::ReferenceEquals($c, $passwordCases[0])) { @('password', 'pwscope') } else { $Target }
+        foreach ($t in $targets) {
             Remove-Item $out -ErrorAction SilentlyContinue
             $p = Start-Process $pad -ArgumentList '--profile', 'on', '--target', $t, '--keys', "`"$($c[3])`"", '--out', "`"$out`"" -PassThru
             if (-not $p.WaitForExit(30000)) { $p.Kill(); Write-Host "TIMEOUT $($c[0]) [$t]" -ForegroundColor Red; $failed++; continue }

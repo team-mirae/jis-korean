@@ -1,5 +1,7 @@
 #include "text_service.h"
 
+#include <InputScope.h>
+
 #include <cwchar>
 #include <new>
 
@@ -37,6 +39,7 @@ enum MenuId : UINT {
     kMenuLearning,
     kMenuResetLearned,
     kMenuTrainingFolder,
+    kMenuAppOff,
     kMenuEnterCommits,
 };
 
@@ -259,8 +262,84 @@ bool TextService::Composing() const {
     return false;
 }
 
+bool TextService::PrivateField(ITfContext* context) {
+    // A password-style edit control, however it's labelled: ES_PASSWORD, or a password character
+    // set (EM_GETPASSWORDCHAR). Only Edit and RichEdit classes are asked: custom controls may
+    // read the message as something else.
+    if (HWND focus = GetFocus()) {
+        wchar_t name[64] = L"";
+        GetClassNameW(focus, name, 64);
+        for (wchar_t& c : name) c = static_cast<wchar_t>(towlower(c));
+        if (wcsstr(name, L"edit")) {
+            if (GetWindowLongW(focus, GWL_STYLE) & ES_PASSWORD) return Private(L"ES_PASSWORD");
+            if (SendMessageW(focus, EM_GETPASSWORDCHAR, 0, 0) != 0) return Private(L"password character");
+        }
+    }
+    if (!context) return false;
+    // The app turned the keyboard off for this field (password boxes through the IMM layer).
+    for (const GUID* guid : {&GUID_COMPARTMENT_KEYBOARD_DISABLED, &GUID_COMPARTMENT_EMPTYCONTEXT}) {
+        ComPtr<ITfCompartment> compartment;
+        if (SUCCEEDED(GetCompartment(context, *guid, &compartment)) &&
+            ReadCompartment(compartment.Get()) != 0) {
+            return Private(guid == &GUID_COMPARTMENT_KEYBOARD_DISABLED ? L"keyboard disabled" : L"empty context");
+        }
+    }
+    // A password or PIN by its input scope (browsers' password inputs, XAML PasswordBox...).
+    bool secret = false;
+    std::wstring scopes;
+    RunReadSessionNow(context, client_id_, [&](TfEditCookie ec) -> HRESULT {
+        ComPtr<ITfProperty> property;
+        TF_SELECTION selection = {};
+        ULONG fetched = 0;
+        if (FAILED(context->GetProperty(kPropInputScope, &property)) ||
+            FAILED(context->GetSelection(ec, TF_DEFAULT_SELECTION, 1, &selection, &fetched)) ||
+            !fetched || !selection.range) {
+            return S_OK;
+        }
+        VARIANT value;
+        VariantInit(&value);
+        ComPtr<ITfInputScope> input_scope;
+        if (SUCCEEDED(property->GetValue(ec, selection.range, &value)) && value.vt == VT_UNKNOWN &&
+            value.punkVal && SUCCEEDED(value.punkVal->QueryInterface(IID_PPV_ARGS(&input_scope)))) {
+            InputScope* list = nullptr;
+            UINT count = 0;
+            if (SUCCEEDED(input_scope->GetInputScopes(&list, &count)) && list) {
+                for (UINT i = 0; i < count; ++i) {
+                    scopes += std::to_wstring(list[i]) + L" ";
+                    switch (list[i]) {
+                        case IS_PASSWORD: case IS_PRIVATE: case IS_NUMERIC_PASSWORD:
+                        case IS_NUMERIC_PIN: case IS_ALPHANUMERIC_PIN: case IS_ALPHANUMERIC_PIN_SET:
+                            secret = true;
+                            break;
+                        default:
+                            break;
+                    }
+                }
+                CoTaskMemFree(list);
+            }
+        }
+        VariantClear(&value);
+        selection.range->Release();
+        return S_OK;
+    });
+    // Input scope numbers only (InputScope.h), never text: why a field was or wasn't private.
+    if (scopes != last_scopes_) {
+        log::Write(L"input scopes: %s", scopes.empty() ? L"none" : scopes.c_str());
+        last_scopes_ = scopes;
+    }
+    return secret ? Private(L"input scope") : false;
+}
+
+bool TextService::Private(const wchar_t* why) {
+    // Logged once per field: what made it private (never its text).
+    if (!private_) log::Write(L"private field (%s): keys pass through", why);
+    return true;
+}
+
 bool TextService::Wants(unsigned vk, std::uint32_t key, std::uint32_t mods) const {
-    if (!open_ || key == JK_KEY_MODIFIER) return false;
+    // A password field: every key goes to the app untouched, as in ABC. Nothing is composed,
+    // listed or learned there, so nothing of it can show on screen.
+    if (private_ || app_off_ || !open_ || key == JK_KEY_MODIFIER) return false;
     // While composing every key goes through the engine: it commits before keys it doesn't use.
     if (Composing()) return true;
     if (key == JK_KEY_OTHER || (mods & kShortcut)) return false;
@@ -294,6 +373,7 @@ STDMETHODIMP TextService::OnTestKeyDown(ITfContext* context, WPARAM wparam, LPAR
     }
     const std::uint32_t key = KeyOf(wparam, lparam);
     const std::uint32_t mods = Modifiers();
+    if (!Composing()) private_ = PrivateField(context);
     if (Wants(vk, key, mods)) {
         EnsureData();
         HandleKey(context ? context : composition_context_.Get(), vk, key, mods, eaten);
@@ -328,6 +408,7 @@ STDMETHODIMP TextService::OnKeyDown(ITfContext* context, WPARAM wparam, LPARAM l
     } else {
         const std::uint32_t key = KeyOf(wparam, lparam);
         const std::uint32_t mods = Modifiers();
+        if (!Composing()) private_ = PrivateField(context);
         if (Wants(vk, key, mods)) {
             EnsureData();
             HandleKey(context, vk, key, mods, eaten);
@@ -529,6 +610,7 @@ void TextService::SaveLearned() {
 // --- settings
 
 void TextService::ApplySettings() {
+    app_off_ = settings::AppOff(settings::ExeName());
     // The mode follows the keyboard, not the app: one setting for every app (spec §8.4).
     SetMode(settings::ReadDword(L"Mode", 0) == 1 ? 1 : 0);
     jk_set_enter_commits(engine_, settings::ReadDword(L"EnterCommits", 0) ? 1 : 0);
@@ -576,6 +658,7 @@ void TextService::InitMenu(ITfMenu* menu) {
         menu->AddMenuItem(0, TF_LBMENUF_SEPARATOR, nullptr, nullptr, L"", 0, nullptr);
     };
     add(kMenuEnglish, L"ABC: Keys Pass Through (한/영)", !open_);
+    add(kMenuAppOff, L"Off in " + settings::ExeName() + L" (Keys Pass Through There)", app_off_);
     separator();
     add(kMenuModeA, L"Mode A: JIS Korean (JIS Keyboards)", mode_ == 0);
     add(kMenuModeB, L"Mode B: JIS Korean for US ANSI", mode_ == 1);
@@ -622,6 +705,10 @@ void TextService::OnMenu(UINT id) {
         case kMenuEnglish:
             WriteEnglish(open_);
             return;
+        case kMenuAppOff:
+            if (!app_off_ && composition_context_) Flush(composition_context_.Get());
+            settings::SetAppOff(settings::ExeName(), !app_off_);
+            break;
         case kMenuModeA:
         case kMenuModeB:
             if (composition_context_) Flush(composition_context_.Get());
@@ -732,6 +819,10 @@ STDMETHODIMP TextService::OnChange(REFGUID guid) {
         ComPtr<ITfCompartment> openclose;
         if (SUCCEEDED(GetCompartment(thread_mgr_.Get(), GUID_COMPARTMENT_KEYBOARD_OPENCLOSE, &openclose)) &&
             (ReadCompartment(openclose.Get()) != 0) != open_) {
+            // Logged so apps that close the IME for a field (ImmSetOpenStatus, e.g. password
+            // boxes in banking and certificate programs) show up; kept 한글 / ABC as it was.
+            log::Write(L"open/close set to %s from outside; put back to %s", open_ ? L"closed" : L"open",
+                       open_ ? L"open" : L"closed");
             WriteCompartment(openclose.Get(), client_id_, open_ ? 1 : 0);
         }
     }

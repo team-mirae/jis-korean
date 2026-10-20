@@ -2,7 +2,7 @@
 // default) and a RichEdit using TSF directly (SES_USECTF), for typing through the installed TIP.
 //
 //   jk_testpad                                         a window to type in by hand
-//   jk_testpad --profile on --target edit|rich|tsf --keys "KeyG KeyK KeyS Space" --out result.txt
+//   jk_testpad --profile on --target edit|rich|tsf|password|pwscope --keys "KeyG KeyK KeyS Space" --out result.txt
 //
 // With --keys it selects the JIS Korean profile for itself (with --profile), injects the keys with
 // SendInput by scan code (S- holds Shift, Hangul is 한/영), writes the target's text as UTF-8 to
@@ -10,6 +10,7 @@
 #include <windows.h>
 #include <msctf.h>
 #include <shellapi.h>
+#include <InputScope.h>
 #include <richedit.h>
 
 #include <cstdio>
@@ -27,7 +28,18 @@ constexpr UINT kDone = WM_APP + 1;
 HWND g_edit = nullptr;
 HWND g_rich = nullptr;
 HWND g_tsf = nullptr;
+HWND g_password = nullptr;  // a classic password Edit (ES_PASSWORD)
+HWND g_pwscope = nullptr;   // a TSF RichEdit with the password input scope, as browsers' inputs
+
 std::wstring g_profile, g_target = L"edit", g_keys, g_out;
+
+HWND Target() {
+    if (g_target == L"rich") return g_rich;
+    if (g_target == L"tsf") return g_tsf;
+    if (g_target == L"password") return g_password;
+    if (g_target == L"pwscope") return g_pwscope;
+    return g_edit;
+}
 
 struct Key {
     WORD scan;
@@ -144,7 +156,7 @@ void SelectProfile() {
 }
 
 void WriteResult() {
-    HWND target = g_target == L"rich" ? g_rich : g_target == L"tsf" ? g_tsf : g_edit;
+    HWND target = Target();
     const int n = GetWindowTextLengthW(target);
     std::wstring text(static_cast<size_t>(n) + 1, L'\0');
     GetWindowTextW(target, text.data(), n + 1);
@@ -163,10 +175,12 @@ LRESULT CALLBACK Proc(HWND window, UINT message, WPARAM wparam, LPARAM lparam) {
     switch (message) {
         case WM_SIZE: {
             const int w = LOWORD(lparam), h = HIWORD(lparam);
-            const int third = h / 3;
-            MoveWindow(g_edit, 8, 8, w - 16, third - 12, TRUE);
-            MoveWindow(g_rich, 8, third + 4, w - 16, third - 12, TRUE);
-            MoveWindow(g_tsf, 8, 2 * third + 4, w - 16, third - 12, TRUE);
+            const int row = (h - 80) / 3;
+            MoveWindow(g_edit, 8, 8, w - 16, row - 12, TRUE);
+            MoveWindow(g_rich, 8, row + 4, w - 16, row - 12, TRUE);
+            MoveWindow(g_tsf, 8, 2 * row + 4, w - 16, row - 12, TRUE);
+            MoveWindow(g_password, 8, 3 * row + 8, w / 2 - 12, 32, TRUE);
+            MoveWindow(g_pwscope, w / 2 + 4, 3 * row + 8, w / 2 - 12, 32, TRUE);
             return 0;
         }
         case kDone:
@@ -215,6 +229,17 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int show) {
                             WS_CHILD | WS_VISIBLE | ES_MULTILINE | ES_AUTOVSCROLL | WS_VSCROLL,
                             0, 0, 0, 0, window, nullptr, instance, nullptr);
     SendMessageW(g_tsf, EM_SETEDITSTYLE, SES_USECTF, SES_USECTF);
+    g_password = CreateWindowExW(WS_EX_CLIENTEDGE, L"EDIT", L"", WS_CHILD | WS_VISIBLE | ES_PASSWORD,
+                                 0, 0, 0, 0, window, nullptr, instance, nullptr);
+    g_pwscope = CreateWindowExW(WS_EX_CLIENTEDGE, MSFTEDIT_CLASS, L"", WS_CHILD | WS_VISIBLE,
+                                0, 0, 0, 0, window, nullptr, instance, nullptr);
+    SendMessageW(g_pwscope, EM_SETEDITSTYLE, SES_USECTF, SES_USECTF);
+    // SetInputScope is in msctf.dll, which has no import library.
+    using SetInputScopeFn = HRESULT(WINAPI*)(HWND, InputScope);
+    if (auto set = reinterpret_cast<SetInputScopeFn>(
+            GetProcAddress(LoadLibraryW(L"msctf.dll"), "SetInputScope"))) {
+        set(g_pwscope, IS_PASSWORD);
+    }
     HFONT font = CreateFontW(-20, 0, 0, 0, FW_NORMAL, 0, 0, 0, DEFAULT_CHARSET, 0, 0, 0, 0,
                              L"Malgun Gothic");
     SendMessageW(g_edit, WM_SETFONT, reinterpret_cast<WPARAM>(font), TRUE);
@@ -222,7 +247,7 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int show) {
     SendMessageW(g_tsf, WM_SETFONT, reinterpret_cast<WPARAM>(font), TRUE);
     ShowWindow(window, show);
     SetForegroundWindow(window);
-    SetFocus(g_target == L"rich" ? g_rich : g_target == L"tsf" ? g_tsf : g_edit);
+    SetFocus(Target());
     SelectProfile();
 
     std::thread typist;

@@ -60,6 +60,18 @@ HRESULT RunEditSession(ITfContext* context, TfClientId client_id,
     return FAILED(hr) ? hr : session_hr;
 }
 
+HRESULT RunReadSessionNow(ITfContext* context, TfClientId client_id,
+                          std::function<HRESULT(TfEditCookie)> body) {
+    if (!context) return E_INVALIDARG;
+    ComPtr<EditSession> session;
+    session.Attach(new (std::nothrow) EditSession(std::move(body)));
+    if (!session) return E_OUTOFMEMORY;
+    HRESULT session_hr = E_FAIL;
+    const HRESULT hr = context->RequestEditSession(client_id, session.Get(), TF_ES_SYNC | TF_ES_READ,
+                                                   &session_hr);
+    return FAILED(hr) ? hr : session_hr;
+}
+
 bool CaretInside(TfEditCookie ec, ITfContext* context, ITfRange* range) {
     TF_SELECTION selection = {};
     ULONG fetched = 0;

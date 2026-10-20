@@ -34,6 +34,11 @@ inline constexpr GUID kDisplayAttributeConverted = {
 inline constexpr GUID kCompartmentEnglish = {
     0x51678ef8, 0x4a49, 0x4832, {0xa9, 0x94, 0xac, 0x88, 0xab, 0x0f, 0x76, 0xa6}};
 
+// The text property holding a field's input scopes (InputScope.h's GUID_PROP_INPUTSCOPE, which
+// no import library defines). {1713DD5A-68E7-4A5B-9AF6-592A595C778D}
+inline constexpr GUID kPropInputScope = {
+    0x1713dd5a, 0x68e7, 0x4a5b, {0x9a, 0xf6, 0x59, 0x2a, 0x59, 0x5c, 0x77, 0x8d}};
+
 inline constexpr unsigned short kLangIdKorean = 0x0412;
 
 }  // namespace jk

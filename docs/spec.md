@@ -855,6 +855,14 @@ way to mix English in is to stay in JIS Korean (Mode B on US ANSI keyboards), le
 read English words (§10), and train them on the user's own English words with a training file
 (§10.12); `windows/README.md` explains this to users.
 
+**Private fields.** The list (§7, §10) shows readings of what's typed, so it's excluded from
+screen capture (recordings, screenshots, screen sharing). In a field marked as a password or PIN
+(input scope, disabled keyboard, a password character) every key passes through, as in ABC;
+Windows already keeps TIPs out of most of them. Password boxes that aren't marked (common in
+banking and certificate programs) can't be told apart from text: there the user switches to ABC,
+or turns JIS Korean off for that program in the menu (`Apps\<program.exe>\Off`), which passes
+every key through there only.
+
 **Settings** are the macOS ones, stored in `HKCU\Software\JIS Korean` (`Mode`, `Predictions`,
 `EnterCommits`, `LearnFromChoices`, `Learned`, `Weight.<Scenario>`, per app
 `Apps\<program.exe>\Predictions`); the default-off apps (§10.11.1) are matched by program file name.

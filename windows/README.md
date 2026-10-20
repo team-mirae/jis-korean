@@ -107,6 +107,7 @@ see the user's key). The menu writes them; apps pick a change up at their next f
 | `Learned` | SZ | | what was learned: one line of counts, no text or keys |
 | `Weight.<Scenario>` | SZ | | user tuning (spec §10.5): `Korean` `English` `Implied` `Mixed` `TwoSet` `KeepFinals` `Hanja` `ImpliedL`, e.g. `0.8` |
 | `Apps\<program.exe>\Predictions` | DWORD | | predictions in one app, overriding the default-off list |
+| `Apps\<program.exe>\Off` | DWORD | | 1: JIS Korean passes every key through in that program (menu: Off in <program>) |
 | `DiagnosticLog` | DWORD | 0 | log activations, focus and errors (never typed text) to `%ProgramData%\JIS Korean\jiskorean.log` |
 | `TrainingFileDate`, `TrainingWords.*` | SZ | | the training file last applied, and its words |
 
@@ -141,6 +142,23 @@ What the shell does differently from what TSF's documentation suggests, and why,
 | `src/guids.h` | **Permanent** GUIDs: they end up in users' registries and language lists. Never change them |
 | `tests/main.cpp`, `tests/testpad.cpp` | Shell tests, and the test window |
 | `tools/` | `build.ps1`, `install.ps1`, `type-test.ps1`, `dev.ps1` (a VS developer shell), `make-icons.py` |
+
+## Passwords and screen recording
+
+The prediction and hanja list shows readings of what's being typed, so in a password box it would
+show the password in other forms. JIS Korean protects it in layers:
+
+- **The list never appears in screen recordings, screenshots or screen sharing**
+  (`WDA_EXCLUDEFROMCAPTURE`), whatever the field.
+- **Password boxes that say they are one get no input method at all.** Windows itself keeps TIPs
+  out of `ES_PASSWORD` edits and fields with a password input scope (measured: JIS Korean never
+  receives a key there). JIS Korean also checks for them itself (input scope, disabled keyboard,
+  a password character on an Edit or RichEdit) and passes keys through if one slips by *(not
+  measured: Windows caught every case we could build)*.
+- **Password boxes that don't say so can't be detected.** Banking and certificate programs often
+  draw their own (●●● in a plain field), and the keys then compose like any text. Use **ABC**
+  (한/영) there, or right-click the indicator → **Off in <program>**, which passes every key through
+  in that program only, from then on. Measured: UniSign accepts its certificate password in ABC.
 
 ## Known limits
 

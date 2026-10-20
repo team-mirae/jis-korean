@@ -13,6 +13,11 @@ namespace jk {
 HRESULT RunEditSession(ITfContext* context, TfClientId client_id,
                        std::function<HRESULT(TfEditCookie)> body);
 
+// Runs `body` with a read-only cookie, synchronously or not at all (`body` may then capture by
+// reference). Fails when TSF can't lock the document at once.
+HRESULT RunReadSessionNow(ITfContext* context, TfClientId client_id,
+                          std::function<HRESULT(TfEditCookie)> body);
+
 // Inserts `text` at the selection (replacing it) and puts the caret after it.
 HRESULT InsertAtSelection(TfEditCookie ec, ITfContext* context, std::wstring_view text);
 
