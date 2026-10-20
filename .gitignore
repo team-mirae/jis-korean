@@ -14,3 +14,7 @@ node_modules
 /web/public/predict
 /corpora
 /evals
+# Mirae server (미래서버) chat logs and everything derived from them: private, never committed.
+# Imported by minecraft/tools/mirae (see its README).
+/minecraft/tools/mirae/data
+__pycache__/
