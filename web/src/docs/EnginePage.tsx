@@ -40,7 +40,7 @@ export function EnginePage() {
           <strong>Key map</strong> (<Source path="engine/src/layout.rs" />): the mode's table says what the key types, as a
           Hangul jamo or as a character. The 26 letter keys always type standard 2-set in every mode. Mode A is the
           original layout for JIS keyboards; Mode B carries its number row and brackets onto US ANSI and leaves every other
-          key as US ANSI has it (spec §3.6).
+          key as US ANSI has it; Mode C does the same on UK ISO, with · and — on the extra key left of Z (spec §3.6).
         </li>
         <li>
           <strong>Segment</strong> (<Source path="engine/src/engine.rs" />): the key joins the unconfirmed segment as a
@@ -90,7 +90,8 @@ let out = engine.flush();                  // focus loss: commits "한"
           ["Engine::key(key, mods) -> Output", "One key press. Output: commit, preedit, consumed, the hanja candidates, and the English reading."],
           ["flush() / clear()", "Commit everything unconfirmed / discard it."],
           ["activate()", "The input method was switched back to: leaves the F8 escape."],
-          ["set_mode(Mode)", "Mode A (JIS) or Mode B (US ANSI). Mode::ALL lists them, with id() and name()."],
+          ["set_mode(Mode)", "Mode A (JIS), Mode B (US ANSI) or Mode C (UK ISO). Mode::ALL lists them, with id() and name()."],
+          ["set_dedicated_symbols(bool)", "Mode C's Dedicated symbol keys, on by default. Off, [ ] and the ISO extra key type their UK characters."],
           ["set_enter_commits(bool)", "Plain Enter commits without a new line, as Shift+Enter does."],
           ["set_dictionary(Arc<Dictionary>)", "The hanja dictionary for F7, shared between engines."],
           ["set_predictor(Option<Arc<Predictor>>)", "Turns predictions on (full build). predictions() ranks; commit_prediction(i) commits one."],

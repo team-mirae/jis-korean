@@ -33,10 +33,26 @@ const ANSI_ROWS: Row[] = [
   { offset: 2.25, codes: [..."ZXCVBNM"].map((l) => "Key" + l).concat("Comma", "Period", "Slash") },
 ];
 
+// Mode C (spec §3.6): the same area on UK ISO: ` left of 1, # left of Enter, and the extra key
+// between a short left Shift and Z.
+const ISO_ROWS: Row[] = [
+  { offset: 6, codes: ["F6", "F7", "F8", "F9", "F10"] },
+  { offset: 0, codes: ["Backquote", ...ROWS[1].codes.slice(0, 12)] },
+  { offset: 1.5, codes: [..."QWERTYUIOP"].map((l) => "Key" + l).concat("BracketLeft", "BracketRight") },
+  { offset: 1.75, codes: [..."ASDFGHJKL"].map((l) => "Key" + l).concat("Semicolon", "Quote", "Backslash") },
+  { offset: 1.25, codes: ["IntlBackslash", ..."ZXCVBNM".split("").map((l) => "Key" + l), "Comma", "Period", "Slash"] },
+];
+
+const BOARDS = [
+  { rows: ROWS, className: "", label: "JIS Korean keyboard" },
+  { rows: ANSI_ROWS, className: " ansi", label: "JIS Korean for US ANSI keyboard" },
+  { rows: ISO_ROWS, className: " iso", label: "JIS Korean for UK ISO keyboard" },
+];
+
 interface Props {
   engine: Engine;
-  /** Mode B: the US ANSI board. */
-  ansi: boolean;
+  /** The mode: 0 = Mode A (JIS board), 1 = Mode B (US ANSI), 2 = Mode C (UK ISO). */
+  mode: number;
   escaped: boolean;
   shift: boolean;
   pressed: Set<string>;
@@ -45,11 +61,12 @@ interface Props {
   onPress(code: string): void;
 }
 
-export function Keyboard({ engine, ansi, escaped, shift, pressed, floating, onPress }: Props) {
+export function Keyboard({ engine, mode, escaped, shift, pressed, floating, onPress }: Props) {
+  const board = BOARDS[mode] ?? BOARDS[0];
   return (
-    <div className={"board" + (ansi ? " ansi" : "") + (floating ? " floating" : "")}>
-      <div className="plate" role="group" aria-label={ansi ? "JIS Korean for US ANSI keyboard" : "JIS Korean keyboard"}>
-        {(ansi ? ANSI_ROWS : ROWS).map((row, i) => (
+    <div className={"board" + board.className + (floating ? " floating" : "")}>
+      <div className="plate" role="group" aria-label={board.label}>
+        {board.rows.map((row, i) => (
           <div key={i} className={"row" + (i === 0 ? " fn-row" : "")} style={{ "--offset": row.offset } as CSSProperties}>
             {row.codes.map((code) => {
               const fn = FUNCTION_KEYS[code];
@@ -64,7 +81,7 @@ export function Keyboard({ engine, ansi, escaped, shift, pressed, floating, onPr
                 !letter && !fn && "sym",
                 pressed.has(code) && "down",
                 (code === "KeyF" || code === "KeyJ") && "home",
-                ansi && code === "Backslash" && "wide",
+                mode === 1 && code === "Backslash" && "wide",
               ]
                 .filter(Boolean)
                 .join(" ");

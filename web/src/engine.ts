@@ -19,6 +19,7 @@ interface Exports {
   jk_legend(key: number, shift: number, escaped: number): number;
   jk_legend_in(key: number, shift: number, escaped: number, mode: number): number;
   jk_set_mode(h: number, mode: number): void;
+  jk_set_dedicated_symbols(h: number, on: number): void;
   jk_mode_count(): number;
   jk_mode_name_ptr(mode: number): number;
   jk_mode_name_len(mode: number): number;
@@ -384,13 +385,23 @@ export class Engine {
     }));
   }
 
-  /** Switches the mode: 0 = Mode A (JIS), 1 = Mode B (US ANSI). */
+  /** Switches the mode: 0 = Mode A (JIS), 1 = Mode B (US ANSI), 2 = Mode C (UK ISO). */
   setMode(id: number): void {
     this.mode = id;
     this.x.jk_set_mode(this.handle, id);
   }
 
+  /**
+   * Dedicated symbol keys (spec §3.6), on by default. Off, Mode C's [ ] and ISO extra key type
+   * their UK ISO characters.
+   */
+  setDedicatedSymbols(on: boolean): void {
+    this.symbols = on;
+    this.x.jk_set_dedicated_symbols(this.handle, on ? 1 : 0);
+  }
+
   private mode = 0;
+  private symbols = true;
 
   /** Copies `text` into the engine's memory for one call. */
   private withBytes<T>(texts: string[], f: (args: number[]) => T): T {
@@ -464,10 +475,15 @@ export class Engine {
 
   /** The character a key types, for key legends. Empty if none. */
   legend(code: string, shift: boolean, escaped: boolean): string {
-    const c = this.x.jk_legend_in(this.id(code), shift ? 1 : 0, escaped ? 1 : 0, this.mode);
+    // With Dedicated symbol keys off, Mode C's optional keys type their stock (F8) characters.
+    const stock = escaped || (!this.symbols && this.mode === 2 && OPTIONAL_KEYS.has(code));
+    const c = this.x.jk_legend_in(this.id(code), shift ? 1 : 0, stock ? 1 : 0, this.mode);
     return c ? String.fromCodePoint(c) : "";
   }
 }
+
+/** Mode C's keys that Dedicated symbol keys turns off (the engine's Mode::optional_keys). */
+const OPTIONAL_KEYS = new Set(["BracketLeft", "BracketRight", "IntlBackslash"]);
 
 export async function loadEngine(): Promise<Engine> {
   const { instance } = await WebAssembly.instantiateStreaming(fetch(wasmUrl));

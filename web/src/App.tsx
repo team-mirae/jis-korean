@@ -37,12 +37,18 @@ export function App({ engine }: { engine: Engine }) {
   const [escaped, setEscaped] = useState(false);
   const [shift, setShift] = useState(false);
   const [enterCommits, setEnterCommits] = useState(false);
-  // Mode B (spec §3.6): JIS Korean for US ANSI keyboards. Remembered per browser.
-  // The engine's mode is set before the first render, so the key legends match it.
-  const [modeB, setModeB] = useState(() => {
-    const b = loadSetting("modeB", false);
-    engine.setMode(b ? 1 : 0);
-    return b;
+  // The mode (spec §3.6): 0 Mode A (JIS), 1 Mode B (US ANSI), 2 Mode C (UK ISO). Remembered per
+  // browser. The engine's mode is set before the first render, so the key legends match it.
+  const [mode, setMode] = useState(() => {
+    const m = loadMode();
+    engine.setMode(m);
+    return m;
+  });
+  // Mode C's Dedicated symbol keys (spec §3.6), on by default.
+  const [symbols, setSymbols] = useState(() => {
+    const on = loadSetting("dedicatedSymbols", true);
+    engine.setDedicatedSymbols(on);
+    return on;
   });
   const [pressed, setPressed] = useState<Set<string>>(new Set());
   const [focused, setFocused] = useState(false);
@@ -172,13 +178,13 @@ export function App({ engine }: { engine: Engine }) {
     return out;
   }
 
-  /** Switches between Mode A and Mode B, committing what's staged first. */
-  function changeMode(b: boolean) {
-    if (b === modeB) return;
+  /** Switches the mode, committing what's staged first. */
+  function changeMode(m: number) {
+    if (m === mode) return;
     apply(engine.flush(), "", {});
-    engine.setMode(b ? 1 : 0);
-    setModeB(b);
-    saveSetting("modeB", b);
+    engine.setMode(m);
+    setMode(m);
+    saveMode(m);
   }
 
   function onKeyDown(e: ReactKeyboardEvent) {
@@ -369,31 +375,28 @@ export function App({ engine }: { engine: Engine }) {
         <p className="lede">
           Korean 2-set (두벌식) for JIS keyboards: double consonants and compound vowels on the number row, Korean
           punctuation on the symbol keys, and Japanese-IME-style F6–F10. Try it here before installing; on a US
-          keyboard, try Mode B.
+          keyboard, try Mode B, and on a UK keyboard Mode C.
         </p>
       </header>
 
       <section className="editor" aria-label="Try it">
         <div className="status">
           <span className="samples" role="group" aria-label="Mode">
-            {[
-              { b: false, label: "Mode A · JIS", title: "JIS Korean Original Layout, for JIS keyboards" },
-              { b: true, label: "Mode B · US ANSI", title: "JIS Korean for US ANSI keyboards" },
-            ].map(({ b, label, title }) => (
+            {MODES.map(({ id, label, title }) => (
               <button
                 key={label}
                 type="button"
                 title={title}
-                aria-pressed={modeB === b}
+                aria-pressed={mode === id}
                 onMouseDown={(e) => e.preventDefault()}
-                onClick={() => changeMode(b)}
+                onClick={() => changeMode(id)}
               >
                 {label}
               </button>
             ))}
           </span>
           <span className={"chip" + (escaped ? " escaped" : "")}>
-            {escaped ? "Standard 2-set · Shift+F8 returns" : modeB ? "JIS Korean for US ANSI" : "JIS Korean"}
+            {escaped ? "Standard 2-set · Shift+F8 returns" : MODES[mode]?.chip ?? "JIS Korean"}
           </span>
           <span className="hint">{focused ? "Use an English input source on your OS." : "Click the box to type."}</span>
           <span className="spacer" />
@@ -467,6 +470,20 @@ export function App({ engine }: { engine: Engine }) {
             />
             Enter commits without a new line
           </label>
+          {mode === 2 && (
+            <label className="check" title="Off: [ ] and the key left of Z type their UK characters">
+              <input
+                type="checkbox"
+                checked={symbols}
+                onChange={(e) => {
+                  setSymbols(e.target.checked);
+                  engine.setDedicatedSymbols(e.target.checked);
+                  saveSetting("dedicatedSymbols", e.target.checked);
+                }}
+              />
+              Dedicated symbol keys
+            </label>
+          )}
           <span className="spacer" />
           <button type="button" onClick={() => navigator.clipboard?.writeText(doc + preedit)}>
             Copy
@@ -495,7 +512,7 @@ export function App({ engine }: { engine: Engine }) {
 
       <Keyboard
         engine={engine}
-        ansi={modeB}
+        mode={mode}
         escaped={escaped}
         shift={shift}
         pressed={pressed}
@@ -719,6 +736,31 @@ function PredictionList({ readings, label, onPick }: { readings: Prediction[]; l
       {(!label || label === "Rules") && <span className="prediction-hint">Space</span>}
     </span>
   );
+}
+
+const MODES = [
+  { id: 0, label: "Mode A · JIS", title: "JIS Korean Original Layout, for JIS keyboards", chip: "JIS Korean" },
+  { id: 1, label: "Mode B · US ANSI", title: "JIS Korean for US ANSI keyboards", chip: "JIS Korean for US ANSI" },
+  { id: 2, label: "Mode C · UK ISO", title: "JIS Korean for UK ISO keyboards", chip: "JIS Korean for UK ISO" },
+];
+
+/** The saved mode, or Mode B if an older version saved "modeB". */
+function loadMode(): number {
+  try {
+    const saved = localStorage.getItem("jis-korean:mode");
+    if (saved !== null && MODES.some((m) => String(m.id) === saved)) return Number(saved);
+  } catch {
+    return 0;
+  }
+  return loadSetting("modeB", false) ? 1 : 0;
+}
+
+function saveMode(mode: number) {
+  try {
+    localStorage.setItem("jis-korean:mode", String(mode));
+  } catch {
+    // Not remembered; fine.
+  }
 }
 
 function loadSetting(key: string, fallback: boolean): boolean {
