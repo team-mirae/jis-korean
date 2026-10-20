@@ -1,5 +1,5 @@
 # Deploys the web playground and docs (web/) to Vercel, jis-korean.sjun.me, on every push to main
-# that touches the site or the engine it runs. The engine tests run first and gate the deploy.
+# that touches the site or the engine it runs. The tests (test.yml) run first and gate the deploy.
 #
 # The site is built here, not on Vercel: its build compiles the engine to wasm with Rust, which
 # Vercel's build image doesn't have. The workflow builds with `vercel build` and uploads the result
@@ -33,20 +33,8 @@ env:
 
 jobs:
   test:
-    name: Engine tests
-    runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: engine
-    steps:
-      - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@stable
-      - uses: Swatinem/rust-cache@v2
-        with:
-          workspaces: engine
-      # Tests that read the gitignored corpus (tests/data) skip themselves without it.
-      - run: cargo test --release
-      - run: cargo test --release --no-default-features
+    name: Tests
+    uses: ./.github/workflows/test.yml
 
   deploy:
     name: Build and deploy

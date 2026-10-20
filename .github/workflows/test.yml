@@ -1,0 +1,51 @@
+# Engine tests, on every pull request and every push to a branch other than main (main runs them
+# before deploying, in deploy-web.yml, which calls this workflow).
+#
+# "Core principle" is the non-negotiable baseline (engine/tests/baseline.rs, spec §1): every way of
+# typing Korean on conventional 2-set still types what it always did, in every mode. It runs on its
+# own so a failure there is visible at a glance.
+
+name: Tests
+
+on:
+  pull_request:
+  push:
+    branches-ignore: [main]
+  workflow_call:
+
+permissions:
+  contents: read
+
+jobs:
+  baseline:
+    name: Core principle (2-set baseline)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: engine
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: engine
+      - run: cargo test --release --test baseline
+      - run: cargo test --release --no-default-features --test baseline
+
+  engine:
+    name: Engine tests
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: engine
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: engine
+      # Tests that read the gitignored corpus (tests/data) skip themselves without it.
+      - name: Full build (with predictions)
+        run: cargo test --release
+      - name: Lite build
+        run: cargo test --release --no-default-features

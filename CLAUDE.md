@@ -70,6 +70,12 @@ Build order: macOS → Minecraft → Windows → iPadOS. Android and iPhone are 
 - The hanja dictionary is generated: edit `engine/dict/build_dict.py`, not `hanja.tsv`.
 - Run with `cargo test` in `/engine`. `tests/header.rs` fails if `include/jis_korean.h` drifts from
   the key list.
+- **The baseline** (`engine/tests/baseline.rs`) is the core principle as a test: every syllable,
+  every syllable before every initial, and a pangram covering every jamo, typed the conventional
+  2-set way (and with sloppy Shift, and with the dedicated keys) in every mode. Its 2-set tables
+  are written out independently of the engine's. Never loosen it to make a change pass.
+- CI (`.github/workflows/test.yml`) runs the baseline and the full and lite engine tests on every
+  pull request and branch push; `deploy-web.yml` runs the same tests before deploying `main`.
 - Shells are tested by hand against the app matrix (to be written per platform).
 
 ## Conventions
