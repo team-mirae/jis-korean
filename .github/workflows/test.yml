@@ -49,3 +49,24 @@ jobs:
         run: cargo test --release
       - name: Lite build
         run: cargo test --release --no-default-features
+
+  windows:
+    name: Windows shell (TSF)
+    runs-on: windows-latest
+    defaults:
+      run:
+        working-directory: windows
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: x86_64-pc-windows-msvc,i686-pc-windows-msvc
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: engine
+      # Builds jiskorean.dll for x64 and x86 and runs the shell tests (tests/main.cpp). Typing
+      # through the installed TIP (tools/type-test.ps1) needs a desktop session: run it by hand.
+      - name: Full build
+        run: ./tools/build.ps1
+      - name: Lite build
+        run: ./tools/build.ps1 -Lite

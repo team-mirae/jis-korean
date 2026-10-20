@@ -1,0 +1,238 @@
+// jk_testpad: a classic Edit control, a RichEdit through the IMM compatibility layer (its
+// default) and a RichEdit using TSF directly (SES_USECTF), for typing through the installed TIP.
+//
+//   jk_testpad                                         a window to type in by hand
+//   jk_testpad --profile on --target edit|rich|tsf --keys "KeyG KeyK KeyS Space" --out result.txt
+//
+// With --keys it selects the JIS Korean profile for itself (with --profile), injects the keys with
+// SendInput by scan code (S- holds Shift, Hangul is 한/영), writes the target's text as UTF-8 to
+// --out and exits. It's the foreground window meanwhile: don't touch the keyboard.
+#include <windows.h>
+#include <msctf.h>
+#include <shellapi.h>
+#include <richedit.h>
+
+#include <cstdio>
+#include <sstream>
+#include <string>
+#include <thread>
+#include <vector>
+
+namespace {
+
+constexpr GUID kClsid = {0xd10651ad, 0x51ea, 0x4dba, {0x8b, 0xff, 0x19, 0x05, 0x26, 0x1b, 0x26, 0xa1}};
+constexpr GUID kProfile = {0x669e0e87, 0xfa58, 0x46f6, {0x96, 0xe1, 0x08, 0x90, 0xa0, 0x22, 0x44, 0x04}};
+constexpr UINT kDone = WM_APP + 1;
+
+HWND g_edit = nullptr;
+HWND g_rich = nullptr;
+HWND g_tsf = nullptr;
+std::wstring g_profile, g_target = L"edit", g_keys, g_out;
+
+struct Key {
+    WORD scan;
+    bool extended;
+    WORD vk;  // for keys sent by virtual key (Hangul)
+};
+
+bool Lookup(const std::wstring& name, Key* key) {
+    struct Named {
+        const wchar_t* name;
+        Key key;
+    };
+    static const Named kKeys[] = {
+        {L"Digit1", {0x02}}, {L"Digit2", {0x03}}, {L"Digit3", {0x04}}, {L"Digit4", {0x05}},
+        {L"Digit5", {0x06}}, {L"Digit6", {0x07}}, {L"Digit7", {0x08}}, {L"Digit8", {0x09}},
+        {L"Digit9", {0x0A}}, {L"Digit0", {0x0B}}, {L"Minus", {0x0C}}, {L"Equal", {0x0D}},
+        {L"KeyQ", {0x10}}, {L"KeyW", {0x11}}, {L"KeyE", {0x12}}, {L"KeyR", {0x13}},
+        {L"KeyT", {0x14}}, {L"KeyY", {0x15}}, {L"KeyU", {0x16}}, {L"KeyI", {0x17}},
+        {L"KeyO", {0x18}}, {L"KeyP", {0x19}}, {L"BracketLeft", {0x1A}}, {L"BracketRight", {0x1B}},
+        {L"KeyA", {0x1E}}, {L"KeyS", {0x1F}}, {L"KeyD", {0x20}}, {L"KeyF", {0x21}},
+        {L"KeyG", {0x22}}, {L"KeyH", {0x23}}, {L"KeyJ", {0x24}}, {L"KeyK", {0x25}},
+        {L"KeyL", {0x26}}, {L"Semicolon", {0x27}}, {L"Quote", {0x28}}, {L"Backquote", {0x29}},
+        {L"Backslash", {0x2B}}, {L"KeyZ", {0x2C}}, {L"KeyX", {0x2D}}, {L"KeyC", {0x2E}},
+        {L"KeyV", {0x2F}}, {L"KeyB", {0x30}}, {L"KeyN", {0x31}}, {L"KeyM", {0x32}},
+        {L"Comma", {0x33}}, {L"Period", {0x34}}, {L"Slash", {0x35}}, {L"Space", {0x39}},
+        {L"Enter", {0x1C}}, {L"Backspace", {0x0E}}, {L"Escape", {0x01}}, {L"Tab", {0x0F}},
+        {L"F6", {0x40}}, {L"F7", {0x41}}, {L"F8", {0x42}}, {L"F9", {0x43}}, {L"F10", {0x44}},
+        {L"ArrowUp", {0x48, true}}, {L"ArrowDown", {0x50, true}},
+        {L"ArrowLeft", {0x4B, true}}, {L"ArrowRight", {0x4D, true}},
+        {L"Hangul", {0, false, 0x15}},
+    };
+    for (const Named& n : kKeys) {
+        if (name == n.name) {
+            *key = n.key;
+            return true;
+        }
+    }
+    return false;
+}
+
+INPUT Input(const Key& key, bool up) {
+    INPUT in = {INPUT_KEYBOARD};
+    if (key.vk) {
+        in.ki.wVk = key.vk;
+    } else {
+        in.ki.wScan = key.scan;
+        in.ki.dwFlags = KEYEVENTF_SCANCODE | (key.extended ? KEYEVENTF_EXTENDEDKEY : 0);
+    }
+    if (up) in.ki.dwFlags |= KEYEVENTF_KEYUP;
+    return in;
+}
+
+void Send(const Key& key, bool shift) {
+    const Key lshift = {0x2A};
+    std::vector<INPUT> in;
+    if (shift) in.push_back(Input(lshift, false));
+    in.push_back(Input(key, false));
+    in.push_back(Input(key, true));
+    if (shift) in.push_back(Input(lshift, true));
+    SendInput(static_cast<UINT>(in.size()), in.data(), sizeof(INPUT));
+}
+
+void TypeKeys(HWND window) {
+    Sleep(500);  // let the profile switch and focus settle
+    std::wistringstream words(g_keys);
+    std::wstring word;
+    while (words >> word) {
+        const bool shift = word.rfind(L"S-", 0) == 0;
+        Key key;
+        if (Lookup(shift ? word.substr(2) : word, &key)) {
+            Send(key, shift);
+        } else {
+            std::fwprintf(stderr, L"unknown key %ls\n", word.c_str());
+        }
+        Sleep(40);
+    }
+    Sleep(400);
+    PostMessageW(window, kDone, 0, 0);
+}
+
+// Starts on 한글: the session-wide 한/영 state (text_service.h) back to Korean.
+void ResetToKorean() {
+    constexpr GUID kEnglish = {0x51678ef8, 0x4a49, 0x4832, {0xa9, 0x94, 0xac, 0x88, 0xab, 0x0f, 0x76, 0xa6}};
+    ITfThreadMgr* threads = nullptr;
+    if (FAILED(CoCreateInstance(CLSID_TF_ThreadMgr, nullptr, CLSCTX_INPROC_SERVER, IID_PPV_ARGS(&threads)))) return;
+    TfClientId id = TF_CLIENTID_NULL;
+    ITfCompartmentMgr* global = nullptr;
+    ITfCompartment* english = nullptr;
+    if (SUCCEEDED(threads->Activate(&id)) && SUCCEEDED(threads->GetGlobalCompartment(&global)) &&
+        SUCCEEDED(global->GetCompartment(kEnglish, &english))) {
+        VARIANT v;
+        v.vt = VT_I4;
+        v.lVal = 0;
+        english->SetValue(id, &v);
+    }
+    if (english) english->Release();
+    if (global) global->Release();
+    threads->Release();  // stays activated for the process: the edit controls use it
+}
+
+void SelectProfile() {
+    if (g_profile.empty()) return;
+    ResetToKorean();
+    ITfInputProcessorProfileMgr* profiles = nullptr;
+    if (FAILED(CoCreateInstance(CLSID_TF_InputProcessorProfiles, nullptr, CLSCTX_INPROC_SERVER,
+                                IID_PPV_ARGS(&profiles)))) {
+        return;
+    }
+    const HRESULT hr = profiles->ActivateProfile(
+        TF_PROFILETYPE_INPUTPROCESSOR, 0x0412, kClsid, kProfile,
+        nullptr, TF_IPPMF_FORPROCESS | TF_IPPMF_DONTCARECURRENTINPUTLANGUAGE);
+    if (FAILED(hr)) std::fwprintf(stderr, L"ActivateProfile failed %#lx\n", hr);
+    profiles->Release();
+}
+
+void WriteResult() {
+    HWND target = g_target == L"rich" ? g_rich : g_target == L"tsf" ? g_tsf : g_edit;
+    const int n = GetWindowTextLengthW(target);
+    std::wstring text(static_cast<size_t>(n) + 1, L'\0');
+    GetWindowTextW(target, text.data(), n + 1);
+    text.resize(static_cast<size_t>(n));
+    const int bytes = WideCharToMultiByte(CP_UTF8, 0, text.data(), n, nullptr, 0, nullptr, nullptr);
+    std::string utf8(static_cast<size_t>(bytes), '\0');
+    WideCharToMultiByte(CP_UTF8, 0, text.data(), n, utf8.data(), bytes, nullptr, nullptr);
+    FILE* f = nullptr;
+    if (_wfopen_s(&f, g_out.c_str(), L"wb") == 0 && f) {
+        std::fwrite(utf8.data(), 1, utf8.size(), f);
+        std::fclose(f);
+    }
+}
+
+LRESULT CALLBACK Proc(HWND window, UINT message, WPARAM wparam, LPARAM lparam) {
+    switch (message) {
+        case WM_SIZE: {
+            const int w = LOWORD(lparam), h = HIWORD(lparam);
+            const int third = h / 3;
+            MoveWindow(g_edit, 8, 8, w - 16, third - 12, TRUE);
+            MoveWindow(g_rich, 8, third + 4, w - 16, third - 12, TRUE);
+            MoveWindow(g_tsf, 8, 2 * third + 4, w - 16, third - 12, TRUE);
+            return 0;
+        }
+        case kDone:
+            if (!g_out.empty()) WriteResult();
+            DestroyWindow(window);
+            return 0;
+        case WM_DESTROY:
+            PostQuitMessage(0);
+            return 0;
+    }
+    return DefWindowProcW(window, message, wparam, lparam);
+}
+
+}  // namespace
+
+int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int show) {
+    int argc = 0;
+    wchar_t** argv = CommandLineToArgvW(GetCommandLineW(), &argc);
+    for (int i = 1; i + 1 < argc; i += 2) {
+        const std::wstring flag = argv[i];
+        if (flag == L"--profile") g_profile = argv[i + 1];
+        if (flag == L"--target") g_target = argv[i + 1];
+        if (flag == L"--keys") g_keys = argv[i + 1];
+        if (flag == L"--out") g_out = argv[i + 1];
+    }
+    CoInitializeEx(nullptr, COINIT_APARTMENTTHREADED);
+    LoadLibraryW(L"Msftedit.dll");
+
+    WNDCLASSEXW wc = {sizeof(wc)};
+    wc.lpfnWndProc = Proc;
+    wc.hInstance = instance;
+    wc.hCursor = LoadCursorW(nullptr, IDC_ARROW);
+    wc.hbrBackground = reinterpret_cast<HBRUSH>(COLOR_BTNFACE + 1);
+    wc.lpszClassName = L"JISKoreanTestpad";
+    RegisterClassExW(&wc);
+    HWND window = CreateWindowExW(0, wc.lpszClassName, L"JIS Korean testpad", WS_OVERLAPPEDWINDOW,
+                                  CW_USEDEFAULT, CW_USEDEFAULT, 640, 560, nullptr, nullptr,
+                                  instance, nullptr);
+    g_edit = CreateWindowExW(WS_EX_CLIENTEDGE, L"EDIT", L"",
+                             WS_CHILD | WS_VISIBLE | ES_MULTILINE | ES_AUTOVSCROLL | WS_VSCROLL,
+                             0, 0, 0, 0, window, nullptr, instance, nullptr);
+    g_rich = CreateWindowExW(WS_EX_CLIENTEDGE, MSFTEDIT_CLASS, L"",
+                             WS_CHILD | WS_VISIBLE | ES_MULTILINE | ES_AUTOVSCROLL | WS_VSCROLL,
+                             0, 0, 0, 0, window, nullptr, instance, nullptr);
+    g_tsf = CreateWindowExW(WS_EX_CLIENTEDGE, MSFTEDIT_CLASS, L"",
+                            WS_CHILD | WS_VISIBLE | ES_MULTILINE | ES_AUTOVSCROLL | WS_VSCROLL,
+                            0, 0, 0, 0, window, nullptr, instance, nullptr);
+    SendMessageW(g_tsf, EM_SETEDITSTYLE, SES_USECTF, SES_USECTF);
+    HFONT font = CreateFontW(-20, 0, 0, 0, FW_NORMAL, 0, 0, 0, DEFAULT_CHARSET, 0, 0, 0, 0,
+                             L"Malgun Gothic");
+    SendMessageW(g_edit, WM_SETFONT, reinterpret_cast<WPARAM>(font), TRUE);
+    SendMessageW(g_rich, WM_SETFONT, reinterpret_cast<WPARAM>(font), TRUE);
+    SendMessageW(g_tsf, WM_SETFONT, reinterpret_cast<WPARAM>(font), TRUE);
+    ShowWindow(window, show);
+    SetForegroundWindow(window);
+    SetFocus(g_target == L"rich" ? g_rich : g_target == L"tsf" ? g_tsf : g_edit);
+    SelectProfile();
+
+    std::thread typist;
+    if (!g_keys.empty()) typist = std::thread(TypeKeys, window);
+    MSG msg;
+    while (GetMessageW(&msg, nullptr, 0, 0) > 0) {
+        TranslateMessage(&msg);
+        DispatchMessageW(&msg);
+    }
+    if (typist.joinable()) typist.join();
+    CoUninitialize();
+    return 0;
+}

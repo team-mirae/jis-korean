@@ -51,6 +51,10 @@ Build order: macOS → Minecraft → Windows → iPadOS. Android and iPhone are 
 - macOS: `make` / `make install` in `/mac` (see `mac/README.md`); `make PREDICT=0` builds the lean
   version without the predictive layer.
 - Engine: `cargo test --no-default-features` tests the lite engine (no `predict` feature).
+- Windows: `tools/build.ps1` in `/windows` (x64 + x86, runs the shell tests; `-Lite` without
+  predictions), `tools/install.ps1` (admin) / `-Update`, and `tools/type-test.ps1` types through
+  the installed TIP (see `windows/README.md`). Read `docs/troubleshooting/windows-tsf-notes.md`
+  before changing how keys or the composition reach the app.
 - Minecraft: `./gradlew build`, `./gradlew test`, `./gradlew runClientGameTest` (boots the real
   client and types through the mod) in `/minecraft` (see `minecraft/README.md`). Gradle runs on
   Java 25 via `gradle/gradle-daemon-jvm.properties`.

@@ -395,9 +395,10 @@ All behavior above lives in `/engine`. Platform shells only translate between OS
 engine:
 
 - **macOS** (`/mac`): an InputMethodKit input method.
-- **Windows** (`/windows`): a TSF text input processor. It runs on the Japanese (106/109) hardware
-  keyboard setting so JIS scan codes arrive intact. Password fields and the secure desktop do not load
-  TIPs. That is a known limit.
+- **Windows** (`/windows`): a TSF text input processor. It reads scan codes, so the keys are the
+  same whatever layout Windows has loaded; on a JIS keyboard, the Japanese (106/109) hardware
+  keyboard setting makes ¥ and ろ arrive. Password fields and the secure desktop do not load TIPs.
+  That is a known limit. Modes, 한/영 and settings: §8.4.
 - **Minecraft** (`/minecraft`): a Fabric mod running the engine (as wasm) in-game. It adds its own
   layer on top of the engine: each staging area is read as Korean and as English (`Engine::english`),
   Space/Enter/Tab commit the more likely one, F6 forces Korean and **F7 forces English instead of
@@ -567,7 +568,8 @@ often valid (저녁, 전력), so it's a slider (default 1.0; 0.00 turns it off; 
 `Weight.ImpliedL`).
 
 Hosts store them per user: the web playground has sliders under "Tune predictions" (remembered
-in the browser); macOS reads `defaults write me.sjun.inputmethod.JISKorean Weight.<Scenario>`.
+in the browser); macOS reads `defaults write me.sjun.inputmethod.JISKorean Weight.<Scenario>`;
+Windows reads `HKCU\Software\JIS Korean`, value `Weight.<Scenario>` (§8.4).
 
 ### 10.6 Open questions
 
@@ -713,6 +715,9 @@ one line of counts and show the setting.
   - **Web:** the browser's local storage only, forgotten 24 hours after learning started, whether or
     not it's the same session. The age is checked when the page loads, on every save, and once a
     minute.
+  - **Windows:** `HKCU\Software\JIS Korean`, values `LearnFromChoices` and `Learned`. The
+    indicator's menu has "Learn from My Choices (Stays on This PC)" and "Learned Weights"
+    (read-only, with "Reset What It Learned").
   - **Minecraft:** not yet; it would need the mod's config.
 - **Validation** (`tests/learn.rs`): simulated users with a habit the defaults don't match.
   - A bare-vowel chatter: half the habit is on top within three rounds. ㅗㅗ and ㅏㅏ stay a ↓ away,
@@ -827,6 +832,34 @@ and F7, F9, F10, Space and Enter only where the text needs them; it skips presse
 nothing, and follows only key routes whose text heads toward the target (its jamo, its letters
 before F9/F10, a hanja's reading before F7). Every combination returned is checked by typing it.
 
+### 8.4 Windows: modes, 한/영 and settings
+
+**One input method, the mode as a setting.** Windows lists one keyboard, **JIS Korean** (ko-KR),
+and the mode (§3.6) is chosen in its menu (right-click the taskbar indicator): Mode A or Mode B,
+one setting for every app, Mode A by default. This differs from macOS (§8.2) on purpose: on
+Windows each input method is one more entry in the Win+Space list and in the language settings,
+and none of the tools that read input sources there select them by ID the way Hammerspoon and
+Karabiner do on macOS, so a mode per input method would cost more than it gives. The reason the
+mode is not per app is the same as on macOS: it follows the keyboard.
+
+**한/영** works exactly like the Microsoft Korean IME's: it switches JIS Korean off (**ABC**: every
+key goes to the app untouched, typed by Windows' own layout) and back on (**한글**), committing
+what's unconfirmed first (§5.1, IME switch). The state is one for the whole session, shared by every
+app, and never stored: it starts on 한글 after a restart or a crash. The taskbar shows 한글 or ABC
+where the Microsoft IME shows 가 / A, and a click there switches too. On a US ANSI keyboard,
+Windows' Korean layout sends 한/영 from Right Alt.
+
+It's an on/off switch, nothing more: the English typed in ABC never reaches the engine (no
+predictions, F9/F10, hanja or learning), and switching mid-word splits the word. The recommended
+way to mix English in is to stay in JIS Korean (Mode B on US ANSI keyboards), let the predictions
+read English words (§10), and train them on the user's own English words with a training file
+(§10.12); `windows/README.md` explains this to users.
+
+**Settings** are the macOS ones, stored in `HKCU\Software\JIS Korean` (`Mode`, `Predictions`,
+`EnterCommits`, `LearnFromChoices`, `Learned`, `Weight.<Scenario>`, per app
+`Apps\<program.exe>\Predictions`); the default-off apps (§10.11.1) are matched by program file name.
+The training file is `%APPDATA%\JIS Korean\training.json`.
+
 ---
 
 ### 10.12 Training files (the training contract)
@@ -847,4 +880,5 @@ AI agent: `docs/training-contract.md` (the contract, with instructions and quest
 Applied on the device only: the web playground has a drop zone under "Tune predictions" (words kept
 in the browser until "Forget training words"; learned examples expire with the 24-hour rule);
 macOS reads `~/Library/Application Support/JIS Korean/training.json` on activation when it changed
-(input menu → Learned Weights → Open Training Folder), and forgets its words when it's removed.
+(input menu → Learned Weights → Open Training Folder), and forgets its words when it's removed;
+Windows does the same with `%APPDATA%\JIS Korean\training.json` (§8.4).
