@@ -136,11 +136,26 @@ the other keys type, and which stock keyboard sits under it. Mode A is the defau
 |---|---|---|---|
 | A | JIS Korean Original Layout | JIS | JIS |
 | B | JIS Korean for US ANSI | US ANSI (HHKB US, MacBook US) | US ANSI |
-| C | *Reserved:* JIS Korean for ISO | ISO (UK, European) | ISO |
+| C | *Reserved:* JIS Korean for UK ISO | ISO (UK) | UK ISO |
 
 **Mode C is reserved** for ISO keyboards, whose extra key between left Shift and Z
 (`IntlBackslash`) neither A nor B has. It isn't implemented yet; its id, name, input source ID and
-badge are held for it (docs/modes.md, "Reserved").
+badge are held for it (docs/modes.md, "Reserved"). The planned key map follows Mode B, on UK stock
+symbols (other ISO countries can come later as their own modes or forks; their users are expected
+to keep their own layout as a second input source):
+
+| Key | Unshifted | Shift |
+|---|---|---|
+| Number row 1–0 | ㅃ ㅉ ㄸ ㄲ ㅆ ㅟ ㅝ ㅚ ㅢ ㅘ, as Mode A | the digit |
+| [ (`BracketLeft`) | [ | 「 |
+| ] (`BracketRight`) | ] | 」 |
+| the extra key (`IntlBackslash`) | · (U+00B7) | — (U+2014) |
+| everything else | the UK stock symbol | the UK stock symbol |
+
+The three symbol keys ([, ], `IntlBackslash`) are optional: a setting, **Dedicated symbol keys**,
+turns them off, and then they commit and pass through to the app (`None` in the key table), so the
+OS layout types whatever it prints on them. The number row is always dedicated. Default: on
+**[decide]**.
 
 **Mode B** keeps Mode A's number row (§3.1: ㅃ ㅉ ㄸ ㄲ ㅆ ㅟ ㅝ ㅚ ㅢ ㅘ, digits on Shift) and moves the
 brackets to the US `[` and `]` keys:

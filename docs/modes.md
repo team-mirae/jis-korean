@@ -6,7 +6,7 @@ A **mode** is one keyboard's key map (spec §3.6). JIS Korean ships two, and hol
 |---|---|---|---|
 | 0 | A | JIS Korean Original Layout | JIS |
 | 1 | B | JIS Korean for US ANSI | US ANSI (HHKB US, MacBook US) |
-| 2 | C | *Reserved:* JIS Korean for ISO | ISO (UK, European) |
+| 2 | C | *Reserved:* JIS Korean for UK ISO | ISO (UK) |
 
 A new mode takes the next id that's neither used nor reserved (3), and the next letter (D).
 
@@ -23,11 +23,20 @@ one.
 | | Held for Mode C |
 |---|---|
 | Engine id | `2` |
-| Letter, name | C, "JIS Korean for ISO" |
+| Letter, name | C, "JIS Korean for UK ISO" |
 | Its key | the ISO extra key between left Shift and Z: `IntlBackslash`; on macOS `kVK_ISO_Section` |
 | macOS input source ID | `me.sjun.inputmethod.JISKorean.2SetISO` |
 | macOS Keyboard Viewer layout | `JISKoreanISO` |
 | Badge | `docs/logo/mode-iso.svg` (Caps Lock, Shift, the extra key hollow, Z) |
+
+### The key map
+
+Spec §3.6 has the planned table: Mode B's pattern on UK stock symbols, plus the extra key (`·`,
+and `—` with Shift). The symbol keys ([, ] and the extra key) are optional, behind a **Dedicated
+symbol keys** setting; off, they pass through to the app. So the engine needs a mode option, not
+just a mode: plan it as an engine setting (like predictions) that `Mode::korean` reads, exposed in
+the C ABI and in each shell's settings, and covered by the mode-contract tests in both states.
+Only UK stock symbols are planned; other ISO countries can be their own modes or forks.
 
 ### The plan
 
