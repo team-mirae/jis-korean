@@ -45,7 +45,8 @@ quits the running copy. If it doesn't show up in the list, log out and back in o
 Mode A and Mode B are two input sources of the one input method, like Japanese – Kana and
 Japanese – Romaji. `make install` enables Mode A (`me.sjun.inputmethod.JISKorean.2Set`); add Mode B
 (`me.sjun.inputmethod.JISKorean.2SetANSI`, "JIS Korean for US ANSI") in System Settings → Keyboard →
-Input Sources → + → Korean. The mode follows the keyboard, not the app, which is why each mode is
+Input Sources → + → Korean. If you're upgrading from a version without Mode B, log out and back in
+first: until then System Settings doesn't list the new mode. The mode follows the keyboard, not the app, which is why each mode is
 its own input source that any tool can see and select.
 
 Any program can read the mode, hear it change, and, if the user turned on **Let Other Apps Change

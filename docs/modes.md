@@ -138,7 +138,12 @@ To add a mode on macOS:
    add it to `ICONS` in `mac/Makefile` and name it in the mode's Info.plist entry
    (`docs/logo/README.md` has the design rules and steps).
 
-`make install` doesn't enable a new mode: users add it in System Settings.
+`make install` doesn't enable a new mode: users add it in System Settings. **A mode added to an
+input method that's already installed doesn't appear in System Settings until the user logs out and
+back in**, even though the system's input-source APIs list it right away. System Settings and the
+input menu keep their own list for the whole login session; quitting System Settings isn't enough,
+and enabling the mode by API (`TISEnableInputSource`) reports success but does nothing until then.
+Apple has confirmed this has no workaround (developer forums thread 775526, FB23026482).
 
 ### Other shells
 
