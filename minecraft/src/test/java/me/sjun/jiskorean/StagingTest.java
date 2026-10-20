@@ -199,6 +199,19 @@ class StagingTest {
 	}
 
 	@Test
+	void koreanCommandAliasesAreKorean() {
+		// The Mirae plugin's Korean aliases (tools/mirae/commands.txt): /귓말 is r n l t a k f.
+		setUp();
+		field.append("/");
+		type("rnltakf ");
+		assertEquals("/귓말 ", field.toString(), "a Korean alias is Korean");
+		setUp();
+		field.append("/");
+		type("tmvhs ");
+		assertEquals("/스폰 ", field.toString());
+	}
+
+	@Test
 	void karabinerOptionYenIsRo() {
 		check("{AltYen}{Ro} ", "\\\\ ");
 	}

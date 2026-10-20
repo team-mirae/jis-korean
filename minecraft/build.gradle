@@ -56,6 +56,17 @@ tasks.register("copyEngine", Copy) {
 	from(file("../engine/predict")) {
 		include "ranker.bin", "common-en.txt", "common-ko.txt"
 	}
+	// Minecraft-only vocabulary from 미래서버 (tools/mirae/README.md): the Mirae plugin's commands and
+	// aliases (committed), and words from the server's public chat (private and gitignored, so
+	// included only when present; the ranker works without them).
+	from(file("tools/mirae")) {
+		include "commands.txt"
+		rename { "mirae-commands.txt" }
+	}
+	from(file("tools/mirae/data")) {
+		include "vocab-ko.txt", "vocab-en.txt"
+		rename { "mirae-" + it }
+	}
 }
 
 sourceSets.main.resources.srcDir(engineWasm)

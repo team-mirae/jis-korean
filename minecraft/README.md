@@ -56,7 +56,11 @@ Rules on top of the model:
 - **Shift on a key that Korean never shifts** (anything but Q W E R T O P) means English.
 - **Exact matches** in the common-word lists lean their way.
 - **Leftover bare jamo** count against Korean, except chat words like ㅋㅋ.
-- **A `/command` name** is always English. Its arguments are ranked as usual.
+- **A `/command` name** is English, unless it's one of the Mirae server's Korean aliases (`/귓말`,
+  `/지역`, `/스폰`). Its arguments are ranked as usual.
+- **Minecraft-only vocabulary** from 미래서버 (Mirae) is added to the word lists: the Mirae plugin's
+  commands and aliases, and words from the server's public chat when the jar is built with them
+  (`tools/mirae/README.md`; the chat logs are private and never committed).
 - **The previous word's language** tips close calls.
 
 ## Build and test
