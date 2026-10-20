@@ -91,7 +91,7 @@ As notifications: post `me.sjun.inputmethod.JISKorean.ResolveKeyCodeInput` (`key
 | `Sources/KeyMap.swift` | macOS virtual key codes → engine key ids (spec §2). |
 | `Sources/InputModes.swift` | The modes as input modes, and the public API (spec §8.2). |
 | `Info.plist` | Bundle and input source metadata, with one input mode per engine mode. Bundle id `me.sjun.inputmethod.JISKorean`. |
-| `tools/make-icon.swift` | Draws the 한 badge (`icon.tiff`). `Info.plist` names it `icon.png` on one input mode, as Apple's Korean input method does; macOS still draws it slightly differently from Apple's badges in System Settings (see docs/troubleshooting/macos-input-method-not-launching.md). |
+| `Resources/icons/` | The logo and one badge per mode (16 px and 32 px PNGs), drawn in `docs/logo/` (MIT). Each pair ships as one `.tiff`. |
 | `tools/register.swift` | `TISRegisterInputSource`, so a fresh install appears without logging out. Re-enables only the sources that were enabled. |
 | `tools/make-keylayout` | One Keyboard Viewer layout per mode (spec §8.1). |
 

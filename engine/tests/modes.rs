@@ -19,6 +19,16 @@ fn ids_are_unique_and_round_trip() {
     assert_eq!(Mode::default(), Mode::A);
 }
 
+/// Mode C (id 2) is reserved for ISO keyboards (docs/modes.md, "Reserved"): no other mode may take
+/// its id or letter.
+#[test]
+fn mode_c_stays_reserved_for_iso() {
+    for &mode in Mode::ALL {
+        let is_c = mode.id() == 2 || format!("{mode:?}") == "C";
+        assert!(!is_c || mode.name().contains("ISO"), "{mode:?} ({}) takes Mode C, reserved for ISO", mode.name());
+    }
+}
+
 #[test]
 fn every_mode_keeps_standard_two_set_on_the_letter_keys() {
     for &mode in Mode::ALL {

@@ -27,19 +27,13 @@
 	<key>ComponentInputModeDict</key>
 	<dict>
 		<!-- One input mode per engine mode (spec §3.6, §8.2), as Japanese has Kana and Romaji: Mode A
-		     (.2Set) and Mode B (.2SetANSI). Never rename an ID: tools select modes by it. Each is
-		     shaped like Apple's Korean input method's modes: macOS draws the input source icon from
-		     a mode's TISIconLabels and tsInputModeMenuIconFileKey (on the bundle alone it drew our
-		     icon as an outline). -->
+		     (.2Set) and Mode B (.2SetANSI). Never rename an ID: tools select modes by it. Each has
+		     its own badge (docs/logo), named .png and shipped as a .tiff with both resolutions, as
+		     Apple's Korean input method does; macOS draws them as templates (TISIconIsTemplate). -->
 		<key>tsInputModeListKey</key>
 		<dict>
 			<key>me.sjun.inputmethod.JISKorean.2Set</key>
 			<dict>
-				<key>TISIconLabels</key>
-				<dict>
-					<key>Primary</key>
-					<string>한</string>
-				</dict>
 				<key>TISInputSourceID</key>
 				<string>me.sjun.inputmethod.JISKorean.2Set</string>
 				<key>TISIntendedLanguage</key>
@@ -47,9 +41,9 @@
 				<key>tsInputModeIsVisibleKey</key>
 				<true/>
 				<key>tsInputModeMenuIconFileKey</key>
-				<string>icon.png</string>
+				<string>mode-a.png</string>
 				<key>tsInputModePaletteIconFileKey</key>
-				<string>icon.png</string>
+				<string>mode-a.png</string>
 				<key>tsInputModePrimaryInScriptKey</key>
 				<true/>
 				<key>tsInputModeScriptKey</key>
@@ -57,11 +51,6 @@
 			</dict>
 			<key>me.sjun.inputmethod.JISKorean.2SetANSI</key>
 			<dict>
-				<key>TISIconLabels</key>
-				<dict>
-					<key>Primary</key>
-					<string>한</string>
-				</dict>
 				<key>TISInputSourceID</key>
 				<string>me.sjun.inputmethod.JISKorean.2SetANSI</string>
 				<key>TISIntendedLanguage</key>
@@ -69,9 +58,9 @@
 				<key>tsInputModeIsVisibleKey</key>
 				<true/>
 				<key>tsInputModeMenuIconFileKey</key>
-				<string>icon.png</string>
+				<string>mode-b.png</string>
 				<key>tsInputModePaletteIconFileKey</key>
-				<string>icon.png</string>
+				<string>mode-b.png</string>
 				<key>tsInputModePrimaryInScriptKey</key>
 				<false/>
 				<key>tsInputModeScriptKey</key>
@@ -97,7 +86,7 @@
 	<key>TISIntendedLanguage</key>
 	<string>ko</string>
 	<key>tsInputMethodIconFileKey</key>
-	<string>icon.png</string>
+	<string>taegeuk.png</string>
 	<key>tsInputMethodCharacterRepertoireKey</key>
 	<array>
 		<string>Hang</string>

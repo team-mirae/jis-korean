@@ -63,12 +63,14 @@ $(BUILD)/%/JISKorean: $(SOURCES) $(HEADER) $(BUILD)/libjis_korean.a
 $(BUILD)/JISKorean: $(BUILD)/arm64/JISKorean $(BUILD)/x86_64/JISKorean
 	lipo -create -output $@ $^
 
-# --- icon
+# --- icons: the logo and one badge per mode, drawn in docs/logo (make_logo.py, render.sh) and
+#     committed as 16 px and 32 px PNGs; each pair becomes one .tiff
 
-$(BUILD)/icon.tiff: tools/make-icon.swift
-	@mkdir -p $(BUILD)/icon
-	swift tools/make-icon.swift $(BUILD)/icon
-	tiffutil -cathidpicheck $(BUILD)/icon/icon.png $(BUILD)/icon/icon@2x.png -out $@
+ICONS := $(BUILD)/taegeuk.tiff $(BUILD)/mode-a.tiff $(BUILD)/mode-b.tiff
+
+$(BUILD)/%.tiff: Resources/icons/%.png Resources/icons/%@2x.png
+	@mkdir -p $(BUILD)
+	tiffutil -cathidpicheck Resources/icons/$*.png Resources/icons/$*@2x.png -out $@
 
 # --- Keyboard Viewer layouts, one per mode: its legends on ABC (JIS for Mode A, ANSI for Mode B),
 #     from the engine's layout tables. Mode n's legends are legends-n.tsv.
@@ -99,13 +101,13 @@ PREDICT_FILES := $(ENGINE)/predict/ranker.bin $(ENGINE)/predict/common-en.txt $(
                  $(ENGINE)/predict/english-nouns.txt $(ENGINE)/predict/LICENSE-wordnet.txt \
                  $(ENGINE)/predict/LICENSE-corpora.txt
 
-$(APP): $(BUILD)/JISKorean $(BUILD)/icon.tiff Info.plist $(DICT)/hanja.tsv $(KEYLAYOUTS) \
+$(APP): $(BUILD)/JISKorean $(ICONS) Info.plist $(DICT)/hanja.tsv $(KEYLAYOUTS) \
        Resources/JISKoreanKeyboardLayouts-Info.plist Resources/en.lproj/InfoPlist.strings Resources/ko.lproj/InfoPlist.strings
 	rm -rf $@
 	mkdir -p $@/Contents/MacOS $@/Contents/Resources
 	cp Info.plist $@/Contents/Info.plist
 	cp $(BUILD)/JISKorean $@/Contents/MacOS/JISKorean
-	cp $(BUILD)/icon.tiff $@/Contents/Resources/icon.tiff
+	cp $(ICONS) $@/Contents/Resources/
 	cp $(DICT)/hanja.tsv $(DICT)/LICENSE-libhangul-hanja.txt $(DICT)/LICENSE-unicode.txt $@/Contents/Resources/
 	cp $(KEYLAYOUTS) Resources/JISKoreanKeyboardLayouts-Info.plist $@/Contents/Resources/
 	cp -R Resources/en.lproj Resources/ko.lproj $@/Contents/Resources/

@@ -1,15 +1,60 @@
 # Modes: the contract for adding one
 
-A **mode** is one keyboard's key map (spec §3.6). JIS Korean ships two:
+A **mode** is one keyboard's key map (spec §3.6). JIS Korean ships two, and holds a third:
 
 | Id | Mode | Name | Keyboard |
 |---|---|---|---|
 | 0 | A | JIS Korean Original Layout | JIS |
 | 1 | B | JIS Korean for US ANSI | US ANSI (HHKB US, MacBook US) |
+| 2 | C | *Reserved:* JIS Korean for ISO | ISO (UK, European) |
+
+A new mode takes the next id that's neither used nor reserved (3), and the next letter (D).
 
 You can fork JIS Korean and add a mode for your own typing or your own keyboard (a UK ISO board,
 a split board with its own symbol keys, a layout with more symbols on Shift). This page is what a
 mode must define and what it must keep.
+
+## Reserved: Mode C, ISO
+
+Mode C is held for ISO keyboards (UK and European boards), so no other mode takes its id, letter
+or names. `engine/tests/modes.rs` fails if id 2 or the letter C goes to a mode that isn't the ISO
+one.
+
+| | Held for Mode C |
+|---|---|
+| Engine id | `2` |
+| Letter, name | C, "JIS Korean for ISO" |
+| Its key | the ISO extra key between left Shift and Z: `IntlBackslash`; on macOS `kVK_ISO_Section` |
+| macOS input source ID | `me.sjun.inputmethod.JISKorean.2SetISO` |
+| macOS Keyboard Viewer layout | `JISKoreanISO` |
+| Badge | `docs/logo/mode-iso.svg` (Caps Lock, Shift, the extra key hollow, Z) |
+
+### The plan
+
+Most of it needs no ISO keyboard:
+
+- **The engine** works on physical key names, not hardware: `IntlBackslash` is just another code.
+  Mode C is a new `Mode` entry with its key tables, checked by the golden tests, the mode-contract
+  tests and the 2-set baseline in CI.
+- **The web playground** can draw an ISO board and send `IntlBackslash` from its on-screen extra
+  key, as it already provides ¥ and ろ for people without a JIS keyboard.
+- **The resolving API** answers what a key types in Mode C (`IntlBackslash`, `S-IntlBackslash`)
+  without anything pressed.
+- **macOS, mostly:** add `kVK_ISO_Section` to `KeyMap.swift`; set the keyboard type to ISO
+  (Keyboard settings → Change Keyboard Type) to see Keyboard Viewer's labels; and use Karabiner's
+  virtual keyboard, set to ISO, to send the extra key from a key you have and type through the real
+  input method.
+
+What needs a real ISO keyboard, or a tester with one:
+
+- **Key codes on real hardware.** macOS is known to swap the codes of the extra key and the
+  `` ` ``/§ key depending on the keyboard type it detects. Spec §2 already says to verify key codes
+  on real hardware for each platform.
+- **Keyboard Viewer on an ISO board,** and how other keyboard tools (Karabiner rules, Hammerspoon)
+  see the key.
+
+So: build Mode C and its tests first, release it marked as untested on hardware, and have one or two
+ISO users (or one ISO keyboard) confirm the key codes before calling it done.
 
 ## What every mode keeps
 
@@ -89,6 +134,9 @@ To add a mode on macOS:
    `mac/Resources/JISKoreanKeyboardLayouts-Info.plist`.
 5. **Keys:** any key code the keyboard adds, in `mac/Sources/KeyMap.swift` (Mode B added
    `kVK_ANSI_Grave` → `Backquote`).
+6. **Badge:** draw it with `docs/logo/make_logo.py` and render it with `docs/logo/render.sh`, then
+   add it to `ICONS` in `mac/Makefile` and name it in the mode's Info.plist entry
+   (`docs/logo/README.md` has the design rules and steps).
 
 `make install` doesn't enable a new mode: users add it in System Settings.
 

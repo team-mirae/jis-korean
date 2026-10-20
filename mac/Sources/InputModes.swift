@@ -24,6 +24,8 @@ enum InputModes {
     static let all = [
         Mode(id: 0, letter: "A", sourceID: "me.sjun.inputmethod.JISKorean.2Set", keyboardViewerLayout: "JISKorean"),
         Mode(id: 1, letter: "B", sourceID: "me.sjun.inputmethod.JISKorean.2SetANSI", keyboardViewerLayout: "JISKoreanANSI"),
+        // Reserved for Mode C, ISO (docs/modes.md): id 2, me.sjun.inputmethod.JISKorean.2SetISO,
+        // JISKoreanISO.
     ]
 
     static let defaultMode = all[0]

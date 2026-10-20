@@ -136,6 +136,11 @@ the other keys type, and which stock keyboard sits under it. Mode A is the defau
 |---|---|---|---|
 | A | JIS Korean Original Layout | JIS | JIS |
 | B | JIS Korean for US ANSI | US ANSI (HHKB US, MacBook US) | US ANSI |
+| C | *Reserved:* JIS Korean for ISO | ISO (UK, European) | ISO |
+
+**Mode C is reserved** for ISO keyboards, whose extra key between left Shift and Z
+(`IntlBackslash`) neither A nor B has. It isn't implemented yet; its id, name, input source ID and
+badge are held for it (docs/modes.md, "Reserved").
 
 **Mode B** keeps Mode A's number row (§3.1: ㅃ ㅉ ㄸ ㄲ ㅆ ㅟ ㅝ ㅚ ㅢ ㅘ, digits on Shift) and moves the
 brackets to the US `[` and `]` keys:

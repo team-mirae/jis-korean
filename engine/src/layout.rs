@@ -31,7 +31,8 @@ pub enum Layout {
 /// type standard 2-set (the core principle); a mode only says what the other keys type.
 ///
 /// To add a mode (docs/modes.md has the full contract):
-/// 1. Add a variant here and to [`Mode::ALL`], with the next unused [`Mode::id`].
+/// 1. Add a variant here and to [`Mode::ALL`], with the next [`Mode::id`] that's neither used nor
+///    reserved. Id 2 (Mode C) is reserved for ISO keyboards (docs/modes.md, "Reserved").
 /// 2. Give it a [`Mode::name`] and its two tables in [`Mode::korean`] and [`Mode::stock`], each in
 ///    a function of its own (`<keyboard>_korean`, `stock_<keyboard>`) below.
 /// 3. Run `cargo test`: `tests/modes.rs` checks every mode against the contract.
