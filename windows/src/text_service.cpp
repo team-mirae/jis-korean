@@ -938,7 +938,10 @@ void TextService::UpdateText(ITfContext* context, const std::wstring& commit,
                 now.range->Release();
             }
             if (kept) return S_OK;
-            log::Write(L"no interim selection over the composition");
+            // Once per process: some apps (Chromium-based ones, measured in Claude) never keep one.
+            static bool logged = false;
+            if (!logged) log::Write(L"no interim selection over the composition: caret after it");
+            logged = true;
             return CaretToEnd(ec, context, range);
         };
         auto mark = [&](ITfRange* range) {

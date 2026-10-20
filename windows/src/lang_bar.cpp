@@ -3,16 +3,119 @@
 #include <olectl.h>
 
 #include <algorithm>
+#include <memory>
+#include <new>
 #include <string>
 #include <vector>
 
 #include "dll.h"
 #include "guids.h"
+#include "log.h"
 
 namespace jk {
 namespace {
 
 constexpr DWORD kSinkCookie = 1;
+
+// Records what InitMenu adds, to show it as a Win32 popup menu: the Windows 8+ input indicator
+// only reports a right-click (OnClick, TF_LBI_CLK_RIGHT) and leaves the menu to the IME
+// (measured on Windows 11: InitMenu is never called).
+class MenuRecorder final : public ITfMenu {
+public:
+    struct Item {
+        UINT id;
+        DWORD flags;
+        std::wstring text;
+        MenuRecorder* submenu;  // owned, or nullptr
+    };
+
+    MenuRecorder() { DllAddRef(); }
+
+    STDMETHODIMP QueryInterface(REFIID riid, void** object) override {
+        if (!object) return E_INVALIDARG;
+        if (riid == IID_IUnknown || riid == IID_ITfMenu) {
+            *object = static_cast<ITfMenu*>(this);
+            AddRef();
+            return S_OK;
+        }
+        *object = nullptr;
+        return E_NOINTERFACE;
+    }
+    STDMETHODIMP_(ULONG) AddRef() override { return InterlockedIncrement(&refs_); }
+    STDMETHODIMP_(ULONG) Release() override {
+        const LONG refs = InterlockedDecrement(&refs_);
+        if (!refs) delete this;
+        return refs;
+    }
+    STDMETHODIMP AddMenuItem(UINT id, DWORD flags, HBITMAP, HBITMAP, const WCHAR* text, ULONG length,
+                             ITfMenu** submenu) override {
+        Item item = {id, flags, text ? std::wstring(text, length) : std::wstring(), nullptr};
+        if (flags & TF_LBMENUF_SUBMENU) {
+            item.submenu = new (std::nothrow) MenuRecorder();
+            if (!item.submenu) return E_OUTOFMEMORY;
+            if (submenu) {
+                *submenu = item.submenu;
+                item.submenu->AddRef();
+            }
+        } else if (submenu) {
+            *submenu = nullptr;
+        }
+        items_.push_back(std::move(item));
+        return S_OK;
+    }
+
+    // The recorded items as a popup menu (the caller destroys it).
+    HMENU Build() const {
+        HMENU menu = CreatePopupMenu();
+        for (const Item& item : items_) {
+            if (item.flags & TF_LBMENUF_SEPARATOR) {
+                AppendMenuW(menu, MF_SEPARATOR, 0, nullptr);
+                continue;
+            }
+            UINT flags = MF_STRING;
+            if (item.flags & TF_LBMENUF_CHECKED) flags |= MF_CHECKED;
+            if (item.flags & TF_LBMENUF_GRAYED) flags |= MF_GRAYED;
+            if (item.submenu) {
+                AppendMenuW(menu, flags | MF_POPUP, reinterpret_cast<UINT_PTR>(item.submenu->Build()),
+                            item.text.c_str());
+            } else {
+                AppendMenuW(menu, flags, item.id, item.text.c_str());
+            }
+        }
+        return menu;
+    }
+
+private:
+    ~MenuRecorder() {
+        for (Item& item : items_) {
+            if (item.submenu) item.submenu->Release();
+        }
+        DllRelease();
+    }
+    LONG refs_ = 1;
+    std::vector<Item> items_;
+};
+
+// Shows the menu at the indicator and returns the item picked (0: none). TrackPopupMenu needs an
+// owner window on this thread: a hidden one, made foreground so a click elsewhere closes the menu.
+UINT ShowMenu(const MenuRecorder& recorder, POINT pt, const RECT* area) {
+    HMENU menu = recorder.Build();
+    HWND owner = CreateWindowExW(WS_EX_TOOLWINDOW, L"STATIC", L"", WS_POPUP, 0, 0, 0, 0, nullptr,
+                                 nullptr, DllInstance(), nullptr);
+    UINT id = 0;
+    if (menu && owner) {
+        SetForegroundWindow(owner);
+        // Above the taskbar button, as the system's own menus there open.
+        const int y = area ? area->top : pt.y;
+        id = static_cast<UINT>(TrackPopupMenuEx(
+            menu, TPM_RETURNCMD | TPM_NONOTIFY | TPM_RIGHTBUTTON | TPM_BOTTOMALIGN, pt.x, y, owner,
+            nullptr));
+        PostMessageW(owner, WM_NULL, 0, 0);  // lets the menu close properly
+    }
+    if (owner) DestroyWindow(owner);
+    if (menu) DestroyMenu(menu);
+    return id;
+}
 
 // The taskbar's theme, so the label reads like the Microsoft IME's: dark text on a light taskbar.
 bool LightTaskbar() {
@@ -164,8 +267,19 @@ STDMETHODIMP LangBarButton::GetTooltipString(BSTR* tooltip) {
     return *tooltip ? S_OK : E_OUTOFMEMORY;
 }
 
-STDMETHODIMP LangBarButton::OnClick(TfLBIClick click, POINT, const RECT*) {
+STDMETHODIMP LangBarButton::OnClick(TfLBIClick click, POINT pt, const RECT* area) {
     if (click == TF_LBI_CLK_LEFT && on_click_) on_click_();
+    if (click == TF_LBI_CLK_RIGHT && init_menu_) {
+        // Hold a reference: picking an item may change state that releases this button.
+        AddRef();
+        if (MenuRecorder* recorder = new (std::nothrow) MenuRecorder()) {
+            init_menu_(recorder);
+            const UINT id = ShowMenu(*recorder, pt, area);
+            recorder->Release();
+            if (id && on_menu_) on_menu_(id);
+        }
+        Release();
+    }
     return S_OK;
 }
 

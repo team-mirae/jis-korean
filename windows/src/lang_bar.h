@@ -1,6 +1,7 @@
 // The button JIS Korean puts in the input indicator (the taskbar, where the Microsoft Korean IME
 // shows 가 / A): 한글 while JIS Korean types, ABC while 한/영 passes keys through. A click
-// switches between them; right-click opens the settings menu (the macOS input menu's items).
+// switches between them; right-click opens the settings menu (the macOS input menu's items), a
+// popup the IME shows itself: the indicator only reports the click.
 #pragma once
 
 #include <ctfutb.h>
