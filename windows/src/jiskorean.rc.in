@@ -1,0 +1,44 @@
+// jiskorean.dll resources (UTF-8). CMake fills in the paths.
+#pragma code_page(65001)
+#include <winres.h>
+
+#include "resource.h"
+
+// The logo first: the profile names icon index 0.
+IDI_TAEGEUK ICON "@JK_ICON_DIR@/taegeuk.ico"
+
+STRINGTABLE
+BEGIN
+    IDS_PROFILE "JIS Korean"
+END
+
+IDR_HANJA RCDATA "@JK_ENGINE_DIR@/dict/hanja.tsv"
+#ifdef JK_PREDICT
+IDR_RANKER RCDATA "@JK_ENGINE_DIR@/predict/ranker.bin"
+IDR_COMMON_EN RCDATA "@JK_ENGINE_DIR@/predict/common-en.txt"
+IDR_COMMON_KO RCDATA "@JK_ENGINE_DIR@/predict/common-ko.txt"
+IDR_NOUNS RCDATA "@JK_ENGINE_DIR@/predict/english-nouns.txt"
+#endif
+
+VS_VERSION_INFO VERSIONINFO
+FILEVERSION @JK_VERSION_NUMBERS@
+PRODUCTVERSION @JK_VERSION_NUMBERS@
+FILEOS VOS_NT_WINDOWS32
+FILETYPE VFT_DLL
+BEGIN
+    BLOCK "StringFileInfo"
+    BEGIN
+        BLOCK "040904B0"
+        BEGIN
+            VALUE "FileDescription", "JIS Korean text input processor"
+            VALUE "FileVersion", "@JK_VERSION@"
+            VALUE "ProductName", "JIS Korean"
+            VALUE "ProductVersion", "@JK_VERSION@"
+            VALUE "LegalCopyright", "MIT"
+        END
+    END
+    BLOCK "VarFileInfo"
+    BEGIN
+        VALUE "Translation", 0x409, 1200
+    END
+END
