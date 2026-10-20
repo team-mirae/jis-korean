@@ -136,13 +136,11 @@ the other keys type, and which stock keyboard sits under it. Mode A is the defau
 |---|---|---|---|
 | A | JIS Korean Original Layout | JIS | JIS |
 | B | JIS Korean for US ANSI | US ANSI (HHKB US, MacBook US) | US ANSI |
-| C | *Reserved:* JIS Korean for UK ISO | ISO (UK) | UK ISO |
+| C | JIS Korean for UK ISO | ISO (UK) | UK ISO (PC legends) |
 
-**Mode C is reserved** for ISO keyboards, whose extra key between left Shift and Z
-(`IntlBackslash`) neither A nor B has. It isn't implemented yet; its id, name, input source ID and
-badge are held for it (docs/modes.md, "Reserved"). The planned key map follows Mode B, on UK stock
-symbols (other ISO countries can come later as their own modes or forks; their users are expected
-to keep their own layout as a second input source):
+**Mode C** is for ISO keyboards, whose extra key between left Shift and Z (`IntlBackslash`) neither
+A nor B has. It follows Mode B, on UK stock symbols (other ISO countries can come later as their own
+modes or forks; their users are expected to keep their own layout as a second input source):
 
 | Key | Unshifted | Shift |
 |---|---|---|
@@ -153,9 +151,12 @@ to keep their own layout as a second input source):
 | everything else | the UK stock symbol | the UK stock symbol |
 
 The three symbol keys ([, ], `IntlBackslash`) are optional: a setting, **Dedicated symbol keys**,
-turns them off, and then they commit and pass through to the app (`None` in the key table), so the
-OS layout types whatever it prints on them. The number row is always dedicated. Default: on
-**[decide]**.
+turns them off, and then they type their UK ISO characters (`[ {`, `] }`, `\ |`), the same as in
+the F8 escape. They don't pass through to the OS layout, so they type the same whatever it is. The
+number row is always dedicated. Default: on.
+`IntlBackslash` isn't in Modes A or B, nor `IntlYen` and `IntlRo` in Mode C: they commit and pass
+through (§3.5). On macOS, ISO keyboards send the extra key and the key left of 1 with each other's
+key codes; the shell maps them back (§2).
 
 **Mode B** keeps Mode A's number row (§3.1: ㅃ ㅉ ㄸ ㄲ ㅆ ㅟ ㅝ ㅚ ㅢ ㅘ, digits on Shift) and moves the
 brackets to the US `[` and `]` keys:
@@ -768,13 +769,14 @@ one line of counts and show the setting.
 ### 8.1 Keyboard Viewer (macOS)
 
 While JIS Korean is active, macOS uses a private layout bundled with the input method, one per
-mode: `JISKorean.keylayout` for Mode A and `JISKoreanANSI.keylayout` for Mode B. The input method
+mode: `JISKorean.keylayout` for Mode A, `JISKoreanANSI.keylayout` for Mode B and
+`JISKoreanISO.keylayout` for Mode C. The input method
 names the mode's layout to the client on each activation (`overrideKeyboard(withKeyboardNamed:)`).
 - **Generated at build time** by `mac/tools/make-keylayout` from the engine's own legends
   (`cargo run --example legends <mode id>`), so it can't drift from §3.
 - **Its plain and Shift layers** carry the mode's legends. Shift+Z shows F10.
 - **Its Cmd, Ctrl and Option layers, and unlabelled keys,** are ABC's on the mode's keyboard (JIS
-  for Mode A, ANSI for Mode B), so shortcuts and Option characters are unchanged.
+  for Mode A, ANSI for Mode B, ISO for Mode C), so shortcuts and Option characters are unchanged.
 - **Typing is unaffected:** the input method reads key codes, not characters.
 
 ### 8.2 Modes as input sources, and the public API (macOS)
@@ -786,6 +788,7 @@ Romaji:
 |---|---|---|
 | A | `me.sjun.inputmethod.JISKorean.2Set` | JIS Korean |
 | B | `me.sjun.inputmethod.JISKorean.2SetANSI` | JIS Korean for US ANSI |
+| C | `me.sjun.inputmethod.JISKorean.2SetISO` | JIS Korean for UK ISO |
 
 The user adds the ones they want in System Settings → Keyboard → Input Sources (Korean → JIS
 Korean). Installing enables Mode A only.

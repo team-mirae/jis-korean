@@ -33,6 +33,7 @@ struct ScanTable {
                                       JK_KEY_PERIOD, JK_KEY_SLASH};
         for (int i = 0; i < 10; ++i) keys[0x2C + i] = z_row[i];
         keys[0x73] = JK_KEY_INTLRO;  // ろ, JIS only
+        keys[0x56] = JK_KEY_INTLBACKSLASH;  // between left Shift and Z, ISO only (Mode C)
     }
 };
 constexpr ScanTable kScan;

@@ -1,9 +1,12 @@
 import Carbon.HIToolbox
 
-/// Physical macOS key codes → engine key ids (spec §2). Positions are the same on ANSI and JIS
-/// boards except for ¥ and ろ, which only JIS has, and ` (left of 1), which only ANSI has.
+/// Physical macOS key codes → engine key ids (spec §2), as ANSI and JIS keyboards send them.
+/// Positions are the same on every board except for ¥ and ろ, which only JIS has, ` (left of 1),
+/// which ANSI and ISO have, and the extra key between left Shift and Z, which only ISO has.
+/// ISO keyboards send two of these swapped: see [isoKeyMap].
 let keyMap: [Int: UInt32] = [
     kVK_ANSI_Grave: UInt32(JK_KEY_BACKQUOTE),
+    kVK_ISO_Section: UInt32(JK_KEY_INTLBACKSLASH),
     kVK_ANSI_1: UInt32(JK_KEY_DIGIT1), kVK_ANSI_2: UInt32(JK_KEY_DIGIT2), kVK_ANSI_3: UInt32(JK_KEY_DIGIT3),
     kVK_ANSI_4: UInt32(JK_KEY_DIGIT4), kVK_ANSI_5: UInt32(JK_KEY_DIGIT5), kVK_ANSI_6: UInt32(JK_KEY_DIGIT6),
     kVK_ANSI_7: UInt32(JK_KEY_DIGIT7), kVK_ANSI_8: UInt32(JK_KEY_DIGIT8), kVK_ANSI_9: UInt32(JK_KEY_DIGIT9),
@@ -38,6 +41,18 @@ let keyMap: [Int: UInt32] = [
     kVK_LeftArrow: UInt32(JK_KEY_ARROWLEFT), kVK_RightArrow: UInt32(JK_KEY_ARROWRIGHT),
 ]
 
+/// [keyMap] as ISO keyboards send it: macOS swaps the codes of the key left of 1 (kVK_ISO_Section,
+/// § on a Mac UK board) and the extra key left of Z (kVK_ANSI_Grave) when the keyboard is ISO.
+let isoKeyMap: [Int: UInt32] = keyMap.merging([
+    kVK_ISO_Section: UInt32(JK_KEY_BACKQUOTE),
+    kVK_ANSI_Grave: UInt32(JK_KEY_INTLBACKSLASH),
+]) { $1 }
+
+/// Whether the keyboard typed on last is ISO, as macOS reports it.
+func typingOnISO() -> Bool {
+    KBGetLayoutType(Int16(LMGetKbdType())) == OSType(kKeyboardISO)
+}
+
 func engineKey(_ keyCode: UInt16) -> UInt32 {
-    keyMap[Int(keyCode)] ?? UInt32(JK_KEY_OTHER)
+    (typingOnISO() ? isoKeyMap : keyMap)[Int(keyCode)] ?? UInt32(JK_KEY_OTHER)
 }

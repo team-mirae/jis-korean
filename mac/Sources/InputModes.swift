@@ -24,8 +24,7 @@ enum InputModes {
     static let all = [
         Mode(id: 0, letter: "A", sourceID: "me.sjun.inputmethod.JISKorean.2Set", keyboardViewerLayout: "JISKorean"),
         Mode(id: 1, letter: "B", sourceID: "me.sjun.inputmethod.JISKorean.2SetANSI", keyboardViewerLayout: "JISKoreanANSI"),
-        // Reserved for Mode C, ISO (docs/modes.md): id 2, me.sjun.inputmethod.JISKorean.2SetISO,
-        // JISKoreanISO.
+        Mode(id: 2, letter: "C", sourceID: "me.sjun.inputmethod.JISKorean.2SetISO", keyboardViewerLayout: "JISKoreanISO"),
     ]
 
     static let defaultMode = all[0]
@@ -70,7 +69,7 @@ enum InputModes {
 /// works when the user has turned on "Let Other Apps Change the Mode" in the input menu, with the
 /// other settings; everything else only reads.
 ///
-/// - Read: `defaults read me.sjun.inputmethod.JISKorean CurrentMode` → A or B (also `CurrentModeID`,
+/// - Read: `defaults read me.sjun.inputmethod.JISKorean CurrentMode` → A, B or C (also `CurrentModeID`,
 ///   `CurrentModeInputSourceID`, `CurrentModeName`), or `JISKorean.app/Contents/MacOS/JISKorean mode`.
 /// - Changes: the distributed notification `me.sjun.inputmethod.JISKorean.ModeDidChange`, with
 ///   `mode`, `id`, `inputSourceID` and `name` in its user info.
@@ -257,11 +256,11 @@ enum PublicAPI {
         return String(decoding: data, as: UTF8.self)
     }
 
-    /// `JISKorean mode [A|B]`, `JISKorean resolveKeyCodeInput <keyCode> [context]`,
+    /// `JISKorean mode [A|B|C]`, `JISKorean resolveKeyCodeInput <keyCode> [context]`,
     /// `JISKorean resolveKeyCodeFromOutput <text> [min] [max]`. Returns the exit status.
     static func runCommand(_ arguments: [String]) -> Int32 {
         let usage = """
-            usage: JISKorean mode [A|B]
+            usage: JISKorean mode [A|B|C]
                    JISKorean resolveKeyCodeInput <keyCode> [context]
                    JISKorean resolveKeyCodeFromOutput <text> [minKeypressCount] [maxKeypressCount]
             """

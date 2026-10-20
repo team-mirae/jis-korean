@@ -1,5 +1,6 @@
 //! Non-negotiable baselines: the core principle (spec §1). Every way of typing Korean on
-//! conventional 2-set (KS X 5002) still types what it always did, in every mode.
+//! conventional 2-set (KS X 5002) still types what it always did, in every mode, with the
+//! Dedicated symbol keys setting on and off.
 //!
 //! "Conventional" means each syllable starts with its consonant key (ㅇ included), compound vowels
 //! and double finals are typed as two keys, and double consonants and ㅒ ㅖ take Shift. Typing this
@@ -10,7 +11,7 @@
 //! change to the engine can't quietly change what these tests expect. A failure here is a spec
 //! change, not an implementation detail.
 
-use jis_korean::{Engine, Key, Layout, Mode, Mods, Out, output_in};
+use jis_korean::{Engine, Key, Layout, Mode, Mods, Out, output_with};
 
 /// A Korean pangram: every initial (19), medial (21) and final (27) at least once.
 const PANGRAM: &str = "다람쥐 헌 쳇바퀴에 타고파. 외곬으로 앉아 닭값도 없이 넋 놓고 흙을 핥던 젊은이 여덟이, 많이 \
@@ -153,7 +154,7 @@ fn syllable_presses(syllable: char, style: Style) -> Vec<Press> {
 }
 
 /// The keys for a text: Hangul as `style`, a space as Space, anything else on the mode's key for it.
-fn text_presses(text: &str, mode: Mode, style: Style) -> Vec<Press> {
+fn text_presses(text: &str, mode: Mode, symbols: bool, style: Style) -> Vec<Press> {
     let mut presses = Vec::new();
     for c in text.chars() {
         match c {
@@ -163,7 +164,7 @@ fn text_presses(text: &str, mode: Mode, style: Style) -> Vec<Press> {
                 let press = Key::ALL
                     .iter()
                     .flat_map(|&key| [(key, false), (key, true)])
-                    .find(|&(key, shift)| output_in(mode, Layout::JisKorean, key, shift) == Some(Out::Char(c)))
+                    .find(|&(key, shift)| output_with(mode, symbols, Layout::JisKorean, key, shift) == Some(Out::Char(c)))
                     .unwrap_or_else(|| panic!("no key types {c:?} in {mode:?}"));
                 presses.push((press.0.code(), press.1));
             }
@@ -174,8 +175,14 @@ fn text_presses(text: &str, mode: Mode, style: Style) -> Vec<Press> {
 
 /// Types the presses into a fresh engine, then commits: the text that ends up in the document.
 fn typed(mode: Mode, presses: &[Press]) -> String {
+    typed_with(mode, true, presses)
+}
+
+/// [`typed`], with the Dedicated symbol keys setting `symbols`.
+fn typed_with(mode: Mode, symbols: bool, presses: &[Press]) -> String {
     let mut engine = Engine::new();
     engine.set_mode(mode);
+    engine.set_dedicated_symbols(symbols);
     let mut doc = String::new();
     for &(code, shift) in presses {
         let out = engine.key(Key::from_code(code), if shift { Mods::SHIFTED } else { Mods::NONE });
@@ -204,9 +211,11 @@ fn the_pangram_covers_every_jamo() {
 #[test]
 fn the_pangram_types_conventionally_in_every_mode() {
     for &mode in Mode::ALL {
-        for style in [Style::Conventional, Style::ShiftHeldOnConsonants, Style::DedicatedKeys] {
-            let presses = text_presses(PANGRAM, mode, style);
-            assert_eq!(typed(mode, &presses), PANGRAM, "{mode:?}");
+        for symbols in [true, false] {
+            for style in [Style::Conventional, Style::ShiftHeldOnConsonants, Style::DedicatedKeys] {
+                let presses = text_presses(PANGRAM, mode, symbols, style);
+                assert_eq!(typed_with(mode, symbols, &presses), PANGRAM, "{mode:?} symbols {symbols}");
+            }
         }
     }
 }
@@ -214,10 +223,12 @@ fn the_pangram_types_conventionally_in_every_mode() {
 #[test]
 fn every_syllable_types_conventionally_in_every_mode() {
     for &mode in Mode::ALL {
-        for syllable in every_syllable() {
-            for style in [Style::Conventional, Style::ShiftHeldOnConsonants, Style::DedicatedKeys] {
-                let presses = syllable_presses(syllable, style);
-                assert_eq!(typed(mode, &presses), syllable.to_string(), "{mode:?} {presses:?}");
+        for symbols in [true, false] {
+            for syllable in every_syllable() {
+                for style in [Style::Conventional, Style::ShiftHeldOnConsonants, Style::DedicatedKeys] {
+                    let presses = syllable_presses(syllable, style);
+                    assert_eq!(typed_with(mode, symbols, &presses), syllable.to_string(), "{mode:?} symbols {symbols} {presses:?}");
+                }
             }
         }
     }

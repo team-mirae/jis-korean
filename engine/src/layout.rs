@@ -23,7 +23,7 @@ impl Out {
 pub enum Layout {
     /// The mode's own layout.
     JisKorean,
-    /// F8: standard 2-set on the stock keys (JIS, or US ANSI in Mode B).
+    /// F8: standard 2-set on the stock keys (JIS, US ANSI in Mode B, UK ISO in Mode C).
     Escaped,
 }
 
@@ -31,8 +31,7 @@ pub enum Layout {
 /// type standard 2-set (the core principle); a mode only says what the other keys type.
 ///
 /// To add a mode (docs/modes.md has the full contract):
-/// 1. Add a variant here and to [`Mode::ALL`], with the next [`Mode::id`] that's neither used nor
-///    reserved. Id 2 (Mode C) is reserved for ISO keyboards (docs/modes.md, "Reserved").
+/// 1. Add a variant here and to [`Mode::ALL`], with the next unused [`Mode::id`].
 /// 2. Give it a [`Mode::name`] and its two tables in [`Mode::korean`] and [`Mode::stock`], each in
 ///    a function of its own (`<keyboard>_korean`, `stock_<keyboard>`) below.
 /// 3. Run `cargo test`: `tests/modes.rs` checks every mode against the contract.
@@ -44,17 +43,21 @@ pub enum Mode {
     /// Mode B, for US ANSI keyboards (HHKB US, MacBook US): Mode A's number row and brackets,
     /// and every other key as US ANSI types it.
     B,
+    /// Mode C, for UK ISO keyboards: Mode B's pattern on UK symbols, plus the ISO extra key
+    /// between left Shift and Z. Its symbol keys are optional ([`Mode::optional_keys`]).
+    C,
 }
 
 impl Mode {
     /// Every mode, in id order.
-    pub const ALL: &'static [Mode] = &[Mode::A, Mode::B];
+    pub const ALL: &'static [Mode] = &[Mode::A, Mode::B, Mode::C];
 
     /// The stable id over the C ABI and in saved settings. Never reuse or renumber one.
     pub fn id(self) -> u32 {
         match self {
             Mode::A => 0,
             Mode::B => 1,
+            Mode::C => 2,
         }
     }
 
@@ -68,15 +71,30 @@ impl Mode {
         match self {
             Mode::A => "JIS Korean Original Layout",
             Mode::B => "JIS Korean for US ANSI",
+            Mode::C => "JIS Korean for UK ISO",
+        }
+    }
+
+    /// The symbol keys the Dedicated symbol keys setting turns off (spec §3.6): with it off they
+    /// type the stock keyboard's characters ([`Mode::stock`]), as F8 would. Empty for modes without
+    /// the setting.
+    pub fn optional_keys(self) -> &'static [Key] {
+        match self {
+            Mode::A | Mode::B => &[],
+            Mode::C => &[Key::BracketLeft, Key::BracketRight, Key::IntlBackslash],
         }
     }
 
     /// What the non-letter keys type: (unshifted, shifted). `None` for keys the mode leaves out:
-    /// they commit and pass through to the app.
-    fn korean(self, key: Key) -> Option<(Out, Out)> {
+    /// they commit and pass through to the app. `symbols` is the Dedicated symbol keys setting.
+    fn korean(self, key: Key, symbols: bool) -> Option<(Out, Out)> {
+        if !symbols && self.optional_keys().contains(&key) {
+            return self.stock(key).map(|(base, shifted)| (Out::Char(base), Out::Char(shifted)));
+        }
         match self {
             Mode::A => jis_korean(key),
             Mode::B => ansi_korean(key),
+            Mode::C => iso_korean(key),
         }
     }
 
@@ -87,6 +105,7 @@ impl Mode {
         match self {
             Mode::A => stock_jis(key),
             Mode::B => stock_us(key),
+            Mode::C => stock_uk(key),
         }
     }
 }
@@ -96,13 +115,19 @@ pub fn output(layout: Layout, key: Key, shift: bool) -> Option<Out> {
     output_in(Mode::A, layout, key, shift)
 }
 
-/// What `key` types in `layout` in `mode`.
+/// What `key` types in `layout` in `mode`, with the mode's symbol keys on (the default).
 pub fn output_in(mode: Mode, layout: Layout, key: Key, shift: bool) -> Option<Out> {
+    output_with(mode, true, layout, key, shift)
+}
+
+/// What `key` types in `layout` in `mode`, with the Dedicated symbol keys setting `symbols`
+/// (spec §3.6; only modes with [`Mode::optional_keys`] read it).
+pub fn output_with(mode: Mode, symbols: bool, layout: Layout, key: Key, shift: bool) -> Option<Out> {
     if let Some((base, shifted)) = two_set(key) {
         return Some(Out::Jamo(if shift { shifted } else { base }));
     }
     let (base, shifted) = match layout {
-        Layout::JisKorean => mode.korean(key)?,
+        Layout::JisKorean => mode.korean(key, symbols)?,
         Layout::Escaped => {
             let (base, shifted) = mode.stock(key)?;
             (Out::Char(base), Out::Char(shifted))
@@ -194,6 +219,52 @@ fn ansi_korean(key: Key) -> Option<(Out, Out)> {
         BracketRight => Some((C(']'), C('\u{300D}'))),
         _ => stock_us(key).map(|(base, shifted)| (C(base), C(shifted))),
     }
+}
+
+/// Mode C's non-letter keys (spec §3.6): Mode B's pattern on UK ISO, and the extra key between
+/// left Shift and Z for the two Korean punctuation marks UK ISO has no key for.
+fn iso_korean(key: Key) -> Option<(Out, Out)> {
+    use Key::*;
+    use Out::Char as C;
+    match key {
+        Digit1 | Digit2 | Digit3 | Digit4 | Digit5 | Digit6 | Digit7 | Digit8 | Digit9 | Digit0 => jis_korean(key),
+        BracketLeft => Some((C('['), C('\u{300C}'))),
+        BracketRight => Some((C(']'), C('\u{300D}'))),
+        IntlBackslash => Some((C('\u{00B7}'), C('\u{2014}'))),
+        _ => stock_uk(key).map(|(base, shifted)| (C(base), C(shifted))),
+    }
+}
+
+/// The stock UK ISO characters (PC legends) on the non-letter keys: Mode C's F8 escape and English
+/// readings. `Backslash` is the ISO key left of Enter (# ~).
+fn stock_uk(key: Key) -> Option<(char, char)> {
+    use Key::*;
+    let pair = match key {
+        Backquote => ('`', '¬'),
+        Digit1 => ('1', '!'),
+        Digit2 => ('2', '"'),
+        Digit3 => ('3', '£'),
+        Digit4 => ('4', '$'),
+        Digit5 => ('5', '%'),
+        Digit6 => ('6', '^'),
+        Digit7 => ('7', '&'),
+        Digit8 => ('8', '*'),
+        Digit9 => ('9', '('),
+        Digit0 => ('0', ')'),
+        Minus => ('-', '_'),
+        Equal => ('=', '+'),
+        BracketLeft => ('[', '{'),
+        BracketRight => (']', '}'),
+        Semicolon => (';', ':'),
+        Quote => ('\'', '@'),
+        Backslash => ('#', '~'),
+        IntlBackslash => ('\\', '|'),
+        Comma => (',', '<'),
+        Period => ('.', '>'),
+        Slash => ('/', '?'),
+        _ => return None,
+    };
+    Some(pair)
 }
 
 /// The stock US ANSI characters on the non-letter keys: Mode B's F8 escape and English readings.

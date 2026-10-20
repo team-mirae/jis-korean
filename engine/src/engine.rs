@@ -85,6 +85,8 @@ pub struct Engine {
     layout: Layout,
     /// The mode: which keyboard's key map (spec §3.6).
     mode: Mode,
+    /// Setting: Dedicated symbol keys (spec §3.6), for modes with optional symbol keys.
+    symbols: bool,
     enter_commits: bool,
     dictionary: Option<Arc<Dictionary>>,
     /// The predictive layer; `None` is the deterministic lite engine.
@@ -133,6 +135,7 @@ impl Engine {
             hanja: None,
             layout: Layout::JisKorean,
             mode: Mode::A,
+            symbols: true,
             enter_commits: false,
             dictionary: None,
             #[cfg(feature = "predict")]
@@ -173,10 +176,22 @@ impl Engine {
         self.dictionary.clone()
     }
 
-    /// Setting: the mode, Mode A (JIS) or Mode B (US ANSI) (spec §3.6). Takes effect from the
-    /// next key.
+    /// Setting: the mode, Mode A (JIS), Mode B (US ANSI) or Mode C (UK ISO) (spec §3.6). Takes
+    /// effect from the next key.
     pub fn set_mode(&mut self, mode: Mode) {
         self.mode = mode;
+    }
+
+    /// Setting: Dedicated symbol keys (spec §3.6), on by default. Off, the mode's optional symbol
+    /// keys ([`Mode::optional_keys`], Mode C's [ ] and the ISO extra key) type the mode's stock
+    /// characters (UK ISO in Mode C). Modes without optional keys ignore it.
+    pub fn set_dedicated_symbols(&mut self, on: bool) {
+        self.symbols = on;
+    }
+
+    /// Whether the mode's optional symbol keys are on (spec §3.6).
+    pub fn dedicated_symbols(&self) -> bool {
+        self.symbols
     }
 
     /// The mode (spec §3.6).
@@ -300,7 +315,7 @@ impl Engine {
                 self.segment.pop();
                 self.unchanged(true)
             }
-            _ => match layout::output_in(self.mode, self.layout, key, mods.shift) {
+            _ => match layout::output_with(self.mode, self.symbols, self.layout, key, mods.shift) {
                 Some(Out::Jamo(jamo)) => {
                     let raw = key.letter().map(|c| if mods.shift { c.to_ascii_uppercase() } else { c });
                     let raw = raw.or(key.digit());
@@ -309,14 +324,14 @@ impl Engine {
                     let ieung = mods.shift
                         && self.layout == Layout::JisKorean
                         && hangul::is_medial(jamo)
-                        && layout::output_in(self.mode, self.layout, key, false) == Some(Out::Jamo(jamo));
+                        && layout::output_with(self.mode, self.symbols, self.layout, key, false) == Some(Out::Jamo(jamo));
                     self.segment.push(if ieung { Token::IeungVowel { jamo, raw } } else { Token::Jamo { jamo, raw } });
                     self.unchanged(true)
                 }
                 Some(Out::Char(c)) => {
                     // The English reading is the stock keyboard's character, so predictions never
                     // imply JIS on US ANSI (Shift+2 reads @ there, " on JIS).
-                    let english = layout::output_in(self.mode, Layout::Escaped, key, mods.shift).map_or(c, Out::char);
+                    let english = layout::output_with(self.mode, self.symbols, Layout::Escaped, key, mods.shift).map_or(c, Out::char);
                     self.segment.push(Token::Typed(c, english));
                     self.unchanged(true)
                 }

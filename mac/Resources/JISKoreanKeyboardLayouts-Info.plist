@@ -33,5 +33,12 @@
 		<key>TSMInvisibleKey</key>
 		<true/>
 	</dict>
+	<key>KLInfo_JISKoreanISO</key>
+	<dict>
+		<key>ISOCode</key>
+		<string>ko</string>
+		<key>TSMInvisibleKey</key>
+		<true/>
+	</dict>
 </dict>
 </plist>

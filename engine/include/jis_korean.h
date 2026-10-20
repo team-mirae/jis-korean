@@ -83,8 +83,9 @@ enum {
     JK_KEY_ARROWLEFT = 59,
     JK_KEY_ARROWRIGHT = 60,
     JK_KEY_BACKQUOTE = 61,
-    JK_KEY_MODIFIER = 62,
-    JK_KEY_OTHER = 63,
+    JK_KEY_INTLBACKSLASH = 62,
+    JK_KEY_MODIFIER = 63,
+    JK_KEY_OTHER = 64,
 };
 
 enum {
@@ -104,8 +105,12 @@ void jk_flush(JkEngine *engine);
 /* The IME was switched back to: leaves any F8 escape. */
 void jk_activate(JkEngine *engine);
 void jk_set_enter_commits(JkEngine *engine, uint32_t on);
-/* The mode, by id (spec §3.6): 0 = Mode A (JIS, the default), 1 = Mode B (US ANSI). */
+/* The mode, by id (spec §3.6): 0 = Mode A (JIS, the default), 1 = Mode B (US ANSI),
+ * 2 = Mode C (UK ISO). */
 void jk_set_mode(JkEngine *engine, uint32_t mode);
+/* Dedicated symbol keys (spec §3.6), on (1) by default. Off (0), Mode C's [ ] and ISO extra key
+ * type their UK ISO characters ([ { ] } \ |). Modes without optional symbol keys ignore it. */
+void jk_set_dedicated_symbols(JkEngine *engine, uint32_t on);
 uint32_t jk_mode_count(void);
 /* A mode's name (static UTF-8), for settings menus. */
 const uint8_t *jk_mode_name_ptr(uint32_t mode);

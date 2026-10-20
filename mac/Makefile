@@ -66,13 +66,14 @@ $(BUILD)/JISKorean: $(BUILD)/arm64/JISKorean $(BUILD)/x86_64/JISKorean
 # --- icons: the logo and one badge per mode, drawn in docs/logo (make_logo.py, render.sh) and
 #     committed as 16 px and 32 px PNGs; each pair becomes one .tiff
 
-ICONS := $(BUILD)/taegeuk.tiff $(BUILD)/mode-a.tiff $(BUILD)/mode-b.tiff
+ICONS := $(BUILD)/taegeuk.tiff $(BUILD)/mode-a.tiff $(BUILD)/mode-b.tiff $(BUILD)/mode-iso.tiff
 
 $(BUILD)/%.tiff: Resources/icons/%.png Resources/icons/%@2x.png
 	@mkdir -p $(BUILD)
 	tiffutil -cathidpicheck Resources/icons/$*.png Resources/icons/$*@2x.png -out $@
 
-# --- Keyboard Viewer layouts, one per mode: its legends on ABC (JIS for Mode A, ANSI for Mode B),
+# --- Keyboard Viewer layouts, one per mode: its legends on ABC (JIS for Mode A, ANSI for Mode B,
+#     ISO for Mode C),
 #     from the engine's layout tables. Mode n's legends are legends-n.tsv.
 
 $(BUILD)/legends-%.tsv: $(wildcard $(ENGINE)/src/*.rs) $(ENGINE)/examples/legends.rs
@@ -89,7 +90,10 @@ $(BUILD)/JISKorean.keylayout: $(BUILD)/make-keylayout $(BUILD)/legends-0.tsv
 $(BUILD)/JISKoreanANSI.keylayout: $(BUILD)/make-keylayout $(BUILD)/legends-1.tsv
 	$(BUILD)/make-keylayout $(BUILD)/legends-1.tsv $@ JISKoreanANSI ANSI -23457
 
-KEYLAYOUTS := $(BUILD)/JISKorean.keylayout $(BUILD)/JISKoreanANSI.keylayout
+$(BUILD)/JISKoreanISO.keylayout: $(BUILD)/make-keylayout $(BUILD)/legends-2.tsv
+	$(BUILD)/make-keylayout $(BUILD)/legends-2.tsv $@ JISKoreanISO ISO -23458
+
+KEYLAYOUTS := $(BUILD)/JISKorean.keylayout $(BUILD)/JISKoreanANSI.keylayout $(BUILD)/JISKoreanISO.keylayout
 
 # An earlier build installed the layout as its own bundle here; install removes it.
 LAYOUTS_TO    := $(HOME)/Library/Keyboard Layouts

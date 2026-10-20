@@ -42,18 +42,21 @@ quits the running copy. If it doesn't show up in the list, log out and back in o
 
 ## Modes and the public API (spec §3.6, §8.2)
 
-Mode A and Mode B are two input sources of the one input method, like Japanese – Kana and
+Modes A, B and C are three input sources of the one input method, like Japanese – Kana and
 Japanese – Romaji. `make install` enables Mode A (`me.sjun.inputmethod.JISKorean.2Set`); add Mode B
-(`me.sjun.inputmethod.JISKorean.2SetANSI`, "JIS Korean for US ANSI") in System Settings → Keyboard →
-Input Sources → + → Korean. If you're upgrading from a version without Mode B, log out and back in
-first: until then System Settings doesn't list the new mode. The mode follows the keyboard, not the app, which is why each mode is
+(`me.sjun.inputmethod.JISKorean.2SetANSI`, "JIS Korean for US ANSI") or Mode C
+(`me.sjun.inputmethod.JISKorean.2SetISO`, "JIS Korean for UK ISO") in System Settings → Keyboard →
+Input Sources → + → Korean. If you're upgrading from a version without that mode, log out and back
+in first: until then System Settings doesn't list the new mode. In Mode C, the input menu has
+**Dedicated Symbol Keys**: turn it off and [ ] and the key left of Z type their UK ISO characters
+(`[ {`, `] }`, `\ |`). The mode follows the keyboard, not the app, which is why each mode is
 its own input source that any tool can see and select.
 
 Any program can read the mode, hear it change, and, if the user turned on **Let Other Apps Change
 the Mode** in the input menu, change it:
 
 ```sh
-defaults read me.sjun.inputmethod.JISKorean CurrentMode       # A or B
+defaults read me.sjun.inputmethod.JISKorean CurrentMode       # A, B or C
 J=~/Library/"Input Methods"/JISKorean.app/Contents/MacOS/JISKorean
 "$J" mode                                                     # A  JIS Korean Original Layout  me.sjun…2Set
 "$J" mode B                                                   # needs the setting; prints the answer

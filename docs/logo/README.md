@@ -10,7 +10,7 @@ them, and draw your own badges with them; keep the copyright notice.
 | `taegeuk.svg` | The logo: the taegeuk alone. |
 | `mode-a.svg` | Mode A, JIS: the taegeuk and the ISO/JIS Enter. |
 | `mode-b.svg` | Mode B, US ANSI: the taegeuk, backslash and Enter. |
-| `mode-iso.svg` | Mode C, ISO (reserved, not implemented): the taegeuk, Caps Lock, Shift, the ISO extra key and Z. |
+| `mode-iso.svg` | Mode C, ISO: the taegeuk, Caps Lock, Shift, the ISO extra key and Z. |
 | `make_logo.py` | Draws all of the above. Edit this, never the SVGs. |
 | `render.sh` | Renders the SVGs to the 16 px and 32 px PNGs the macOS input method ships. |
 | `downscale.swift` | Scales `render.sh`'s 1024 px renders down to icon size with smooth edges. |
@@ -69,7 +69,7 @@ The taegeuk follows the construction of the flag of Korea:
 |---|---|
 | Mode A, JIS | Enter: 1.5 wide on the upper row, 1.25 on the lower (the step is on the left), 2 rows tall |
 | Mode B, US ANSI | Backslash 1.5 × 1, above Enter 2.25 × 1, right edges aligned |
-| Future ISO | Caps Lock 1.75 × 1, above Shift 1.25, the extra key 1 (hollow) and Z 1 |
+| Mode C, ISO | Caps Lock 1.75 × 1, above Shift 1.25, the extra key 1 (hollow) and Z 1 |
 
 ### The cut-outs (masks)
 

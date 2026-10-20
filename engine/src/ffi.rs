@@ -90,10 +90,18 @@ pub extern "C" fn jk_set_enter_commits(handle: *mut JkEngine, on: u32) {
     with(handle, (), |h| h.engine.set_enter_commits(on != 0))
 }
 
-/// The mode, by id (spec §3.6): 0 = Mode A (JIS), 1 = Mode B (US ANSI). Unknown ids: Mode A.
+/// The mode, by id (spec §3.6): 0 = Mode A (JIS), 1 = Mode B (US ANSI), 2 = Mode C (UK ISO).
+/// Unknown ids: Mode A.
 #[unsafe(no_mangle)]
 pub extern "C" fn jk_set_mode(handle: *mut JkEngine, mode: u32) {
     with(handle, (), |h| h.engine.set_mode(Mode::from_id(mode)))
+}
+
+/// Setting: Dedicated symbol keys (spec §3.6), on (1) by default. Off (0), Mode C's [ ] and ISO
+/// extra key type their UK ISO characters ([ { ] } \ |). Modes without optional symbol keys ignore it.
+#[unsafe(no_mangle)]
+pub extern "C" fn jk_set_dedicated_symbols(handle: *mut JkEngine, on: u32) {
+    with(handle, (), |h| h.engine.set_dedicated_symbols(on != 0))
 }
 
 /// How many modes there are; their ids are 0 to count − 1.

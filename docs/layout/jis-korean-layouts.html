@@ -367,7 +367,7 @@ footer {
 <main>
   <header>
     <h1>JIS Korean layouts</h1>
-    <p class="lede">Korean 2-set (두벌식) for JIS keyboards, and in Mode B for US ANSI. Every standard 2-set key still types what it always did; the extra keys add double consonants, compound vowels, Korean punctuation and F6–F10 conversions.</p>
+    <p class="lede">Korean 2-set (두벌식) for JIS keyboards, in Mode B for US ANSI and in Mode C for UK ISO. Every standard 2-set key still types what it always did; the extra keys add double consonants, compound vowels, Korean punctuation and F6–F10 conversions.</p>
   </header>
 
   <section class="mode" aria-labelledby="mode-a">
@@ -418,6 +418,27 @@ footer {
       <div><dt>Everything else is US ANSI</dt><dd>By design, every other key types what it always did, so each symbol stays where a US typist expects it. Predictions read the keys as US ANSI too: Shift+2 suggests @, not ".</dd></div>
       <div><dt>Use it as-is, or fork it</dt><dd>Keep Mode B as it is to keep every symbol where you know it, or fork it to fit your typing or your keyboard. A mode is two key tables (docs/modes.md).</dd></div>
       <div><dt>Function keys</dt><dd>On an HHKB, F6–F10 are Fn+6 to Fn+0. On a MacBook they're fn+F6 to fn+F10, or the plain keys with “Use F1, F2, etc. keys as standard function keys” on.</dd></div>
+    </dl>
+  </section>
+
+  <section class="mode" aria-labelledby="mode-c">
+    <div class="mode-head">
+      <span class="eyebrow">Mode C</span>
+      <h2 id="mode-c">JIS Korean for UK ISO</h2>
+      <span class="subtitle">UK and other ISO keyboards</span>
+    </div>
+    <div class="board"><div class="plate" id="board-c" role="img" aria-label="Mode C on a UK ISO keyboard"></div></div>
+    <div class="swatches">
+      <span class="swatch"><i></i>Standard 2-set, fixed by the core principle</span>
+      <span class="swatch"><i class="sym"></i>Dedicated keys</span>
+      <span class="swatch"><i class="fn"></i>Function keys</span>
+      <span class="swatch"><i class="stock"></i>UK ISO, unchanged by design</span>
+    </div>
+    <dl class="notes">
+      <div><dt>Mode B's pattern</dt><dd>The letter keys, 1–0 with digits on Shift, Shift+Z as F10, F6–F10, and [ ] with 「 」 on Shift, as in Mode B. Every other key types what UK ISO prints on it.</dd></div>
+      <div><dt>The key left of Z</dt><dd>The one key ISO adds: the middle dot · alone and the em dash — with Shift, two marks UK ISO has no key for.</dd></div>
+      <div><dt>Dedicated symbol keys</dt><dd>A setting, on by default. Off, <kbd>[</kbd>, <kbd>]</kbd> and the key left of Z type their UK ISO characters ([ { ] } \ |). The number row stays Korean.</dd></div>
+      <div><dt>Other ISO countries</dt><dd>Korean goes by key position, so it types the same on German, French or Nordic boards; only the symbols read through F8 and the predictions are UK's. Fork the mode for your country's symbols (docs/modes.md).</dd></div>
     </dl>
   </section>
 
@@ -483,6 +504,20 @@ const B_MAC = {
   ],
 };
 
+// Mode C's typing area (spec §3.6): Mode B's pattern on UK ISO (PC legends), and the extra key
+// between left Shift and Z. Its row starts after a short (1.25-unit) left Shift.
+const C = {
+  fn: A.fn,
+  fnOffset: 6,
+  fnShort: true,
+  rows: [
+    { offset: 0, keys: [stock("`", "¬")].concat(A.rows[0].keys.slice(0, 10), [stock("-", "_"), stock("=", "+")]) },
+    { offset: 1.5, keys: qRow },
+    { offset: 1.75, keys: A.rows[2].keys.slice(0, 9).concat([stock(";", ":"), stock("'", "@"), stock("#", "~")]) },
+    { offset: 1.25, keys: [["·", "—", "\\", "sym"]].concat(zRow) },
+  ],
+};
+
 function span(cls, text) {
   const s = document.createElement("span");
   s.className = cls;
@@ -523,6 +558,7 @@ function draw(plate, layout) {
 draw(document.getElementById("board-a"), A);
 draw(document.getElementById("board-b-hhkb"), B_HHKB);
 draw(document.getElementById("board-b-mac"), B_MAC);
+draw(document.getElementById("board-c"), C);
 document.documentElement.dataset.height = document.documentElement.scrollHeight;
 </script>
 </body>

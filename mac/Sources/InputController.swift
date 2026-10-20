@@ -2,6 +2,8 @@ import Cocoa
 import InputMethodKit
 
 private let enterCommitsDefault = "EnterCommits"
+/// Dedicated symbol keys (spec §3.6): Mode C's [ ] and ISO extra key. On by default.
+private let symbolKeysDefault = "DedicatedSymbolKeys"
 #if PREDICT
 private let predictionsDefault = "Predictions"
 /// Learning from the user's choices (spec §10.11): opt-in, stays on this Mac.
@@ -98,6 +100,12 @@ final class JKInputController: IMKInputController {
         applyPredictionsSetting()
         #endif
         jk_set_enter_commits(engine, UserDefaults.standard.bool(forKey: enterCommitsDefault) ? 1 : 0)
+        applySymbolKeysSetting()
+    }
+
+    private func applySymbolKeysSetting() {
+        UserDefaults.standard.register(defaults: [symbolKeysDefault: true])
+        jk_set_dedicated_symbols(engine, UserDefaults.standard.bool(forKey: symbolKeysDefault) ? 1 : 0)
     }
 
     /// The system names the input mode the user picked: JIS Korean's modes are input modes.
@@ -171,6 +179,13 @@ final class JKInputController: IMKInputController {
         let item = NSMenuItem(title: "Enter Commits Without a New Line", action: #selector(toggleEnterCommits(_:)), keyEquivalent: "")
         item.state = UserDefaults.standard.bool(forKey: enterCommitsDefault) ? .on : .off
         menu.addItem(item)
+        // Only Mode C has optional symbol keys (spec §3.6).
+        if InputModes.current.id == 2 {
+            let symbols = NSMenuItem(title: "Dedicated Symbol Keys ([ ] and the Key Left of Z)", action: #selector(toggleSymbolKeys(_:)), keyEquivalent: "")
+            UserDefaults.standard.register(defaults: [symbolKeysDefault: true])
+            symbols.state = UserDefaults.standard.bool(forKey: symbolKeysDefault) ? .on : .off
+            menu.addItem(symbols)
+        }
         // The public API's one setting (spec §8.2): reading the mode is always open, changing it isn't.
         let allow = NSMenuItem(title: "Let Other Apps Change the Mode", action: #selector(toggleAllowModeChange(_:)), keyEquivalent: "")
         allow.state = PublicAPI.allowed ? .on : .off
@@ -180,6 +195,12 @@ final class JKInputController: IMKInputController {
 
     @objc func toggleAllowModeChange(_ sender: Any?) {
         UserDefaults.standard.set(!PublicAPI.allowed, forKey: PublicAPI.allowKey)
+    }
+
+    @objc func toggleSymbolKeys(_ sender: Any?) {
+        UserDefaults.standard.register(defaults: [symbolKeysDefault: true])
+        UserDefaults.standard.set(!UserDefaults.standard.bool(forKey: symbolKeysDefault), forKey: symbolKeysDefault)
+        applySymbolKeysSetting()
     }
 
     @objc func toggleEnterCommits(_ sender: Any?) {

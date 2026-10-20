@@ -14,7 +14,7 @@
 use std::collections::HashMap;
 
 use crate::plan::{Press, is_compat_jamo, is_syllable};
-use crate::{Engine, Key, Layout, Mods, output_in};
+use crate::{Engine, Key, Layout, Mods, output_with};
 
 /// The most presses in a combination: a longer range is cut to it.
 pub const MAX_PRESSES: i64 = 16;
@@ -42,7 +42,7 @@ pub fn key_input(template: &Engine, press: &str) -> Option<String> {
     if p.key == Key::KeyZ && p.shift {
         return None;
     }
-    output_in(template.mode(), Layout::JisKorean, p.key, p.shift).map(|out| out.char().to_string())
+    output_with(template.mode(), template.dedicated_symbols(), Layout::JisKorean, p.key, p.shift).map(|out| out.char().to_string())
 }
 
 /// What the field shows after `context` (text typed so far, still unconfirmed) and then the key:
@@ -188,17 +188,17 @@ fn search(
 /// and Enter. Backspace, Esc, the arrows, Tab and Shift+Enter are left out: they never shorten a way
 /// to type something.
 fn alphabet(template: &Engine, text: &str, targets: &[Vec<char>]) -> Vec<Press> {
-    let mode = template.mode();
+    let (mode, symbols) = (template.mode(), template.dedicated_symbols());
     let wanted: std::collections::HashSet<char> = targets.iter().flatten().copied().collect();
     let part_of_text = |c: char| stream(&c.to_string()).iter().all(|c| wanted.contains(c));
     let useful = |p: Press| {
-        [Layout::JisKorean, Layout::Escaped].iter().any(|&l| output_in(mode, l, p.key, p.shift).is_some_and(|out| part_of_text(out.char())))
+        [Layout::JisKorean, Layout::Escaped].iter().any(|&l| output_with(mode, symbols, l, p.key, p.shift).is_some_and(|out| part_of_text(out.char())))
             || p.key.letter().or(p.key.digit()).is_some_and(|c| wanted.contains(&c))
     };
     let mut presses = Vec::new();
     for shift in [false, true] {
         presses.extend(Key::ALL.iter().map(|&key| Press { key, shift }).filter(|&p| {
-            [Layout::JisKorean, Layout::Escaped].iter().any(|&l| output_in(mode, l, p.key, false).is_some()) && useful(p)
+            [Layout::JisKorean, Layout::Escaped].iter().any(|&l| output_with(mode, symbols, l, p.key, false).is_some()) && useful(p)
         }));
     }
     let has = |f: &dyn Fn(char) -> bool| text.chars().any(f);
@@ -245,7 +245,7 @@ impl Field {
     fn can_press(&self, p: Press) -> bool {
         let layout = if self.engine.is_escaped() { Layout::Escaped } else { Layout::JisKorean };
         matches!(p.key, Key::F6 | Key::F7 | Key::F8 | Key::F9 | Key::F10 | Key::Space | Key::Enter)
-            || output_in(self.engine.mode(), layout, p.key, p.shift).is_some()
+            || output_with(self.engine.mode(), self.engine.dedicated_symbols(), layout, p.key, p.shift).is_some()
     }
 
     /// The top prediction, when the marked text shows it instead of the Korean reading.

@@ -7,11 +7,11 @@ browser playground.
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/layout/jis-korean-layouts-dark.png">
-  <img alt="The JIS Korean layouts. Mode A, for JIS keyboards: double consonants and compound vowels on the number row, Korean punctuation on the symbol keys, and 한글 / 한자 / 두벌식 / 전각 / 반각 on F6–F10. Mode B, for US ANSI keyboards (HHKB US and MacBook): the same number row and brackets, and every other key as US ANSI has it." src="docs/layout/jis-korean-layouts-light.png">
+  <img alt="The JIS Korean layouts. Mode A, for JIS keyboards: double consonants and compound vowels on the number row, Korean punctuation on the symbol keys, and 한글 / 한자 / 두벌식 / 전각 / 반각 on F6–F10. Mode B, for US ANSI keyboards (HHKB US and MacBook): the same number row and brackets, and every other key as US ANSI has it. Mode C, for UK ISO keyboards: Mode B's pattern on UK symbols, with the middle dot and em dash on the extra key left of Z." src="docs/layout/jis-korean-layouts-light.png">
 </picture>
 
-Mode A is the original layout, built for JIS. Mode B carries it onto US ANSI keyboards
-([spec §3.6](docs/spec.md#36-modes)); adding a mode of your own is described in
+Mode A is the original layout, built for JIS. Mode B carries it onto US ANSI keyboards, and Mode C
+onto UK ISO keyboards ([spec §3.6](docs/spec.md#36-modes)); adding a mode of your own is described in
 [docs/modes.md](docs/modes.md). The drawing is [docs/layout/jis-korean-layouts.html](docs/layout/jis-korean-layouts.html).
 
 - Spec: [docs/spec.md](docs/spec.md)

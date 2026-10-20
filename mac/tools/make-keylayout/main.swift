@@ -2,9 +2,9 @@
 // §8.1). The unshifted and Shift layers carry the mode's legends, from the engine
 // (`cargo run --example legends <mode id>`, by key id) through Sources/KeyMap.swift (key code → key
 // id). Every other layer, and every key the engine doesn't label, is ABC's on the mode's keyboard
-// (JIS or ANSI), read from this Mac: Cmd and Ctrl shortcuts and Option characters stay exactly as
+// (JIS, ANSI or ISO), read from this Mac: Cmd and Ctrl shortcuts and Option characters stay exactly as
 // they are.
-// Usage: make-keylayout <legends.tsv> <out.keylayout> <name> <JIS|ANSI> <id>   (built by the Makefile
+// Usage: make-keylayout <legends.tsv> <out.keylayout> <name> <JIS|ANSI|ISO> <id>   (built by the Makefile
 // with KeyMap.swift and the engine header; name and id must be unique among the bundle's layouts)
 
 import Carbon
@@ -12,9 +12,9 @@ import Foundation
 
 let arguments = CommandLine.arguments
 guard arguments.count == 6, let tsv = try? String(contentsOfFile: arguments[1], encoding: .utf8),
-      ["JIS", "ANSI"].contains(arguments[4]), let layoutID = Int(arguments[5])
+      ["JIS", "ANSI", "ISO"].contains(arguments[4]), let layoutID = Int(arguments[5])
 else {
-    FileHandle.standardError.write("usage: make-keylayout <legends.tsv> <out.keylayout> <name> <JIS|ANSI> <id>\n".data(using: .utf8)!)
+    FileHandle.standardError.write("usage: make-keylayout <legends.tsv> <out.keylayout> <name> <JIS|ANSI|ISO> <id>\n".data(using: .utf8)!)
     exit(2)
 }
 let (name, board) = (arguments[3], arguments[4])
@@ -30,7 +30,8 @@ for line in tsv.split(separator: "\n") {
 
 // ABC on the mode's keyboard, as macOS translates it.
 var keyboardType: UInt32 = 0
-for t in 0..<256 where KBGetLayoutType(Int16(t)) == OSType(board == "JIS" ? kKeyboardJIS : kKeyboardANSI) {
+let boardType = ["JIS": kKeyboardJIS, "ANSI": kKeyboardANSI, "ISO": kKeyboardISO][board]!
+for t in 0..<256 where KBGetLayoutType(Int16(t)) == OSType(boardType) {
     keyboardType = UInt32(t)
     break
 }
@@ -81,7 +82,7 @@ for (index, modifiers) in layers.enumerated() {
     xml += "    <keyMap index=\"\(index)\">\n"
     for code in 0..<128 {
         var out = abcOutput(code, modifiers)
-        if index < 2, let id = keyMap[code], let legend = legends[id] {
+        if index < 2, let id = (board == "ISO" ? isoKeyMap : keyMap)[code], let legend = legends[id] {
             out = index == 0 ? legend.0 : legend.1
         }
         if !out.isEmpty {

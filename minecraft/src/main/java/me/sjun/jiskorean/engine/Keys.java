@@ -49,6 +49,7 @@ public final class Keys {
 			case 48 -> "BracketRight";
 			case 51 -> "Semicolon";
 			case 53 -> "Backquote";
+			case 100 -> "IntlBackslash";
 			case 52 -> "Quote";
 			// JIS ] arrives as backslash on macOS and as non-US # elsewhere.
 			case 49, 50 -> "Backslash";

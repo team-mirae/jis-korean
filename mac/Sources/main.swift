@@ -1,7 +1,7 @@
 import Cocoa
 import InputMethodKit
 
-// `JISKorean mode [A|B]`: the public API from the command line (spec §8.2), not the input method.
+// `JISKorean mode [A|B|C]`: the public API from the command line (spec §8.2), not the input method.
 if CommandLine.arguments.count > 1 {
     exit(PublicAPI.runCommand(Array(CommandLine.arguments.dropFirst())))
 }
