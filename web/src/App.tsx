@@ -37,6 +37,13 @@ export function App({ engine }: { engine: Engine }) {
   const [escaped, setEscaped] = useState(false);
   const [shift, setShift] = useState(false);
   const [enterCommits, setEnterCommits] = useState(false);
+  // Mode B (spec §3.6): JIS Korean for US ANSI keyboards. Remembered per browser.
+  // The engine's mode is set before the first render, so the key legends match it.
+  const [modeB, setModeB] = useState(() => {
+    const b = loadSetting("modeB", false);
+    engine.setMode(b ? 1 : 0);
+    return b;
+  });
   const [pressed, setPressed] = useState<Set<string>>(new Set());
   const [focused, setFocused] = useState(false);
   const [candidates, setCandidates] = useState<Candidates | null>(null);
@@ -163,6 +170,15 @@ export function App({ engine }: { engine: Engine }) {
     const out = engine.key(code, mods);
     apply(out, code, mods);
     return out;
+  }
+
+  /** Switches between Mode A and Mode B, committing what's staged first. */
+  function changeMode(b: boolean) {
+    if (b === modeB) return;
+    apply(engine.flush(), "", {});
+    engine.setMode(b ? 1 : 0);
+    setModeB(b);
+    saveSetting("modeB", b);
   }
 
   function onKeyDown(e: ReactKeyboardEvent) {
@@ -352,14 +368,32 @@ export function App({ engine }: { engine: Engine }) {
         </div>
         <p className="lede">
           Korean 2-set (두벌식) for JIS keyboards: double consonants and compound vowels on the number row, Korean
-          punctuation on the symbol keys, and Japanese-IME-style F6–F10. Try it here before installing.
+          punctuation on the symbol keys, and Japanese-IME-style F6–F10. Try it here before installing; on a US
+          keyboard, try Mode B.
         </p>
       </header>
 
       <section className="editor" aria-label="Try it">
         <div className="status">
+          <span className="samples" role="group" aria-label="Mode">
+            {[
+              { b: false, label: "Mode A · JIS", title: "JIS Korean Original Layout, for JIS keyboards" },
+              { b: true, label: "Mode B · US ANSI", title: "JIS Korean for US ANSI keyboards" },
+            ].map(({ b, label, title }) => (
+              <button
+                key={label}
+                type="button"
+                title={title}
+                aria-pressed={modeB === b}
+                onMouseDown={(e) => e.preventDefault()}
+                onClick={() => changeMode(b)}
+              >
+                {label}
+              </button>
+            ))}
+          </span>
           <span className={"chip" + (escaped ? " escaped" : "")}>
-            {escaped ? "Standard 2-set · Shift+F8 returns" : "JIS Korean"}
+            {escaped ? "Standard 2-set · Shift+F8 returns" : modeB ? "JIS Korean for US ANSI" : "JIS Korean"}
           </span>
           <span className="hint">{focused ? "Use an English input source on your OS." : "Click the box to type."}</span>
           <span className="spacer" />
@@ -461,6 +495,7 @@ export function App({ engine }: { engine: Engine }) {
 
       <Keyboard
         engine={engine}
+        ansi={modeB}
         escaped={escaped}
         shift={shift}
         pressed={pressed}

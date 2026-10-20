@@ -1119,3 +1119,14 @@ main.floating-keyboard .caret {
     display: none;
   }
 }
+
+/* Mode B: the US ANSI board is 15 keys wide (a MacBook's rows, with \ 1.5 keys wide). */
+.board.ansi {
+  --u: min(52px, calc((100vw - 32px) / 15.6));
+}
+
+.key.wide {
+  width: calc(var(--u) * 1.5 - var(--gap));
+  height: calc(var(--u) - var(--gap));
+  aspect-ratio: auto;
+}
