@@ -853,8 +853,9 @@ before F9/F10, a hanja's reading before F7). Every combination returned is check
 ### 8.4 Windows: modes, 한/영 and settings
 
 **One input method, the mode as a setting.** Windows lists one keyboard, **JIS Korean** (ko-KR),
-and the mode (§3.6) is chosen in its menu (right-click the taskbar indicator): Mode A or Mode B,
-one setting for every app, Mode A by default. This differs from macOS (§8.2) on purpose: on
+and the mode (§3.6) is chosen in its menu (right-click the taskbar indicator): Mode A, B or C,
+listed from the engine's modes, one setting for every app, Mode A by default. In Mode C the menu
+also has Dedicated symbol keys (§3.6). This differs from macOS (§8.2) on purpose: on
 Windows each input method is one more entry in the Win+Space list and in the language settings,
 and none of the tools that read input sources there select them by ID the way Hammerspoon and
 Karabiner do on macOS, so a mode per input method would cost more than it gives. The reason the
@@ -881,8 +882,8 @@ banking and certificate programs) can't be told apart from text: there the user 
 or turns JIS Korean off for that program in the menu (`Apps\<program.exe>\Off`), which passes
 every key through there only.
 
-**Settings** are the macOS ones, stored in `HKCU\Software\JIS Korean` (`Mode`, `Predictions`,
-`EnterCommits`, `LearnFromChoices`, `Learned`, `Weight.<Scenario>`, per app
+**Settings** are the macOS ones, stored in `HKCU\Software\JIS Korean` (`Mode` by engine id,
+`DedicatedSymbols`, `Predictions`, `EnterCommits`, `LearnFromChoices`, `Learned`, `Weight.<Scenario>`, per app
 `Apps\<program.exe>\Predictions`); the default-off apps (§10.11.1) are matched by program file name.
 The training file is `%APPDATA%\JIS Korean\training.json`. The Minecraft mod reads `Mode` to type
 the same mode in the game.

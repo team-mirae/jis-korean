@@ -62,7 +62,7 @@ bool Lookup(const std::wstring& name, Key* key) {
         {L"KeyA", {0x1E}}, {L"KeyS", {0x1F}}, {L"KeyD", {0x20}}, {L"KeyF", {0x21}},
         {L"KeyG", {0x22}}, {L"KeyH", {0x23}}, {L"KeyJ", {0x24}}, {L"KeyK", {0x25}},
         {L"KeyL", {0x26}}, {L"Semicolon", {0x27}}, {L"Quote", {0x28}}, {L"Backquote", {0x29}},
-        {L"Backslash", {0x2B}}, {L"KeyZ", {0x2C}}, {L"KeyX", {0x2D}}, {L"KeyC", {0x2E}},
+        {L"Backslash", {0x2B}}, {L"IntlBackslash", {0x56}}, {L"KeyZ", {0x2C}}, {L"KeyX", {0x2D}}, {L"KeyC", {0x2E}},
         {L"KeyV", {0x2F}}, {L"KeyB", {0x30}}, {L"KeyN", {0x31}}, {L"KeyM", {0x32}},
         {L"Comma", {0x33}}, {L"Period", {0x34}}, {L"Slash", {0x35}}, {L"Space", {0x39}},
         {L"Enter", {0x1C}}, {L"Backspace", {0x0E}}, {L"Escape", {0x01}}, {L"Tab", {0x0F}},

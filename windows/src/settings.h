@@ -3,6 +3,8 @@
 // apps). Values:
 //
 //   Predictions        DWORD  1  the predictive layer (spec §10)
+//   Mode               DWORD  0  the mode by engine id: 0 A (JIS), 1 B (US ANSI), 2 C (UK ISO)
+//   DedicatedSymbols   DWORD  1  Mode C's [ ] and ISO extra key type its symbols (spec §3.6)
 //   EnterCommits       DWORD  0  Enter commits without a new line (spec §5.1)
 //   LearnFromChoices   DWORD  0  learning from the user's choices (spec §10.11)
 //   Learned            SZ        what was learned: one line of counts, no text or keys

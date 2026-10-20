@@ -19,7 +19,7 @@ public:
     LangBarButton(const LangBarButton&) = delete;
     LangBarButton& operator=(const LangBarButton&) = delete;
 
-    // `mode` (0 = A, 1 = B) names the tooltip; `open` false shows ABC instead of 한글.
+    // `mode` (engine id: 0 = A, 1 = B, 2 = C) names the tooltip; `open` false shows ABC, not 한글.
     void SetState(unsigned mode, bool open);
     void Detach();  // drops the callbacks (the text service is going away)
 

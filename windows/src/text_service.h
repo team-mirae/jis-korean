@@ -98,7 +98,7 @@ private:
     void ApplySettings();
     void Activated();  // settings, then a changed training file (spec §10.12)
     void EnsureData();  // the dictionary and predictor, before the first key
-    void SetMode(unsigned mode);  // 0 = Mode A (JIS), 1 = Mode B (US ANSI), spec §3.6
+    void SetMode(unsigned mode);  // by engine id: 0 = Mode A (JIS), 1 = B (US ANSI), 2 = C (UK ISO)
 
 #ifdef JK_PREDICT
     // ↓ / Tab and ↑ move through the predictions, Escape leaves the list, Enter commits the

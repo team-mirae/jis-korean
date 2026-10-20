@@ -77,7 +77,8 @@ final class SystemMode {
 
 	/**
 	 * The mode in {@code reg query <key> /v Mode} output, a line such as
-	 * {@code "    Mode    REG_DWORD    0x1"}: 1 for Mode B, else Mode A; -1 if there's none.
+	 * {@code "    Mode    REG_DWORD    0x1"}: the mode id as stored (0 A, 1 B, 2 C), as the macOS
+	 * path passes {@code CurrentModeID} on; -1 if there's none.
 	 */
 	static int parseRegQuery(String out) {
 		for (String line : out.split("\\R")) {
@@ -85,7 +86,7 @@ final class SystemMode {
 			if (fields.length == 3 && fields[0].equals("Mode") && fields[1].equals("REG_DWORD")
 					&& fields[2].startsWith("0x")) {
 				try {
-					return Integer.parseInt(fields[2].substring(2), 16) == 1 ? 1 : MODE_A;
+					return Integer.parseInt(fields[2].substring(2), 16);
 				} catch (NumberFormatException e) {
 					return -1;
 				}

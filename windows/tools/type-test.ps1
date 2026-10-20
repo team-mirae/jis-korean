@@ -13,7 +13,7 @@ $pad = Resolve-Path "$PSScriptRoot\..\build\x64\jk_testpad.exe"
 $key = 'HKCU:\Software\JIS Korean'
 if (-not (Test-Path $key)) { New-Item $key | Out-Null }
 
-# name, Mode (0 A, 1 B), Predictions, keys, expected text in the control
+# name, Mode (0 A, 1 B, 2 C), Predictions, keys, expected text in the control[, DedicatedSymbols]
 $cases = @(
     @('한글 안녕 (Space commits)', 0, 0, 'KeyG KeyK KeyS KeyR KeyM KeyF Space KeyD KeyK KeyS KeyS KeyU KeyD Space', '한글 안녕 '),
     @('Enter commits, new line', 0, 0, 'KeyG KeyK KeyS Enter KeyG KeyK Space', "한`r`n하 "),
@@ -35,7 +35,9 @@ $cases = @(
     @('Mode B: 한', 1, 0, 'KeyG KeyK KeyS Space', '한 '),
     @('한/영: ABC passes keys, back to 한글', 1, 0, 'KeyG KeyK Hangul KeyG KeyK Space Hangul KeyG KeyK Space', '하gk 하 '),
     @('predictions: hello', 1, 1, 'KeyH KeyE KeyL KeyL KeyO Space', 'hello '),
-    @('predictions: 한글 stays Korean', 1, 1, 'KeyG KeyK KeyS KeyR KeyM KeyF Space', '한글 ')
+    @('predictions: 한글 stays Korean', 1, 1, 'KeyG KeyK KeyS KeyR KeyM KeyF Space', '한글 '),
+    @('Mode C: ISO key · —, Shift+[ 「', 2, 0, 'IntlBackslash S-IntlBackslash S-BracketLeft KeyG KeyK KeyS Space', '·—「한 '),
+    @('Mode C, dedicated symbol keys off', 2, 0, 'IntlBackslash S-IntlBackslash S-BracketLeft Space', '\|{ ', 0)
 )
 # Password fields: every key passes through untouched (ABC), with predictions on.
 # (The leading comma keeps a one-case list a list of cases: PowerShell would unroll it.)
@@ -44,7 +46,7 @@ $passwordCases = @(
 )
 
 $saved = @{}
-foreach ($name in 'Mode', 'Predictions') {
+foreach ($name in 'Mode', 'Predictions', 'DedicatedSymbols') {
     $saved[$name] = (Get-ItemProperty $key -Name $name -ErrorAction SilentlyContinue).$name
 }
 $failed = 0
@@ -54,6 +56,7 @@ try {
         if ($Filter -and $c[0] -notlike "*$Filter*") { continue }
         Set-ItemProperty $key Mode $c[1] -Type DWord
         Set-ItemProperty $key Predictions $c[2] -Type DWord
+        Set-ItemProperty $key DedicatedSymbols $(if ($c.Count -gt 5) { $c[5] } else { 1 }) -Type DWord
         $targets = if ([object]::ReferenceEquals($c, $passwordCases[0])) { @('password', 'pwscope') } else { $Target }
         foreach ($t in $targets) {
             Remove-Item $out -ErrorAction SilentlyContinue

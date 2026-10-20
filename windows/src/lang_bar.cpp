@@ -10,6 +10,7 @@
 
 #include "dll.h"
 #include "guids.h"
+#include "jis_korean.h"
 #include "log.h"
 
 namespace jk {
@@ -261,7 +262,15 @@ STDMETHODIMP LangBarButton::Show(BOOL) { return E_NOTIMPL; }
 
 STDMETHODIMP LangBarButton::GetTooltipString(BSTR* tooltip) {
     if (!tooltip) return E_INVALIDARG;
-    std::wstring text = mode_ == 1 ? L"JIS Korean, Mode B (US ANSI)" : L"JIS Korean, Mode A (JIS)";
+    // "JIS Korean, Mode B: JIS Korean for US ANSI", from the engine's mode names (spec §3.6).
+    std::wstring text = L"JIS Korean";
+    if (mode_ < jk_mode_count()) {
+        const std::string name(reinterpret_cast<const char*>(jk_mode_name_ptr(mode_)), jk_mode_name_len(mode_));
+        std::wstring wide(name.size(), L'\0');
+        wide.resize(static_cast<size_t>(MultiByteToWideChar(CP_UTF8, 0, name.data(), static_cast<int>(name.size()),
+                                                            wide.data(), static_cast<int>(wide.size()))));
+        text += L", Mode " + std::wstring(1, static_cast<wchar_t>(L'A' + mode_)) + L": " + wide;
+    }
     text += open_ ? L": 한글" : L": ABC (한/영)";
     *tooltip = SysAllocString(text.c_str());
     return *tooltip ? S_OK : E_OUTOFMEMORY;

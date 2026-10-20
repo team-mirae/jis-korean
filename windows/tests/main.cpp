@@ -31,9 +31,11 @@ struct Press {
 };
 
 // Types `presses` into a fresh engine in `mode`; returns everything committed + the preedit.
-std::string Type(unsigned mode, const std::vector<Press>& presses, std::string* preedit = nullptr) {
+std::string Type(unsigned mode, const std::vector<Press>& presses, std::string* preedit = nullptr,
+                 bool dedicated_symbols = true) {
     JkEngine* e = jk_new();
     jk_set_mode(e, mode);
+    jk_set_dedicated_symbols(e, dedicated_symbols ? 1 : 0);
     std::string committed;
     for (const Press& p : presses) {
         jk_key(e, jk::EngineKey(p.vk, p.scan, false), p.shift ? JK_MOD_SHIFT : 0);
@@ -61,7 +63,7 @@ int main() {
         {0x1B, "BracketRight"}, {0x1E, "KeyA"}, {0x26, "KeyL"},    {0x27, "Semicolon"},
         {0x28, "Quote"},  {0x2B, "Backslash"}, {0x2C, "KeyZ"},     {0x32, "KeyM"},
         {0x33, "Comma"},  {0x34, "Period"}, {0x35, "Slash"},       {0x73, "IntlRo"},
-        {0x29, "Backquote"},
+        {0x29, "Backquote"}, {0x56, "IntlBackslash"},
     };
     for (const Case& c : cases) {
         const std::uint32_t key = jk::EngineKey(0xE5 /* VK_PROCESSKEY: ignored */, c.scan, false);
@@ -90,6 +92,15 @@ int main() {
     Check((Type(1, {{0xDB, 0x1A, true}}, &preedit), preedit == "「"), "Mode B Shift+[ → 「");
     // Mode A: the @ key (US [) is ' (spec §3.2).
     Check((Type(0, {{0xDB, 0x1A}}, &preedit), preedit == "'"), "Mode A @ → '");
+    // Mode C (spec §3.6): the ISO extra key types · and —, [ types 「 with Shift; with Dedicated
+    // symbol keys off they're UK ISO's \ | and { again.
+    Check(jk_mode_count() >= 3, "three modes");
+    const Press iso = {0xE2, 0x56}, iso_shift = {0xE2, 0x56, true}, bracket_shift = {0xDB, 0x1A, true};
+    Check((Type(2, {iso, iso_shift, bracket_shift}, &preedit), preedit == "\xC2\xB7\xE2\x80\x94\xE3\x80\x8C"),
+          "Mode C: extra key · —, Shift+[ 「");
+    Check((Type(2, {iso, iso_shift, bracket_shift}, &preedit, false), preedit == "\\|{"),
+          "Mode C, dedicated symbol keys off: \\ | {");
+    Check((Type(1, {iso}, &preedit), preedit.empty()), "the ISO extra key isn't in Mode B");
 
     // The training-file reader (training.cpp): the repo's example, escapes, and bad input.
     {

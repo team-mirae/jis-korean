@@ -32,8 +32,7 @@ constexpr const wchar_t* kWeightNames[] = {L"Korean", L"English", L"Implied", L"
 // The settings menu (lang_bar.h).
 enum MenuId : UINT {
     kMenuEnglish = 1,
-    kMenuModeA,
-    kMenuModeB,
+    kMenuDedicatedSymbols,
     kMenuPredictions,
     kMenuAppPredictions,
     kMenuLearning,
@@ -41,7 +40,11 @@ enum MenuId : UINT {
     kMenuTrainingFolder,
     kMenuAppOff,
     kMenuEnterCommits,
+    kMenuModeFirst = 100,  // + the mode id (spec §3.6), one per engine mode
 };
+
+// Mode C (spec §3.6), the mode whose symbol keys are optional (Dedicated symbol keys).
+constexpr unsigned kModeC = 2;
 
 std::wstring Utf16(const std::uint8_t* data, size_t length) {
     if (!data || !length) return {};
@@ -612,7 +615,9 @@ void TextService::SaveLearned() {
 void TextService::ApplySettings() {
     app_off_ = settings::AppOff(settings::ExeName());
     // The mode follows the keyboard, not the app: one setting for every app (spec §8.4).
-    SetMode(settings::ReadDword(L"Mode", 0) == 1 ? 1 : 0);
+    const unsigned long mode = settings::ReadDword(L"Mode", 0);
+    SetMode(mode < jk_mode_count() ? static_cast<unsigned>(mode) : 0);
+    jk_set_dedicated_symbols(engine_, settings::ReadDword(L"DedicatedSymbols", 1) ? 1 : 0);
     jk_set_enter_commits(engine_, settings::ReadDword(L"EnterCommits", 0) ? 1 : 0);
 #ifdef JK_PREDICT
     const bool on = settings::ReadDword(L"Predictions", 1) != 0 &&
@@ -660,8 +665,16 @@ void TextService::InitMenu(ITfMenu* menu) {
     add(kMenuEnglish, L"ABC: Keys Pass Through (한/영)", !open_);
     add(kMenuAppOff, L"Off in " + settings::ExeName() + L" (Keys Pass Through There)", app_off_);
     separator();
-    add(kMenuModeA, L"Mode A: JIS Korean (JIS Keyboards)", mode_ == 0);
-    add(kMenuModeB, L"Mode B: JIS Korean for US ANSI", mode_ == 1);
+    // Every mode the engine has, by its own name (spec §3.6): Mode A: JIS Korean Original Layout...
+    for (std::uint32_t id = 0; id < jk_mode_count(); ++id) {
+        const std::wstring name = Utf16(jk_mode_name_ptr(id), jk_mode_name_len(id));
+        add(kMenuModeFirst + id, L"Mode " + std::wstring(1, static_cast<wchar_t>(L'A' + id)) + L": " + name,
+            mode_ == id);
+    }
+    // Mode C's symbol keys are optional (spec §3.6), as in macOS's input menu while it's active.
+    if (mode_ == kModeC) {
+        add(kMenuDedicatedSymbols, L"Dedicated Symbol Keys", settings::ReadDword(L"DedicatedSymbols", 1) != 0);
+    }
     separator();
 #ifdef JK_PREDICT
     add(kMenuPredictions, L"Predictions", settings::ReadDword(L"Predictions", 1) != 0);
@@ -701,6 +714,12 @@ void TextService::InitMenu(ITfMenu* menu) {
 }
 
 void TextService::OnMenu(UINT id) {
+    if (id >= kMenuModeFirst && id < kMenuModeFirst + jk_mode_count()) {
+        if (composition_context_) Flush(composition_context_.Get());
+        settings::WriteDword(L"Mode", id - kMenuModeFirst);
+        ApplySettings();
+        return;
+    }
     switch (id) {
         case kMenuEnglish:
             WriteEnglish(open_);
@@ -709,10 +728,8 @@ void TextService::OnMenu(UINT id) {
             if (!app_off_ && composition_context_) Flush(composition_context_.Get());
             settings::SetAppOff(settings::ExeName(), !app_off_);
             break;
-        case kMenuModeA:
-        case kMenuModeB:
-            if (composition_context_) Flush(composition_context_.Get());
-            settings::WriteDword(L"Mode", id == kMenuModeB ? 1 : 0);
+        case kMenuDedicatedSymbols:
+            settings::WriteDword(L"DedicatedSymbols", settings::ReadDword(L"DedicatedSymbols", 1) ? 0 : 1);
             break;
         case kMenuEnterCommits:
             settings::WriteDword(L"EnterCommits", settings::ReadDword(L"EnterCommits", 0) ? 0 : 1);

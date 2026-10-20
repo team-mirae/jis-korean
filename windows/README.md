@@ -43,7 +43,7 @@ Windows for any TIP).
 
 | | |
 |---|---|
-| Mode A / Mode B (spec §3.6) | Right-click the 한글 / ABC indicator in the taskbar → Mode A (JIS) or Mode B (US ANSI). One setting for every app: the mode follows the keyboard, not the app. Mode A is the default. |
+| Modes A, B, C (spec §3.6) | Right-click the 한글 / ABC indicator in the taskbar → Mode A (JIS), Mode B (US ANSI) or Mode C (UK ISO). One setting for every app: the mode follows the keyboard, not the app. Mode A is the default. In Mode C the menu also has **Dedicated Symbol Keys** (on by default): off, [ ] and the ISO extra key type their UK ISO characters. |
 | 한/영 | Switches JIS Korean off (ABC: every key goes to the app untouched, as Windows' US layout types it) and on again, as the Microsoft IME does. It commits what's unconfirmed first. The state is one for the whole session, every app, and isn't stored: after a restart it's 한글. A click on the indicator does the same. On a US ANSI keyboard, Windows' Korean layout sends 한/영 from Right Alt. |
 | Predictions (spec §10) | The unconfirmed text shows the top reading (`hello` shows as hello). ↓ / Tab and ↑ move through the list under it, Space / Enter commit what's shown, a click picks a row. Off by default in terminals, remote desktop, password managers, File Explorer and launchers (spec §10.11.1). |
 | Hanja (F7) | The list under the text, numbered 1–9 per page (spec §7). |
@@ -100,7 +100,8 @@ see the user's key). The menu writes them; apps pick a change up at their next f
 
 | Value | Type | Default | |
 |---|---|---|---|
-| `Mode` | DWORD | 0 | 0 = Mode A (JIS), 1 = Mode B (US ANSI) |
+| `Mode` | DWORD | 0 | 0 = Mode A (JIS), 1 = Mode B (US ANSI), 2 = Mode C (UK ISO) |
+| `DedicatedSymbols` | DWORD | 1 | Mode C's [ ] and ISO extra key: 1 = JIS Korean's symbols, 0 = UK ISO's (spec §3.6) |
 | `Predictions` | DWORD | 1 | the predictive layer |
 | `EnterCommits` | DWORD | 0 | Enter commits without a new line (spec §5.1) |
 | `LearnFromChoices` | DWORD | 0 | learning from your choices (spec §10.11) |
