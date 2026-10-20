@@ -159,6 +159,9 @@ show the password in other forms. JIS Korean protects it in layers:
   draw their own (●●● in a plain field), and the keys then compose like any text. Use **ABC**
   (한/영) there, or right-click the indicator → **Off in <program>**, which passes every key through
   in that program only, from then on. Measured: UniSign accepts its certificate password in ABC.
+  JIS Korean starts off in the local agents of certificate programs found on a test PC
+  (CrossCert UniSign, DreamSecurity MagicLine4NX, SignKorea; `kOffByDefault` in
+  `src/settings.cpp`). Certificate windows drawn inside a web page are in the browser: use ABC.
 
 ## Known limits
 

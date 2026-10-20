@@ -42,10 +42,18 @@ constexpr DefaultOff kDefaultOff[] = {
     {L"minecraft.windows.exe", kMinecraft},
 };
 
-// Programs JIS Korean is off in by default: certificate and keyboard-security programs whose
-// password boxes don't mark themselves as password fields. By program file name, measured from
-// the diagnostic log (which names the program on every line); empty until confirmed.
-constexpr const wchar_t* kOffByDefault[] = {nullptr};
+// Programs JIS Korean is off in by default: the local agents of Korean certificate programs, whose
+// password boxes don't mark themselves as password fields. Nobody types ordinary text in them, so
+// being off there costs nothing. Measured: running on the owner's PC (2026-10-21) with these
+// packages installed; which process shows the password window is inferred, not measured. Third-
+// party removal tools' lists (Hoax Eliminator) are "all rights reserved" and aren't used.
+constexpr const wchar_t* kOffByDefault[] = {
+    L"unicrslocalserver.exe",  // CrossCert UniSign (UniCRS V3)
+    L"unicrsnoticenter.exe",   // CrossCert UniSign notices
+    L"ccdaemon.exe",           // CrossCert UniSign
+    L"magicline4nx.exe",       // DreamSecurity MagicLine4NX
+    L"skcertservice.exe",      // SignKorea certificate toolkit
+};
 
 }  // namespace
 
