@@ -41,6 +41,8 @@ keys! {
     // Used by the hanja candidate list; elsewhere they commit and pass through like any other key.
     Escape = "Escape", ArrowUp = "ArrowUp", ArrowDown = "ArrowDown",
     ArrowLeft = "ArrowLeft", ArrowRight = "ArrowRight",
+    // Left of 1 on US ANSI (right end of the number row on an HHKB). Mode B only (spec §3.6).
+    Backquote = "Backquote",
     // A modifier pressed on its own: ignored, never commits.
     Modifier = "Modifier",
     // Any other key: commits, then passes through to the app.

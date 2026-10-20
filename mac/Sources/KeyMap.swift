@@ -1,8 +1,9 @@
 import Carbon.HIToolbox
 
 /// Physical macOS key codes → engine key ids (spec §2). Positions are the same on ANSI and JIS
-/// boards except for ¥ and ろ, which only JIS has.
+/// boards except for ¥ and ろ, which only JIS has, and ` (left of 1), which only ANSI has.
 let keyMap: [Int: UInt32] = [
+    kVK_ANSI_Grave: UInt32(JK_KEY_BACKQUOTE),
     kVK_ANSI_1: UInt32(JK_KEY_DIGIT1), kVK_ANSI_2: UInt32(JK_KEY_DIGIT2), kVK_ANSI_3: UInt32(JK_KEY_DIGIT3),
     kVK_ANSI_4: UInt32(JK_KEY_DIGIT4), kVK_ANSI_5: UInt32(JK_KEY_DIGIT5), kVK_ANSI_6: UInt32(JK_KEY_DIGIT6),
     kVK_ANSI_7: UInt32(JK_KEY_DIGIT7), kVK_ANSI_8: UInt32(JK_KEY_DIGIT8), kVK_ANSI_9: UInt32(JK_KEY_DIGIT9),

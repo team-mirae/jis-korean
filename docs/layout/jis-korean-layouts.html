@@ -1,0 +1,529 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>JIS Korean Layouts</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700&display=swap">
+<style>
+/* The web playground's theme (web/src/styles.css): monotone charcoal, warm gray, umber, camel,
+   taupe. Layout: one column, a keyboard plate per mode, each with its reading notes under it. */
+:root {
+  /* One key unit, shared by every board so they compare at the same scale (the MacBook one is 15
+     wide). */
+  --u: min(56px, calc((100vw - 32px) / 15.6));
+  --charcoal: #433e3f;
+  --warm-gray: #7a7265;
+  --umber: #8e6e53;
+  --camel: #c69c72;
+  --taupe: #c0b7b1;
+
+  --bg: #f4f1ee;
+  --surface: #fbfaf8;
+  --border: #ddd6d0;
+  --text: var(--charcoal);
+  --muted: var(--warm-gray);
+  --accent: var(--umber);
+  --highlight: #ead8c4;
+  --plate: var(--charcoal);
+  --cap: #f7f4f1;
+  --cap-sym: #e4ddd7;
+  --cap-fn: #cfc6bf;
+  --cap-edge: #2c2829;
+  --cap-open: #5a5354;
+  --legend: var(--charcoal);
+  --legend-shift: var(--umber);
+  --legend-open: #a39a95;
+
+  --font: "Pretendard", "Noto Sans KR", "Apple SD Gothic Neo", "Malgun Gothic", system-ui, sans-serif;
+  --mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #262223;
+    --surface: #302b2c;
+    --border: #4a4445;
+    --text: #ece7e3;
+    --muted: var(--taupe);
+    --accent: var(--camel);
+    --highlight: #5a4a3c;
+    --plate: #1a1718;
+    --cap: var(--charcoal);
+    --cap-sym: #3a3536;
+    --cap-fn: #57504c;
+    --cap-edge: #121010;
+    --cap-open: #4a4445;
+    --legend: #ece7e3;
+    --legend-shift: var(--camel);
+    --legend-open: #7a7265;
+    color-scheme: dark;
+  }
+}
+
+:root[data-theme="dark"] {
+  --bg: #262223;
+  --surface: #302b2c;
+  --border: #4a4445;
+  --text: #ece7e3;
+  --muted: var(--taupe);
+  --accent: var(--camel);
+  --highlight: #5a4a3c;
+  --plate: #1a1718;
+  --cap: var(--charcoal);
+  --cap-sym: #3a3536;
+  --cap-fn: #57504c;
+  --cap-edge: #121010;
+  --cap-open: #4a4445;
+  --legend: #ece7e3;
+  --legend-shift: var(--camel);
+  --legend-open: #7a7265;
+  color-scheme: dark;
+}
+
+*, *::before, *::after { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font: 15px/1.5 var(--font);
+  -webkit-font-smoothing: antialiased;
+}
+
+main {
+  max-width: 900px;
+  margin: 0 auto;
+  padding-block: 48px 56px;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+  display: grid;
+  gap: 48px;
+}
+
+h1 {
+  margin: 0 0 8px;
+  font-size: 1.75rem;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+
+.lede {
+  margin: 0;
+  max-width: 62ch;
+  color: var(--muted);
+}
+
+/* A mode */
+
+.mode {
+  display: grid;
+  gap: 18px;
+}
+
+.mode-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 12px;
+}
+
+.eyebrow {
+  font-size: 0.8rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--accent);
+}
+
+.mode h2 {
+  margin: 0;
+  font-size: 1.3rem;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  text-wrap: balance;
+}
+
+.subtitle {
+  color: var(--muted);
+}
+
+.chip {
+  padding: 2px 10px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--surface);
+  font-size: 0.8rem;
+  font-weight: 600;
+}
+
+.chip.open {
+  border-color: var(--camel);
+  background: var(--highlight);
+}
+
+/* Keyboard plate, as in the playground */
+
+.board {
+  --gap: calc(var(--u) * 0.09);
+  display: flex;
+  justify-content: center;
+  overflow-x: auto;
+}
+
+.plate {
+  display: grid;
+  gap: var(--gap);
+  padding: calc(var(--u) * 0.24);
+  border-radius: calc(var(--u) * 0.2);
+  background: var(--plate);
+}
+
+.row {
+  display: flex;
+  gap: var(--gap);
+  padding-left: calc(var(--u) * var(--offset, 0));
+}
+
+.fn-row {
+  margin-bottom: calc(var(--u) * 0.24);
+}
+
+.key {
+  position: relative;
+  flex: none;
+  width: calc(var(--u) - var(--gap));
+  aspect-ratio: 1;
+  border-radius: calc(var(--u) * 0.1);
+  background: var(--cap);
+  box-shadow: inset 0 calc(var(--u) * -0.06) 0 var(--cap-edge);
+  color: var(--legend);
+}
+
+.key.sym { background: var(--cap-sym); }
+.key.fn { background: var(--cap-fn); }
+
+/* Stock keys: untouched by the mode, drawn as plain outlines. */
+.key.stock {
+  background: transparent;
+  box-shadow: none;
+  outline: 1px solid var(--cap-open);
+  outline-offset: -1px;
+}
+
+.key.stock span { color: var(--legend-open); }
+
+/* A MacBook's short function row. */
+.key.short {
+  height: calc(var(--u) * 0.62 - var(--gap));
+  aspect-ratio: auto;
+}
+
+.key.short .shifted { top: calc(var(--u) * 0.07); }
+.key.short .base { bottom: calc(var(--u) * 0.07); }
+
+.key span {
+  position: absolute;
+  line-height: 1;
+}
+
+.key .base {
+  left: calc(var(--u) * 0.14);
+  bottom: calc(var(--u) * 0.2);
+  font-size: calc(var(--u) * 0.32);
+  font-weight: 500;
+}
+
+.key.sym .base { font-size: calc(var(--u) * 0.28); }
+.key.stock .base { font-size: calc(var(--u) * 0.22); }
+.key.wide { width: calc(var(--u) * 1.5 - var(--gap)); height: calc(var(--u) - var(--gap)); aspect-ratio: auto; }
+
+.variant {
+  display: grid;
+  gap: 8px;
+}
+
+.variant h3 {
+  margin: 0;
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--muted);
+}
+
+.key.fn .base {
+  font-family: var(--mono);
+  font-size: calc(var(--u) * 0.2);
+}
+
+.key .shifted {
+  left: calc(var(--u) * 0.14);
+  top: calc(var(--u) * 0.1);
+  font-size: calc(var(--u) * 0.2);
+  color: var(--legend-shift);
+  white-space: nowrap;
+}
+
+.key.fn .shifted {
+  font-size: calc(var(--u) * 0.16);
+  color: var(--legend);
+}
+
+.key .latin {
+  right: calc(var(--u) * 0.12);
+  top: calc(var(--u) * 0.1);
+  font-family: var(--mono);
+  font-size: calc(var(--u) * 0.15);
+  color: var(--muted);
+}
+
+.key.home::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  bottom: calc(var(--u) * 0.09);
+  width: calc(var(--u) * 0.3);
+  height: 2px;
+  margin-left: calc(var(--u) * -0.15);
+  border-radius: 1px;
+  background: var(--taupe);
+  opacity: 0.6;
+}
+
+/* Reading notes under a board */
+
+.notes {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+  gap: 16px 28px;
+  margin: 0;
+}
+
+.notes > div {
+  min-width: 0;
+  padding-top: 10px;
+  border-top: 1px solid var(--border);
+}
+
+.notes dt {
+  font-weight: 700;
+  color: var(--accent);
+}
+
+.notes dd {
+  margin: 2px 0 0;
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+
+.swatches {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 16px;
+  font-size: 0.85rem;
+  color: var(--muted);
+}
+
+.swatch {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.swatch i {
+  width: 14px;
+  height: 14px;
+  border-radius: 3px;
+  background: var(--cap);
+  box-shadow: inset 0 -2px 0 var(--cap-edge);
+}
+
+.swatch i.sym { background: var(--cap-sym); }
+.swatch i.fn { background: var(--cap-fn); }
+.swatch i.stock { background: transparent; box-shadow: none; outline: 1px solid var(--cap-open); outline-offset: -1px; }
+
+kbd {
+  font-family: var(--font);
+  font-size: 0.95em;
+  padding: 0 4px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: var(--surface);
+  color: var(--text);
+}
+
+footer {
+  padding-top: 16px;
+  border-top: 1px solid var(--border);
+  color: var(--muted);
+  font-size: 0.85rem;
+}
+</style>
+</head>
+<body>
+
+<main>
+  <header>
+    <h1>JIS Korean layouts</h1>
+    <p class="lede">Korean 2-set (두벌식) for JIS keyboards, and in Mode B for US ANSI. Every standard 2-set key still types what it always did; the extra keys add double consonants, compound vowels, Korean punctuation and F6–F10 conversions.</p>
+  </header>
+
+  <section class="mode" aria-labelledby="mode-a">
+    <div class="mode-head">
+      <span class="eyebrow">Mode A</span>
+      <h2 id="mode-a">JIS Korean Original Layout</h2>
+      <span class="subtitle">Built for JIS</span>
+    </div>
+    <div class="board"><div class="plate" id="board-a" role="img" aria-label="Mode A key map"></div></div>
+    <div class="swatches">
+      <span class="swatch"><i></i>Standard 2-set letter keys</span>
+      <span class="swatch"><i class="sym"></i>Number and symbol keys</span>
+      <span class="swatch"><i class="fn"></i>Function keys</span>
+      <span>Lower legend: the key alone. Upper legend: with Shift. Corner: the JIS key cap.</span>
+    </div>
+    <dl class="notes">
+      <div><dt>Number row</dt><dd>Double consonants ㅃ ㅉ ㄸ ㄲ ㅆ and compound vowels ㅟ ㅝ ㅚ ㅢ ㅘ. Digits are on Shift, so numbers type with Shift held.</dd></div>
+      <div><dt>Shift+Z is F10</dt><dd>Half-width letters (반각), since F10 isn't reachable everywhere. ㅋ stays on Z.</dd></div>
+      <div><dt>Punctuation</dt><dd><kbd>−</kbd> ! ?, <kbd>^</kbd> ( ), <kbd>¥</kbd> em dash and ^, <kbd>;</kbd> ~ and -, <kbd>/</kbd> middle dot ·, and 「 」 on Shift+[ and Shift+].</dd></div>
+      <div><dt>F6 한글 · F7 한자</dt><dd>F6 commits, and restores the Hangul after F9 or F10. F7 converts the last word to hanja.</dd></div>
+      <div><dt>F8 두벌식</dt><dd>Escape to standard 2-set over the stock JIS keys. Shift+F8 returns.</dd></div>
+      <div><dt>F9 전각 · F10 반각</dt><dd>The current word as full- or half-width letters. Pressing again cycles as typed → UPPER → Capitalized.</dd></div>
+    </dl>
+  </section>
+
+  <section class="mode" aria-labelledby="mode-b">
+    <div class="mode-head">
+      <span class="eyebrow">Mode B</span>
+      <h2 id="mode-b">JIS Korean for US ANSI</h2>
+      <span class="subtitle">HHKB US-compatible</span>
+    </div>
+    <div class="variant">
+      <h3>On an HHKB (US)</h3>
+      <div class="board"><div class="plate" id="board-b-hhkb" role="img" aria-label="Mode B on an HHKB (US)"></div></div>
+    </div>
+    <div class="variant">
+      <h3>On a MacBook (US ANSI)</h3>
+      <div class="board"><div class="plate" id="board-b-mac" role="img" aria-label="Mode B on a MacBook (US ANSI)"></div></div>
+    </div>
+    <div class="swatches">
+      <span class="swatch"><i></i>Standard 2-set, fixed by the core principle</span>
+      <span class="swatch"><i class="sym"></i>Same as Mode A</span>
+      <span class="swatch"><i class="fn"></i>Function keys</span>
+      <span class="swatch"><i class="stock"></i>US ANSI, unchanged by design</span>
+    </div>
+    <dl class="notes">
+      <div><dt>Same as Mode A</dt><dd>The letter keys, 1–0 with digits on Shift, Shift+Z as F10, and F6–F10. [ ] and 「 」 sit on the US <kbd>[</kbd> and <kbd>]</kbd> keys.</dd></div>
+      <div><dt>Everything else is US ANSI</dt><dd>By design, every other key types what it always did, so each symbol stays where a US typist expects it. Predictions read the keys as US ANSI too: Shift+2 suggests @, not ".</dd></div>
+      <div><dt>Use it as-is, or fork it</dt><dd>Keep Mode B as it is to keep every symbol where you know it, or fork it to fit your typing or your keyboard. A mode is two key tables (docs/modes.md).</dd></div>
+      <div><dt>Function keys</dt><dd>On an HHKB, F6–F10 are Fn+6 to Fn+0. On a MacBook they're fn+F6 to fn+F10, or the plain keys with “Use F1, F2, etc. keys as standard function keys” on.</dd></div>
+    </dl>
+  </section>
+
+  <footer>From docs/spec.md §3 (key map), §3.6 (modes) and §6 (function keys).</footer>
+</main>
+
+<script>
+// Each key: [base, shift, cap, kind]. shift null: Shift types the same. cap: the printed legend,
+// shown in the corner when it differs from both outputs. kind: "" letter, "sym", "stock" (untouched).
+const A = {
+  fn: [["F6", "한글"], ["F7", "한자"], ["F8", "두벌식"], ["F9", "전각"], ["F10", "반각"]],
+  rows: [
+    { offset: 0, keys: [
+      ["ㅃ", "1", "1", "sym"], ["ㅉ", "2", "2", "sym"], ["ㄸ", "3", "3", "sym"], ["ㄲ", "4", "4", "sym"],
+      ["ㅆ", "5", "5", "sym"], ["ㅟ", "6", "6", "sym"], ["ㅝ", "7", "7", "sym"], ["ㅚ", "8", "8", "sym"],
+      ["ㅢ", "9", "9", "sym"], ["ㅘ", "0", "0", "sym"], ["!", "?", "−", "sym"], ["(", ")", "^", "sym"],
+      ["—", "^", "¥", "sym"],
+    ] },
+    { offset: 0.5, keys: [
+      ["ㅂ", "ㅃ", "Q"], ["ㅈ", "ㅉ", "W"], ["ㄷ", "ㄸ", "E"], ["ㄱ", "ㄲ", "R"], ["ㅅ", "ㅆ", "T"],
+      ["ㅛ", null, "Y"], ["ㅕ", null, "U"], ["ㅑ", null, "I"], ["ㅐ", "ㅒ", "O"], ["ㅔ", "ㅖ", "P"],
+      ["'", "\"", "@", "sym"], ["[", "「", "[", "sym"],
+    ] },
+    { offset: 0.75, keys: [
+      ["ㅁ", null, "A"], ["ㄴ", null, "S"], ["ㅇ", null, "D"], ["ㄹ", null, "F"], ["ㅎ", null, "G"],
+      ["ㅗ", null, "H"], ["ㅓ", null, "J"], ["ㅏ", null, "K"], ["ㅣ", null, "L"],
+      ["~", "-", ";", "sym"], [":", ";", ":", "sym"], ["]", "」", "]", "sym"],
+    ] },
+    { offset: 1.25, keys: [
+      ["ㅋ", "반각", "Z"], ["ㅌ", null, "X"], ["ㅊ", null, "C"], ["ㅍ", null, "V"], ["ㅠ", null, "B"],
+      ["ㅜ", null, "N"], ["ㅡ", null, "M"], [",", null, ",", "sym"], [".", null, ".", "sym"],
+      ["·", null, "/", "sym"], ["\\", "_", "ろ", "sym"],
+    ] },
+  ],
+};
+
+// Mode B's typing area (spec §3.6). The letter keys, 1–0 and Shift+Z are as in Mode A, the brackets
+// sit on the US [ and ] keys, and every other key is stock US ANSI. On an HHKB (US) \ and ` end the
+// number row; on a MacBook (US ANSI) ` is left of 1 and \ (1.5 units) is right of ].
+const stock = (base, shift) => [base, shift, base, "stock"];
+const digits = A.rows[0].keys.slice(0, 10).concat([stock("-", "_"), stock("=", "+")]);
+const qRow = A.rows[1].keys.slice(0, 10).concat([["[", "「", "[", "sym"], ["]", "」", "]", "sym"]]);
+const aRow = A.rows[2].keys.slice(0, 9).concat([stock(";", ":"), stock("'", "\"")]);
+const zRow = A.rows[3].keys.slice(0, 7).concat([stock(",", "<"), stock(".", ">"), stock("/", "?")]);
+const B_HHKB = {
+  rows: [
+    { offset: 0, keys: digits.concat([stock("\\", "|"), stock("`", "~")]) },
+    { offset: 0.5, keys: qRow },
+    { offset: 0.75, keys: aRow },
+    { offset: 1.25, keys: zRow },
+  ],
+};
+const B_MAC = {
+  // The MacBook's function row is short; only F6–F10 are drawn, over 6–0.
+  fn: A.fn,
+  fnOffset: 6,
+  fnShort: true,
+  rows: [
+    { offset: 0, keys: [stock("`", "~")].concat(digits) },
+    { offset: 1.5, keys: qRow.concat([["\\", "|", "\\", "stock wide"]]) },
+    { offset: 1.75, keys: aRow },
+    { offset: 2.25, keys: zRow },
+  ],
+};
+
+function span(cls, text) {
+  const s = document.createElement("span");
+  s.className = cls;
+  s.textContent = text;
+  return s;
+}
+
+function draw(plate, layout) {
+  if (layout.fn) {
+    const row = document.createElement("div");
+    row.className = "row fn-row";
+    row.style.setProperty("--offset", layout.fnOffset ?? 5);
+    for (const [name, label] of layout.fn) {
+      const key = document.createElement("div");
+      key.className = "key fn" + (layout.fnShort ? " short" : "");
+      key.append(span("shifted", label), span("base", name));
+      row.append(key);
+    }
+    plate.append(row);
+  }
+  for (const { offset, keys } of layout.rows) {
+    const row = document.createElement("div");
+    row.className = "row";
+    row.style.setProperty("--offset", offset);
+    for (const [base, shift, cap, kind = ""] of keys) {
+      const key = document.createElement("div");
+      key.className = ["key", kind, (cap === "F" || cap === "J") && "home"].filter(Boolean).join(" ");
+      if (shift && shift !== base) key.append(span("shifted", shift));
+      key.append(span("base", base));
+      if (!kind.startsWith("stock") && cap !== base && cap !== shift) key.append(span("latin", cap));
+      key.title = cap + ": " + base + (shift && shift !== base ? ", Shift: " + shift : "");
+      row.append(key);
+    }
+    plate.append(row);
+  }
+}
+
+draw(document.getElementById("board-a"), A);
+draw(document.getElementById("board-b-hhkb"), B_HHKB);
+draw(document.getElementById("board-b-mac"), B_MAC);
+document.documentElement.dataset.height = document.documentElement.scrollHeight;
+</script>
+</body>
+</html>

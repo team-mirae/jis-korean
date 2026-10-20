@@ -1,6 +1,11 @@
 import Cocoa
 import InputMethodKit
 
+// `JISKorean mode [A|B]`: the public API from the command line (spec §8.2), not the input method.
+if CommandLine.arguments.count > 1 {
+    exit(PublicAPI.runCommand(Array(CommandLine.arguments.dropFirst())))
+}
+
 // Input methods are background apps: IMKServer accepts client connections, and the system creates
 // one JKInputController per text input client.
 let connectionName = Bundle.main.infoDictionary?["InputMethodConnectionName"] as? String
@@ -40,7 +45,8 @@ let sharedPredictor: OpaquePointer? = {
 }()
 #endif
 
-KeyboardViewerLayout.note("launched from \(Bundle.main.bundlePath)")
+DiagnosticLog.note("launched from \(Bundle.main.bundlePath)")
+PublicAPI.start()
 let server = IMKServer(name: connectionName, bundleIdentifier: Bundle.main.bundleIdentifier)
 _ = server
 NSApplication.shared.run()

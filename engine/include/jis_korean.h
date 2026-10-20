@@ -82,8 +82,9 @@ enum {
     JK_KEY_ARROWDOWN = 58,
     JK_KEY_ARROWLEFT = 59,
     JK_KEY_ARROWRIGHT = 60,
-    JK_KEY_MODIFIER = 61,
-    JK_KEY_OTHER = 62,
+    JK_KEY_BACKQUOTE = 61,
+    JK_KEY_MODIFIER = 62,
+    JK_KEY_OTHER = 63,
 };
 
 enum {
@@ -103,6 +104,12 @@ void jk_flush(JkEngine *engine);
 /* The IME was switched back to: leaves any F8 escape. */
 void jk_activate(JkEngine *engine);
 void jk_set_enter_commits(JkEngine *engine, uint32_t on);
+/* The mode, by id (spec §3.6): 0 = Mode A (JIS, the default), 1 = Mode B (US ANSI). */
+void jk_set_mode(JkEngine *engine, uint32_t mode);
+uint32_t jk_mode_count(void);
+/* A mode's name (static UTF-8), for settings menus. */
+const uint8_t *jk_mode_name_ptr(uint32_t mode);
+size_t jk_mode_name_len(uint32_t mode);
 uint32_t jk_is_escaped(JkEngine *engine);
 
 const uint8_t *jk_commit_ptr(JkEngine *engine);
@@ -115,6 +122,23 @@ const uint8_t *jk_key_code_ptr(uint32_t key);
 size_t jk_key_code_len(uint32_t key);
 /* The character a key types (Unicode scalar), or 0 if none. For drawing key legends. */
 uint32_t jk_legend(uint32_t key, uint32_t shift, uint32_t escaped);
+/* The same in a given mode, by id. */
+uint32_t jk_legend_in(uint32_t key, uint32_t shift, uint32_t escaped, uint32_t mode);
+
+/* Resolving keys and text (spec §8.3), on a copy of this engine: its mode and, with predictions
+ * on, its predictor and weights. A key press is a KeyboardEvent.code, with "S-" for Shift held
+ * ("KeyG", "S-Digit2"). Read each answer with jk_resolved_* until the next call. */
+/* What the press types on its own: 1 and the character, or 0. */
+uint32_t jk_resolve_key_input(JkEngine *engine, const uint8_t *press, size_t press_len);
+/* What the field shows after context (unconfirmed text) and the press: 1 and the text, or 0. */
+uint32_t jk_resolve_key_input_after(JkEngine *engine, const uint8_t *context, size_t context_len,
+                                    const uint8_t *press, size_t press_len);
+/* Every combination of presses that types text, min to max presses: the count, and JSON
+ * [["KeyG","KeyK","KeyS"],...]. A nonsensical range gives 0 and []. */
+uint32_t jk_resolve_keys_for_output(JkEngine *engine, const uint8_t *text, size_t text_len,
+                                    int64_t min, int64_t max);
+const uint8_t *jk_resolved_ptr(JkEngine *engine);
+size_t jk_resolved_len(JkEngine *engine);
 
 /* Hanja (F7). Parse the dictionary once and share it; engines keep their own reference. */
 typedef struct JkDict JkDict;

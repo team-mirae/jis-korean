@@ -9,7 +9,7 @@ use crate::learn::{self, Event, Learner};
 use crate::predict::{Context, Language, Piece, Prediction, Predictor, Ranker, Readings, Split, Weight, Weights};
 use crate::hanja::{Candidate, Dictionary};
 use crate::key::{Key, Mods};
-use crate::layout::{self, Layout, Out};
+use crate::layout::{self, Layout, Mode, Out};
 
 /// Candidates per page of the hanja list; Digit1–Digit9 pick on the current page.
 pub const PAGE_SIZE: usize = 9;
@@ -83,6 +83,8 @@ pub struct Engine {
     conversion: Option<Conversion>,
     hanja: Option<HanjaList>,
     layout: Layout,
+    /// The mode: which keyboard's key map (spec §3.6).
+    mode: Mode,
     enter_commits: bool,
     dictionary: Option<Arc<Dictionary>>,
     /// The predictive layer; `None` is the deterministic lite engine.
@@ -130,6 +132,7 @@ impl Engine {
             conversion: None,
             hanja: None,
             layout: Layout::JisKorean,
+            mode: Mode::A,
             enter_commits: false,
             dictionary: None,
             #[cfg(feature = "predict")]
@@ -170,6 +173,22 @@ impl Engine {
         self.dictionary.clone()
     }
 
+    /// Setting: the mode, Mode A (JIS) or Mode B (US ANSI) (spec §3.6). Takes effect from the
+    /// next key.
+    pub fn set_mode(&mut self, mode: Mode) {
+        self.mode = mode;
+    }
+
+    /// The mode (spec §3.6).
+    pub fn mode(&self) -> Mode {
+        self.mode
+    }
+
+    /// Whether a hanja candidate list is open (F7).
+    pub fn hanja_open(&self) -> bool {
+        self.hanja.is_some()
+    }
+
     /// Whether F8 has escaped to standard 2-set.
     pub fn is_escaped(&self) -> bool {
         self.layout == Layout::Escaped
@@ -195,10 +214,16 @@ impl Engine {
         self.hanja = None;
     }
 
-    /// The unconfirmed keystrokes read as English: each key as it types on stock JIS (letters
-    /// with their case, digits, JIS symbols). Converted and hanja text stays as shown.
+    /// The unconfirmed keystrokes read as English: each key as it types on the stock keyboard,
+    /// JIS or US ANSI (letters with their case, digits, the keyboard's symbols). Converted and hanja text stays as shown.
     pub fn english(&self) -> String {
         english_of(&self.segment)
+    }
+
+    /// The unconfirmed text without the implied ㅇ (spec §4.2): what F6 would leave of plain
+    /// implied syllables (ㅠ for 유). For resolving keys (crate::resolve).
+    pub fn preedit_without_implied(&self) -> String {
+        compose_with(&self.segment, Options { no_implied: true, ..Options::default() })
     }
 
     /// The unconfirmed text, with the selected hanja candidate in place while a list is open.
@@ -275,7 +300,7 @@ impl Engine {
                 self.segment.pop();
                 self.unchanged(true)
             }
-            _ => match layout::output(self.layout, key, mods.shift) {
+            _ => match layout::output_in(self.mode, self.layout, key, mods.shift) {
                 Some(Out::Jamo(jamo)) => {
                     let raw = key.letter().map(|c| if mods.shift { c.to_ascii_uppercase() } else { c });
                     let raw = raw.or(key.digit());
@@ -284,12 +309,14 @@ impl Engine {
                     let ieung = mods.shift
                         && self.layout == Layout::JisKorean
                         && hangul::is_medial(jamo)
-                        && layout::output(self.layout, key, false) == Some(Out::Jamo(jamo));
+                        && layout::output_in(self.mode, self.layout, key, false) == Some(Out::Jamo(jamo));
                     self.segment.push(if ieung { Token::IeungVowel { jamo, raw } } else { Token::Jamo { jamo, raw } });
                     self.unchanged(true)
                 }
                 Some(Out::Char(c)) => {
-                    let english = layout::output(Layout::Escaped, key, mods.shift).map_or(c, Out::char);
+                    // The English reading is the stock keyboard's character, so predictions never
+                    // imply JIS on US ANSI (Shift+2 reads @ there, " on JIS).
+                    let english = layout::output_in(self.mode, Layout::Escaped, key, mods.shift).map_or(c, Out::char);
                     self.segment.push(Token::Typed(c, english));
                     self.unchanged(true)
                 }
@@ -664,7 +691,7 @@ impl Engine {
     }
 }
 
-/// Keystrokes read as English on stock JIS (see [`Engine::english`]).
+/// Keystrokes read as English on the mode's stock keyboard (see [`Engine::english`]).
 fn english_of(segment: &[Token]) -> String {
     segment
         .iter()
@@ -768,7 +795,6 @@ fn compose(segment: &[Token]) -> String {
     composer_for(segment).finish()
 }
 
-#[cfg(feature = "predict")]
 fn compose_with(segment: &[Token], options: Options) -> String {
     composer_with(segment, options).finish()
 }

@@ -15,8 +15,15 @@ private let weightNames = ["Korean", "English", "Implied", "Mixed", "TwoSet", "K
 /// (docs/spec.md): this class only moves key events in and text out, and shows the suggestion list.
 @objc(JKInputController)
 final class JKInputController: IMKInputController {
-    private let engine = jk_new()
+    /// This controller's engine. The public API resolves keys on a copy of it (spec §8.3).
+    let engine = jk_new()
     private var hasMarkedText = false
+    /// The controller JIS Korean was last activated in: the focused app's, while JIS Korean is the
+    /// input source. The public API answers for it.
+    private(set) static weak var focused: JKInputController?
+    /// The app it types into, and whether predictions are on there (spec §10.11).
+    private(set) var appID: String?
+    private(set) var predicting = false
     #if PREDICT
     /// The ranked readings of what's staged (spec §10), shown in the suggestion list.
     private var predictions: [String] = []
@@ -72,13 +79,17 @@ final class JKInputController: IMKInputController {
 
     override func activateServer(_ sender: Any!) {
         super.activateServer(sender)
-        KeyboardViewerLayout.note("activated in \((sender as? IMKTextInput)?.bundleIdentifier() ?? "?")")
+        appID = (sender as? IMKTextInput)?.bundleIdentifier()
+        Self.focused = self
+        DiagnosticLog.note("activated in \((sender as? IMKTextInput)?.bundleIdentifier() ?? "?")")
         #if PREDICT
         clientApp = (sender as? IMKTextInput)?.bundleIdentifier()
         DefaultOffApps.noticeIfFirst(clientApp)
         #endif
         jk_activate(engine)
-        KeyboardViewerLayout.select(for: sender as? IMKTextInput)
+        // Which mode's input source was selected (spec §8.2). setValue(_:forTag:client:) also
+        // reports it, but not always before the first key.
+        applyMode(InputModes.selectedNow() ?? InputModes.current, client: sender as? IMKTextInput)
         #if PREDICT
         applyPredictionsSetting()
         // A new or changed training file (docs/training-contract.md): applied, then settings again.
@@ -87,6 +98,20 @@ final class JKInputController: IMKInputController {
         applyPredictionsSetting()
         #endif
         jk_set_enter_commits(engine, UserDefaults.standard.bool(forKey: enterCommitsDefault) ? 1 : 0)
+    }
+
+    /// The system names the input mode the user picked: JIS Korean's modes are input modes.
+    override func setValue(_ value: Any!, forTag tag: Int, client sender: Any!) {
+        if tag == kTextServiceInputModePropertyTag, let id = value as? String, let mode = InputModes.mode(sourceID: id) {
+            applyMode(mode, client: sender as? IMKTextInput)
+        }
+        super.setValue(value, forTag: tag, client: sender)
+    }
+
+    private func applyMode(_ mode: InputModes.Mode, client: IMKTextInput?) {
+        InputModes.becameCurrent(mode)
+        jk_set_mode(engine, mode.id)
+        KeyboardViewerLayout.select(mode.keyboardViewerLayout, for: client)
     }
 
     override func deactivateServer(_ sender: Any!) {
@@ -146,7 +171,15 @@ final class JKInputController: IMKInputController {
         let item = NSMenuItem(title: "Enter Commits Without a New Line", action: #selector(toggleEnterCommits(_:)), keyEquivalent: "")
         item.state = UserDefaults.standard.bool(forKey: enterCommitsDefault) ? .on : .off
         menu.addItem(item)
+        // The public API's one setting (spec §8.2): reading the mode is always open, changing it isn't.
+        let allow = NSMenuItem(title: "Let Other Apps Change the Mode", action: #selector(toggleAllowModeChange(_:)), keyEquivalent: "")
+        allow.state = PublicAPI.allowed ? .on : .off
+        menu.addItem(allow)
         return menu
+    }
+
+    @objc func toggleAllowModeChange(_ sender: Any?) {
+        UserDefaults.standard.set(!PublicAPI.allowed, forKey: PublicAPI.allowKey)
     }
 
     @objc func toggleEnterCommits(_ sender: Any?) {
@@ -212,7 +245,9 @@ final class JKInputController: IMKInputController {
         // Per app (spec §10.11): no predictions, or no learning recorded, where the user said so.
         let app = DisabledApps.entry(clientApp)
         let predicting = defaults.bool(forKey: predictionsDefault) && DefaultOffApps.predicting(clientApp)
-        jk_set_predictor(engine, predicting ? Training.predictor() : nil)
+        let predictor = predicting ? Training.predictor() : nil
+        jk_set_predictor(engine, predictor)
+        self.predicting = predictor != nil
         jk_set_recording(engine, app?.noLearning == true ? 0 : 1)
         for (id, name) in weightNames.enumerated() {
             if let value = defaults.object(forKey: "Weight.\(name)") as? Double {

@@ -2,9 +2,11 @@
 // Keyboard → Input Sources without logging out, then waits (up to about 20 seconds) until the
 // Keyboard Viewer layout bundled with it (spec §8.1) is listed: right after the bundle is copied,
 // macOS can take a few seconds to pick it up.
-// If the input method was enabled, it is then disabled and enabled again, as removing and re-adding
-// it in System Settings would: re-registering alone doesn't reach apps that are already running, and
-// they can be left unable to start it (docs/troubleshooting/macos-input-method-not-launching.md).
+// If the input method was enabled, its enabled sources are then disabled and enabled again, as
+// removing and re-adding them in System Settings would: re-registering alone doesn't reach apps that
+// are already running, and they can be left unable to start it
+// (docs/troubleshooting/macos-input-method-not-launching.md). Only what was enabled comes back:
+// Mode B (.2SetANSI) stays off until the user adds it.
 // Usage: swift register.swift <JISKorean.app>
 import Carbon
 import Foundation
@@ -22,8 +24,8 @@ func layoutListed() -> Bool {
     return !(TISCreateInputSourceList(query, true)?.takeRetainedValue() as? [TISInputSource] ?? []).isEmpty
 }
 
-/// The input method's own sources: the bundle-level source and its input mode (Info.plist
-/// ComponentInputModeDict), not the Keyboard Viewer layout. The mode is the one that gets selected.
+/// The input method's own sources: the bundle-level source and its input modes (Info.plist
+/// ComponentInputModeDict), not the Keyboard Viewer layouts. A mode is what gets selected.
 func inputMethodSources(enabledOnly: Bool) -> [TISInputSource] {
     let query = [
         kTISPropertyBundleID as String: bundleID,
@@ -46,9 +48,12 @@ func isMode(_ source: TISInputSource) -> Bool {
     return Unmanaged<CFString>.fromOpaque(type).takeUnretainedValue() == kTISTypeKeyboardInputMode
 }
 
-let wasEnabled = !inputMethodSources(enabledOnly: true).isEmpty
-let wasSelected = wasEnabled
-    && (id(TISCopyCurrentKeyboardInputSource().takeRetainedValue())?.hasPrefix(bundleID) ?? false)
+/// Mode A: enabled when upgrading from a build that had no input modes.
+let defaultModeID = bundleID + ".2Set"
+let enabledBefore = Set(inputMethodSources(enabledOnly: true).compactMap(id))
+let wasEnabled = !enabledBefore.isEmpty
+let selectedBefore = id(TISCopyCurrentKeyboardInputSource().takeRetainedValue()).flatMap { $0.hasPrefix(bundleID) ? $0 : nil }
+let wasSelected = wasEnabled && selectedBefore != nil
 
 let status = TISRegisterInputSource(url)
 guard status == noErr else {
@@ -59,9 +64,14 @@ for _ in 0..<20 where !layoutListed() {
     Thread.sleep(forTimeInterval: 1)
     _ = TISRegisterInputSource(url)
 }
-// Enabling every source of the bundle also enables the input mode when upgrading from a build
-// without one, so it doesn't have to be added again in System Settings.
-let sources = inputMethodSources(enabledOnly: false)
+// The sources to bring back: those enabled before, plus Mode A when upgrading from a build without
+// input modes, so it doesn't have to be added again in System Settings.
+let allSources = inputMethodSources(enabledOnly: false)
+var keep = enabledBefore
+if !allSources.contains(where: { isMode($0) && enabledBefore.contains(id($0) ?? "") }) {
+    keep.insert(defaultModeID)
+}
+let sources = allSources.filter { keep.contains(id($0) ?? "") }
 if wasEnabled, !sources.isEmpty {
     var off = noErr, on = noErr
     for source in sources { let s = TISDisableInputSource(source); if s != noErr { off = s } }
@@ -71,7 +81,9 @@ if wasEnabled, !sources.isEmpty {
     if wasSelected {
         for _ in 0..<10 {
             let enabled = inputMethodSources(enabledOnly: true)
-            guard let target = enabled.first(where: isMode) ?? enabled.first else { select = OSStatus(paramErr); break }
+            let target = enabled.first(where: { id($0) == selectedBefore && isMode($0) })
+                ?? enabled.first(where: { id($0) == defaultModeID }) ?? enabled.first(where: isMode) ?? enabled.first
+            guard let target else { select = OSStatus(paramErr); break }
             select = TISSelectInputSource(target)
             if select == noErr { break }
             Thread.sleep(forTimeInterval: 0.5)

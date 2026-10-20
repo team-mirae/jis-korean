@@ -70,18 +70,24 @@ $(BUILD)/icon.tiff: tools/make-icon.swift
 	swift tools/make-icon.swift $(BUILD)/icon
 	tiffutil -cathidpicheck $(BUILD)/icon/icon.png $(BUILD)/icon/icon@2x.png -out $@
 
-# --- Keyboard Viewer layout: JIS Korean's legends on ABC (JIS), from the engine's layout tables
+# --- Keyboard Viewer layouts, one per mode: its legends on ABC (JIS for Mode A, ANSI for Mode B),
+#     from the engine's layout tables. Mode n's legends are legends-n.tsv.
 
-$(BUILD)/legends.tsv: $(wildcard $(ENGINE)/src/*.rs) $(ENGINE)/examples/legends.rs
+$(BUILD)/legends-%.tsv: $(wildcard $(ENGINE)/src/*.rs) $(ENGINE)/examples/legends.rs
 	@mkdir -p $(BUILD)
-	$(CARGO) run -q --manifest-path $(ENGINE)/Cargo.toml --example legends --target-dir $(TARGET_DIR) > $@
+	$(CARGO) run -q --manifest-path $(ENGINE)/Cargo.toml --example legends --target-dir $(TARGET_DIR) -- $* > $@
 
 $(BUILD)/make-keylayout: tools/make-keylayout/main.swift Sources/KeyMap.swift $(HEADER)
 	@mkdir -p $(BUILD)
 	swiftc -O -import-objc-header $(HEADER) Sources/KeyMap.swift tools/make-keylayout/main.swift -o $@
 
-$(BUILD)/JISKorean.keylayout: $(BUILD)/make-keylayout $(BUILD)/legends.tsv
-	$(BUILD)/make-keylayout $(BUILD)/legends.tsv $@
+$(BUILD)/JISKorean.keylayout: $(BUILD)/make-keylayout $(BUILD)/legends-0.tsv
+	$(BUILD)/make-keylayout $(BUILD)/legends-0.tsv $@ JISKorean JIS -23456
+
+$(BUILD)/JISKoreanANSI.keylayout: $(BUILD)/make-keylayout $(BUILD)/legends-1.tsv
+	$(BUILD)/make-keylayout $(BUILD)/legends-1.tsv $@ JISKoreanANSI ANSI -23457
+
+KEYLAYOUTS := $(BUILD)/JISKorean.keylayout $(BUILD)/JISKoreanANSI.keylayout
 
 # An earlier build installed the layout as its own bundle here; install removes it.
 LAYOUTS_TO    := $(HOME)/Library/Keyboard Layouts
@@ -93,7 +99,7 @@ PREDICT_FILES := $(ENGINE)/predict/ranker.bin $(ENGINE)/predict/common-en.txt $(
                  $(ENGINE)/predict/english-nouns.txt $(ENGINE)/predict/LICENSE-wordnet.txt \
                  $(ENGINE)/predict/LICENSE-corpora.txt
 
-$(APP): $(BUILD)/JISKorean $(BUILD)/icon.tiff Info.plist $(DICT)/hanja.tsv $(BUILD)/JISKorean.keylayout \
+$(APP): $(BUILD)/JISKorean $(BUILD)/icon.tiff Info.plist $(DICT)/hanja.tsv $(KEYLAYOUTS) \
        Resources/JISKoreanKeyboardLayouts-Info.plist Resources/en.lproj/InfoPlist.strings Resources/ko.lproj/InfoPlist.strings
 	rm -rf $@
 	mkdir -p $@/Contents/MacOS $@/Contents/Resources
@@ -101,7 +107,7 @@ $(APP): $(BUILD)/JISKorean $(BUILD)/icon.tiff Info.plist $(DICT)/hanja.tsv $(BUI
 	cp $(BUILD)/JISKorean $@/Contents/MacOS/JISKorean
 	cp $(BUILD)/icon.tiff $@/Contents/Resources/icon.tiff
 	cp $(DICT)/hanja.tsv $(DICT)/LICENSE-libhangul-hanja.txt $(DICT)/LICENSE-unicode.txt $@/Contents/Resources/
-	cp $(BUILD)/JISKorean.keylayout Resources/JISKoreanKeyboardLayouts-Info.plist $@/Contents/Resources/
+	cp $(KEYLAYOUTS) Resources/JISKoreanKeyboardLayouts-Info.plist $@/Contents/Resources/
 	cp -R Resources/en.lproj Resources/ko.lproj $@/Contents/Resources/
 ifeq ($(PREDICT),1)
 	mkdir -p $@/Contents/Resources/predict

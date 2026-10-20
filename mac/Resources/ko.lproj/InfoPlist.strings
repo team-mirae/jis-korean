@@ -1,2 +1,3 @@
-/* Input mode name (Info.plist ComponentInputModeDict). */
+/* Input mode names (Info.plist ComponentInputModeDict): Mode A and Mode B (spec §3.6). */
 "me.sjun.inputmethod.JISKorean.2Set" = "JIS Korean";
+"me.sjun.inputmethod.JISKorean.2SetANSI" = "JIS Korean for US ANSI";

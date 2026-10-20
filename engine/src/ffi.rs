@@ -7,12 +7,15 @@ use std::panic::{AssertUnwindSafe, catch_unwind};
 use std::sync::Arc;
 
 use crate::plan::{self, Counts};
-use crate::{Candidate, Dictionary, Engine, Key, Layout, Mods, Output, PAGE_SIZE, output};
+use crate::resolve;
+use crate::{Candidate, Dictionary, Engine, Key, Layout, Mode, Mods, Output, PAGE_SIZE, output_in};
 
 pub struct JkEngine {
     engine: Engine,
     last: Output,
     counts: Counts,
+    /// The last resolve call's answer (spec §8.3).
+    resolved: String,
     #[cfg(feature = "predict")]
     predictions: Vec<crate::predict::Prediction>,
     /// The learner's last export (spec §10.11).
@@ -42,6 +45,7 @@ pub extern "C" fn jk_new() -> *mut JkEngine {
         engine: Engine::new(),
         last: Output::default(),
         counts: Counts::default(),
+        resolved: String::new(),
         #[cfg(feature = "predict")]
         predictions: Vec::new(),
         #[cfg(feature = "predict")]
@@ -84,6 +88,29 @@ pub extern "C" fn jk_activate(handle: *mut JkEngine) {
 #[unsafe(no_mangle)]
 pub extern "C" fn jk_set_enter_commits(handle: *mut JkEngine, on: u32) {
     with(handle, (), |h| h.engine.set_enter_commits(on != 0))
+}
+
+/// The mode, by id (spec §3.6): 0 = Mode A (JIS), 1 = Mode B (US ANSI). Unknown ids: Mode A.
+#[unsafe(no_mangle)]
+pub extern "C" fn jk_set_mode(handle: *mut JkEngine, mode: u32) {
+    with(handle, (), |h| h.engine.set_mode(Mode::from_id(mode)))
+}
+
+/// How many modes there are; their ids are 0 to count − 1.
+#[unsafe(no_mangle)]
+pub extern "C" fn jk_mode_count() -> u32 {
+    Mode::ALL.len() as u32
+}
+
+/// A mode's name (static UTF-8), for settings menus.
+#[unsafe(no_mangle)]
+pub extern "C" fn jk_mode_name_ptr(mode: u32) -> *const u8 {
+    Mode::from_id(mode).name().as_ptr()
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn jk_mode_name_len(mode: u32) -> usize {
+    Mode::from_id(mode).name().len()
 }
 
 #[unsafe(no_mangle)]
@@ -132,8 +159,93 @@ pub extern "C" fn jk_key_code_len(key: u32) -> usize {
 /// types nothing by itself.
 #[unsafe(no_mangle)]
 pub extern "C" fn jk_legend(key: u32, shift: u32, escaped: u32) -> u32 {
+    jk_legend_in(key, shift, escaped, 0)
+}
+
+/// The same in a given mode, by id.
+#[unsafe(no_mangle)]
+pub extern "C" fn jk_legend_in(key: u32, shift: u32, escaped: u32, mode: u32) -> u32 {
     let layout = if escaped != 0 { Layout::Escaped } else { Layout::JisKorean };
-    output(layout, Key::from_id(key), shift != 0).map_or(0, |o| o.char() as u32)
+    output_in(Mode::from_id(mode), layout, Key::from_id(key), shift != 0).map_or(0, |o| o.char() as u32)
+}
+
+// --- Resolving keys and text (spec §8.3), on a copy of this engine: its mode and predictions
+
+/// # Safety
+/// `ptr` must point to `len` readable bytes (or be null).
+unsafe fn utf8(ptr: *const u8, len: usize) -> String {
+    if ptr.is_null() {
+        return String::new();
+    }
+    // SAFETY: per the contract above.
+    String::from_utf8_lossy(unsafe { std::slice::from_raw_parts(ptr, len) }).into_owned()
+}
+
+/// What a key press (`KeyG`, `S-Digit2`) types on its own in this engine's mode. Returns 1 and
+/// stores the character (read it with `jk_resolved_*`), or 0 if it types none.
+///
+/// # Safety
+/// `press` must point to `press_len` readable bytes.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn jk_resolve_key_input(handle: *mut JkEngine, press: *const u8, press_len: usize) -> u32 {
+    // SAFETY: per the contract above.
+    let press = unsafe { utf8(press, press_len) };
+    with(handle, 0, |h| store(h, resolve::key_input(&h.engine, &press)))
+}
+
+/// What the field shows after `context` (unconfirmed text typed so far) and then the key press.
+/// Returns 1 and stores it, or 0 if the press isn't a key or no keys type the context.
+///
+/// # Safety
+/// Each pointer must point to its length in readable bytes.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn jk_resolve_key_input_after(
+    handle: *mut JkEngine,
+    context: *const u8,
+    context_len: usize,
+    press: *const u8,
+    press_len: usize,
+) -> u32 {
+    // SAFETY: per the contract above.
+    let (context, press) = unsafe { (utf8(context, context_len), utf8(press, press_len)) };
+    with(handle, 0, |h| store(h, resolve::key_input_after(&h.engine, &context, &press)))
+}
+
+/// Every combination of key presses that types `text`, with `min` to `max` presses. Returns how
+/// many, and stores them as JSON (`[["KeyG","KeyK","KeyS"],…]`; `[]` for none, including a
+/// nonsensical range).
+///
+/// # Safety
+/// `text` must point to `text_len` readable bytes.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn jk_resolve_keys_for_output(handle: *mut JkEngine, text: *const u8, text_len: usize, min: i64, max: i64) -> u32 {
+    // SAFETY: per the contract above.
+    let text = unsafe { utf8(text, text_len) };
+    with(handle, 0, |h| {
+        let found = resolve::keys_for_output(&h.engine, &text, min, max);
+        let routes: Vec<String> = found
+            .iter()
+            .map(|route| format!("[{}]", route.iter().map(|p| format!("\"{p}\"")).collect::<Vec<_>>().join(",")))
+            .collect();
+        h.resolved = format!("[{}]", routes.join(","));
+        found.len() as u32
+    })
+}
+
+fn store(h: &mut JkEngine, answer: Option<String>) -> u32 {
+    h.resolved = answer.clone().unwrap_or_default();
+    answer.is_some() as u32
+}
+
+/// The last resolve call's answer (UTF-8).
+#[unsafe(no_mangle)]
+pub extern "C" fn jk_resolved_ptr(handle: *mut JkEngine) -> *const u8 {
+    with(handle, std::ptr::null(), |h| h.resolved.as_ptr())
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn jk_resolved_len(handle: *mut JkEngine) -> usize {
+    with(handle, 0, |h| h.resolved.len())
 }
 
 // --- Hanja (spec §7)

@@ -8,6 +8,8 @@ this spec had to make that neither source settles are marked **[decide]** and al
 
 JIS Korean is a Korean 2-set (두벌식, KS X 5002) input method for a JIS physical keyboard. It
 extends 2-set over the full area that JIS kana typing uses (1 to ¥, down to ろ) and over F6–F10.
+That is **Mode A**, the original layout, and everything below describes it unless it says
+otherwise. **Mode B** carries the parts that fit onto US ANSI keyboards (§3.6).
 
 ---
 
@@ -123,6 +125,44 @@ Digits are on Shift, so numbers type with Shift held.
 Keys not listed (Space, Enter, Backspace, Tab, arrows, modifiers, other F-keys, keypad) keep their
 normal behavior, except as §5 and §6 define. Any keystroke with Ctrl, Alt/Option or Cmd/Win held
 **commits the composition first** and then passes through to the app unchanged **[decide]**.
+
+### 3.6 Modes
+
+A **mode** is one keyboard's key map. Every mode keeps standard 2-set on the 26 letter keys
+(§1), Shift+Z as F10, F6–F10, the automaton (§4) and everything after §4. A mode only says what
+the other keys type, and which stock keyboard sits under it. Mode A is the default.
+
+| Mode | Name | Keyboard | Stock keyboard |
+|---|---|---|---|
+| A | JIS Korean Original Layout | JIS | JIS |
+| B | JIS Korean for US ANSI | US ANSI (HHKB US, MacBook US) | US ANSI |
+
+**Mode B** keeps Mode A's number row (§3.1: ㅃ ㅉ ㄸ ㄲ ㅆ ㅟ ㅝ ㅚ ㅢ ㅘ, digits on Shift) and moves the
+brackets to the US `[` and `]` keys:
+
+| Key | Unshifted | Shift |
+|---|---|---|
+| [ (`BracketLeft`) | [ | 「 |
+| ] (`BracketRight`) | ] | 」 |
+
+Every other key types what it does on US ANSI, **by design**: - = \ ` ; ' , . / keep their
+unshifted and shifted characters, so every symbol stays where a US typist expects it. `IntlYen` and
+`IntlRo` aren't in Mode B: they commit and pass through (§3.5). `Backquote` isn't in Mode A (on a JIS
+board it's the 半角/全角 key).
+
+US ANSI users are encouraged to use Mode B as-is, to keep every symbol where they know it, or to
+fork it into a mode of their own that fits their typing or their keyboard (docs/modes.md).
+
+The stock keyboard drives everything that reads keys as plain characters, so nothing implies
+JIS in Mode B:
+
+- **F8** (§6.1) escapes to standard 2-set over the stock keys: in Mode B, Shift+2 = `@`.
+- **English readings** (`Engine::english`) and the **standard 2-set reading** (§10.2) use the
+  stock characters: in Mode B, `ㅎ ㅏ ㄴ Shift+2` (G K S Shift+2) predicts 한2 and 한@, where Mode A
+  predicts 한2 and 한".
+
+Examples (Mode B): `Shift+[` → 「; `Shift+2` → 2, read in English as @; `F8 Shift+2` → @;
+`ㅎ ㅏ ㄴ Shift+Z` → gks.
 
 ---
 
@@ -391,7 +431,8 @@ Raised by this spec:
    then `123` (each with its own F9/F10, §5.3). Is that enough?
 10. **Arrows, Tab, Esc (§5.1).** Outside the hanja list they commit then pass through. Should Esc
     cancel the segment instead?
-11. **Non-JIS hardware.** Supported at all on desktop (ANSI has no ¥ or ろ key), or JIS only?
+11. ~~**Non-JIS hardware.**~~ Settled: Mode B (§3.6) for US ANSI. It keeps Mode A's number row
+    and brackets and leaves every other key as US ANSI has it.
 
 ---
 
@@ -416,9 +457,9 @@ no behavior change.
 | Kind | Reading | Example (keys → text) |
 |---|---|---|
 | Korean | JIS Korean, as composed | `gksrmf` → 한글 |
-| English | the same keys on JIS QWERTY (stock JIS symbols) | `gksrmf` → gksrmf |
+| English | the same keys on QWERTY (the mode's stock symbols, §3.6) | `gksrmf` → gksrmf |
 | English, Capitalized / UPPER | case variants, **only when English ranks first** | `hello` → Hello, HELLO |
-| Standard 2-set | plain 2-set on stock JIS: no implied ㅇ, no double press, Shift+vowel is just the vowel, number-row keys type digits | `bb` → ㅠㅠ (JIS Korean: 유유); `rk1` → 가1 |
+| Standard 2-set | plain 2-set on the mode's stock keyboard (JIS, or US ANSI in Mode B): no implied ㅇ, no double press, Shift+vowel is just the vowel, number-row keys type digits | `bb` → ㅠㅠ (JIS Korean: 유유); `rk1` → 가1 |
 | Korean, finals kept | each vowel after a final starts its own syllable on ㅇ | `akfl` → 말이 (JIS Korean: 마리) |
 | Bare vowels | JIS Korean without the implied ㅇ (§10.3) | `bb` → ㅠㅠ, `nn` → ㅜㅜ |
 | English + particle | an English start with a Korean particle or ending (§10.3) | Anthropic에서, report에, RLHF에, server를 |
@@ -701,15 +742,86 @@ one line of counts and show the setting.
 
 ### 8.1 Keyboard Viewer (macOS)
 
-While JIS Korean is active, macOS uses a private layout bundled with the input method
-(`JISKorean.keylayout`, selected with `TISSetInputMethodKeyboardLayoutOverride` on each
-activation).
+While JIS Korean is active, macOS uses a private layout bundled with the input method, one per
+mode: `JISKorean.keylayout` for Mode A and `JISKoreanANSI.keylayout` for Mode B. The input method
+names the mode's layout to the client on each activation (`overrideKeyboard(withKeyboardNamed:)`).
 - **Generated at build time** by `mac/tools/make-keylayout` from the engine's own legends
-  (`cargo run --example legends`), so it can't drift from §3.
-- **Its plain and Shift layers** carry JIS Korean's legends. Shift+Z shows F10.
-- **Its Cmd, Ctrl and Option layers, and unlabelled keys,** are ABC's on a JIS keyboard, so
-  shortcuts and Option characters are unchanged.
+  (`cargo run --example legends <mode id>`), so it can't drift from §3.
+- **Its plain and Shift layers** carry the mode's legends. Shift+Z shows F10.
+- **Its Cmd, Ctrl and Option layers, and unlabelled keys,** are ABC's on the mode's keyboard (JIS
+  for Mode A, ANSI for Mode B), so shortcuts and Option characters are unchanged.
 - **Typing is unaffected:** the input method reads key codes, not characters.
+
+### 8.2 Modes as input sources, and the public API (macOS)
+
+Each mode (§3.6) is its own **input mode** of the one input method, the way Japanese has Kana and
+Romaji:
+
+| Mode | Input source ID | Shown as |
+|---|---|---|
+| A | `me.sjun.inputmethod.JISKorean.2Set` | JIS Korean |
+| B | `me.sjun.inputmethod.JISKorean.2SetANSI` | JIS Korean for US ANSI |
+
+The user adds the ones they want in System Settings → Keyboard → Input Sources (Korean → JIS
+Korean). Installing enables Mode A only.
+
+**Why input sources, and not a setting.** The mode follows the keyboard, and switching apps
+doesn't change which keyboard the user is typing on, so a per-app mode would mean nothing. As input
+sources, the modes are visible to everything that already understands input sources: the input
+menu, System Settings, and tools JIS Korean has no integration with, such as Hammerspoon and
+Karabiner, which can read and select them by ID. Never rename an ID: those tools match on it.
+
+**Public API.** The JIS Korean program also answers any other program, without an input-source
+API:
+
+| | How | Allowed |
+|---|---|---|
+| Read the mode | `defaults read me.sjun.inputmethod.JISKorean CurrentMode` → `A` / `B` (also `CurrentModeID`, `CurrentModeInputSourceID`, `CurrentModeName`), or `JISKorean.app/Contents/MacOS/JISKorean mode` | always |
+| Hear changes | distributed notification `me.sjun.inputmethod.JISKorean.ModeDidChange`, user info `mode`, `id`, `inputSourceID`, `name` | always |
+| Change the mode | distributed notification `me.sjun.inputmethod.JISKorean.SetMode`, user info `mode` (`A`, `B`, an engine id or an input source ID), or `JISKorean mode B` | only with **Let Other Apps Change the Mode** on, in the input menu with JIS Korean's other settings (off by default) |
+
+A change request is answered with `ModeDidChange`, or with
+`me.sjun.inputmethod.JISKorean.ModeChangeRefused` and a `reason`: the setting is off, the mode is
+unknown, or the mode isn't added in System Settings (the API never adds one). `CurrentMode` is the
+mode last used, whether or not JIS Korean is the selected input source now; the selected source
+says that. Selecting the input source directly (the input menu, `TISSelectInputSource`,
+Hammerspoon's `hs.keycodes.currentSourceID`) is macOS's own switching and isn't gated by the
+setting.
+
+### 8.3 Resolving keys and text
+
+Two functions answer "what does this key type" and "which keys type this", for programs that drive
+or check JIS Korean from outside (`engine/src/resolve.rs`, the C ABI `jk_resolve_*`, and on macOS
+the public API of §8.2). They run on a copy of a live engine, so they match it exactly: its mode,
+and with predictions on, its predictor, weights and what it learned. On macOS that is the engine of
+the app JIS Korean was last active in, and every answer names the app, the mode and whether
+predictions were on.
+
+A key press is a `KeyboardEvent.code` with `S-` for Shift held (`KeyG`, `S-Digit2`); the macOS API
+also takes a virtual key code (`5`, `S-5`). One press is one key, with or without Shift.
+
+- **resolveKeyCodeInput(keyCode)** → the character the key types on its own in the mode (`KeyG` →
+  ㅎ, `S-BracketLeft` → 「 in Mode B). None for keys that type no character: F-keys, Space,
+  Shift+Z (F10).
+- **resolveKeyCodeInput(keyCode, context)** → what the field shows after `context` (unconfirmed
+  text typed so far) and then the key: the context with the key's effect, including anything it
+  commits (`하` + `KeyS` → 한; `한` + `Space` → `한 `; with predictions on, `hello` + `Space` →
+  `hello `). The context is staged by the first key route found that shows it. None when no keys
+  type the context.
+- **resolveKeyCodeFromOutput(text, minKeypressCount = 1, maxKeypressCount = 1)** → every
+  combination of key presses that types `text` from an empty field, with that many presses: `ㅃ`
+  → `[Digit1]`, `[S-KeyQ]`. Fewest presses first, then fewest Shifts; at most 1000. **Never an
+  error:** a minimum below 1, a maximum below the minimum or an empty text give an empty array, and
+  a maximum above 16 is cut to 16.
+
+Keys apply as the shell applies them (§10): with predictions on, the marked text shows the top
+prediction unless that is the Korean reading, and Space and Enter commit what is shown. The search
+tries the keys whose characters are part of the text (in the layout or its F8 escape), F6, F8,
+and F7, F9, F10, Space and Enter only where the text needs them; it skips presses that change
+nothing, and follows only key routes whose text heads toward the target (its jamo, its letters
+before F9/F10, a hanja's reading before F7). Every combination returned is checked by typing it.
+
+---
 
 ### 10.12 Training files (the training contract)
 

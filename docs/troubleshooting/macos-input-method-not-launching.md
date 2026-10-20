@@ -149,7 +149,7 @@ Ranked by effort. A alone should restore typing; B and C stop it recurring.
 2. Select it (F18) in any app and type.
 3. Verify: `/usr/bin/log show --last 2m --info --predicate 'process == "imklaunchagent"'` shows
    `NO Endpoint` → `launchViaCSUA`, `launchd` spawns `JISKorean`, and
-   `~/Library/Logs/JISKorean.log` gets `launched from …` and `activated in <app bundle id>`.
+   `~/Library/Logs/JISKorean.log` (with `DiagnosticLog` on, see below) gets `launched from …` and `activated in <app bundle id>`.
 4. In practice (confirmed 17:10): steps 1–3 reach only the app the source was re-added in. Quit and
    reopen each other app, or log out and back in.
 5. If that does nothing: log out and back in (every catalog is rebuilt from the on-disk cache).
@@ -298,8 +298,12 @@ for s in TISCreateInputSourceList(nil, false).takeRetainedValue() as! [TISInputS
 
 The input method's own log, `~/Library/Logs/JISKorean.log`, is the reliable signal: one line per
 launch (`launched from <bundle path>`) and per activation (`activated in <client bundle id>`), plus
-the Keyboard Viewer step. It's written by `KeyboardViewerLayout.note` (uncommitted); keep it, or
-move it behind a defaults key before release.
+the Keyboard Viewer step. It's written by `DiagnosticLog.note` and is off by default; turn it on
+before diagnosing (it takes effect immediately, no restart):
+
+```sh
+defaults write me.sjun.inputmethod.JISKorean DiagnosticLog -bool true    # off again: -bool false
+```
 
 ## State when this was written
 

@@ -553,3 +553,46 @@ fn an_implied_l_after_n_is_offered_and_its_weight_0_turns_it_off() {
     // Only after a ㄴ final: 사람 has none to offer.
     assert!(typed("KeyT KeyK KeyF KeyK KeyA").predictions().iter().all(|x| x.kind != Kind::ImpliedL));
 }
+
+/// Mode B (spec §3.6): predictions read the keys as US ANSI, so Shift+2 is @ there, never JIS's ".
+#[test]
+fn mode_b_predictions_read_us_symbols() {
+    use jis_korean::Mode;
+    let typed_in = |mode: Mode, keys: &str| {
+        let mut e = Engine::new();
+        e.set_mode(mode);
+        e.set_predictor(Some(predictor()));
+        for token in keys.split_whitespace() {
+            let (mods, code) = match token.strip_prefix("S-") {
+                Some(code) => (Mods::SHIFTED, code),
+                None => (Mods::NONE, token),
+            };
+            e.key(Key::from_code(code), mods);
+        }
+        e.predictions().into_iter().map(|p| p.text).collect::<Vec<_>>()
+    };
+    // The standard 2-set reading (spec §10.2) types the stock keyboard's symbol: " on JIS, @ on US.
+    assert_eq!(typed_in(Mode::A, "KeyG KeyK KeyS S-Digit2"), ["한2", "한\"", "gks2"]);
+    let b = typed_in(Mode::B, "KeyG KeyK KeyS S-Digit2");
+    assert_eq!(b, ["한2", "한@", "gks2"]);
+}
+
+/// Resolving keys (spec §8.3) follows what the shell shows with predictions on: the top prediction,
+/// committed by Space.
+#[test]
+fn resolving_follows_predictions() {
+    use jis_korean::resolve::{key_input_after, keys_for_output, type_keys};
+    let hello = ["KeyH", "KeyE", "KeyL", "KeyL", "KeyO"];
+    let plain = Engine::new();
+    let mut predicting = Engine::new();
+    predicting.set_predictor(Some(predictor()));
+    assert_eq!(type_keys(&plain, &hello).as_deref(), Some("옫이애"));
+    assert_eq!(type_keys(&predicting, &hello).as_deref(), Some("hello"));
+    assert_eq!(key_input_after(&predicting, "hello", "Space").as_deref(), Some("hello "));
+    assert_eq!(key_input_after(&plain, "옫이애", "Space").as_deref(), Some("옫이애 "));
+    let found = keys_for_output(&predicting, "hello", 5, 5);
+    assert!(found.iter().any(|r| r.join(" ") == "KeyH KeyE KeyL KeyL KeyO"), "{found:?}");
+    for route in &found {
+        assert_eq!(type_keys(&predicting, route).as_deref(), Some("hello"), "{route:?}");
+    }
+}

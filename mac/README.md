@@ -40,6 +40,48 @@ After the first `make install`, add it in **System Settings → Keyboard → Inp
 + → Korean → JIS Korean**. After later installs it reloads by itself, since `make install`
 quits the running copy. If it doesn't show up in the list, log out and back in once.
 
+## Modes and the public API (spec §3.6, §8.2)
+
+Mode A and Mode B are two input sources of the one input method, like Japanese – Kana and
+Japanese – Romaji. `make install` enables Mode A (`me.sjun.inputmethod.JISKorean.2Set`); add Mode B
+(`me.sjun.inputmethod.JISKorean.2SetANSI`, "JIS Korean for US ANSI") in System Settings → Keyboard →
+Input Sources → + → Korean. The mode follows the keyboard, not the app, which is why each mode is
+its own input source that any tool can see and select.
+
+Any program can read the mode, hear it change, and, if the user turned on **Let Other Apps Change
+the Mode** in the input menu, change it:
+
+```sh
+defaults read me.sjun.inputmethod.JISKorean CurrentMode       # A or B
+J=~/Library/"Input Methods"/JISKorean.app/Contents/MacOS/JISKorean
+"$J" mode                                                     # A  JIS Korean Original Layout  me.sjun…2Set
+"$J" mode B                                                   # needs the setting; prints the answer
+```
+
+```lua
+-- Hammerspoon
+hs.distributednotifications.new(function(_, _, info) print("JIS Korean mode", info.mode) end,
+  "me.sjun.inputmethod.JISKorean.ModeDidChange"):start()
+hs.distributednotifications.post("me.sjun.inputmethod.JISKorean.SetMode", nil, { mode = "B" })
+```
+
+A refused change is answered with `me.sjun.inputmethod.JISKorean.ModeChangeRefused` and a `reason`.
+
+It also resolves keys and text (spec §8.3) on the engine of the app JIS Korean was last active in,
+with that app's mode and predictions:
+
+```sh
+"$J" resolveKeyCodeInput KeyG              # {"result":"ㅎ", "app":…, "mode":"A", "predictions":true, …}
+"$J" resolveKeyCodeInput KeyS 하           # the field after context 하 and the key: "한"
+"$J" resolveKeyCodeInput 5 하              # macOS virtual key codes work too (5 is G)
+"$J" resolveKeyCodeFromOutput ㅃ           # {"combinations":[["Digit1"],["S-KeyQ"]], …}
+"$J" resolveKeyCodeFromOutput 한 3 3       # min and max key presses; a nonsensical range gives []
+```
+
+As notifications: post `me.sjun.inputmethod.JISKorean.ResolveKeyCodeInput` (`keyCode`, optional
+`context`) or `…ResolveKeyCodeFromOutput` (`text`, `minKeypressCount`, `maxKeypressCount`) with a
+`requestID`; the answer comes as the same name + `Result`, with the same `requestID`.
+
 ## Files
 
 | File | What |
@@ -47,14 +89,16 @@ quits the running copy. If it doesn't show up in the list, log out and back in o
 | `Sources/main.swift` | Starts the `IMKServer`. |
 | `Sources/InputController.swift` | One controller and engine per text client: key events in, insert/marked text out, focus-loss commit, the "Enter commits" menu item. |
 | `Sources/KeyMap.swift` | macOS virtual key codes → engine key ids (spec §2). |
-| `Info.plist` | Bundle and input source metadata. Bundle id `me.sjun.inputmethod.JISKorean`. |
+| `Sources/InputModes.swift` | The modes as input modes, and the public API (spec §8.2). |
+| `Info.plist` | Bundle and input source metadata, with one input mode per engine mode. Bundle id `me.sjun.inputmethod.JISKorean`. |
 | `tools/make-icon.swift` | Draws the 한 badge (`icon.tiff`). `Info.plist` names it `icon.png` on one input mode, as Apple's Korean input method does; macOS still draws it slightly differently from Apple's badges in System Settings (see docs/troubleshooting/macos-input-method-not-launching.md). |
-| `tools/register.swift` | `TISRegisterInputSource`, so a fresh install appears without logging out. |
+| `tools/register.swift` | `TISRegisterInputSource`, so a fresh install appears without logging out. Re-enables only the sources that were enabled. |
+| `tools/make-keylayout` | One Keyboard Viewer layout per mode (spec §8.1). |
 
 ## Notes
 
 - Shortcuts (Ctrl, Option, Cmd) commit first, then go to the app unchanged.
-- Debug logs: `/usr/bin/log stream --predicate 'process == "JISKorean"'` (in zsh, `log` alone is a shell builtin), and the input method's own `~/Library/Logs/JISKorean.log`.
+- Debug logs: `/usr/bin/log stream --predicate 'process == "JISKorean"'` (in zsh, `log` alone is a shell builtin), and the input method's own `~/Library/Logs/JISKorean.log` (launches, activations, Keyboard Viewer), off by default: `defaults write me.sjun.inputmethod.JISKorean DiagnosticLog -bool true` turns it on immediately, `-bool false` off.
 
 - Input method installed but not launching after a reinstall, or Keyboard Viewer showing ABC
   legends: see [docs/troubleshooting/macos-input-method-not-launching.md](../docs/troubleshooting/macos-input-method-not-launching.md).
