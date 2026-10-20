@@ -14,7 +14,8 @@ the staging area is read two ways from the same keys:
 
 - **Korean**: what JIS Korean composes (`gksrmf` → 한글), from the same engine as the macOS input
   method and the [web playground](https://jis-korean.sjun.me).
-- **English**: what the keys type on a plain JIS English layout (`gksrmf`).
+- **English**: what the keys type on a plain English layout of the same keyboard (`gksrmf`): JIS
+  in Mode A, US ANSI in Mode B.
 
 **Space, Enter or Tab** commits the more likely reading. Space adds a space, Enter then sends the
 line, and Tab only commits. Minecraft's own suggestion line isn't used, so chat command
@@ -28,7 +29,6 @@ suggestions keep working.
 | F8 / Shift+F8, F9, F10 | As in JIS Korean: 2-set escape and back, full- and half-width |
 | Backspace | Edits the staging area by jamo, or deletes in the field when it's empty |
 | Escape | Drops the staging area, then closes the screen |
-| F18 / 英数 | Mod on / off (rebindable under Controls → JIS Korean) |
 
 F6 and F7 choices are remembered for the rest of the session: force `dkssud` to English once and
 it stays English.
@@ -56,7 +56,11 @@ Rules on top of the model:
 - **Shift on a key that Korean never shifts** (anything but Q W E R T O P) means English.
 - **Exact matches** in the common-word lists lean their way.
 - **Leftover bare jamo** count against Korean, except chat words like ㅋㅋ.
-- **A `/command` name** is always English. Its arguments are ranked as usual.
+- **A `/command` name** is English, unless it's one of the Mirae server's Korean aliases (`/귓말`,
+  `/지역`, `/스폰`). Its arguments are ranked as usual.
+- **Minecraft-only vocabulary** from 미래서버 (Mirae) is added to the word lists: the Mirae plugin's
+  commands and aliases, and words from the server's public chat when the jar is built with them
+  (`tools/mirae/README.md`; the chat logs are private and never committed).
 - **The previous word's language** tips close calls.
 
 ## Build and test
@@ -79,8 +83,16 @@ python3 -I tools/build_ranker.py words_alpha.txt [--eval-korean <Korean text>]
 
 ## Notes
 
-- **Keep the OS input source on English** (ABC) while playing. The mod does the Korean itself, and
-  an OS input method would compose on top of it.
+- **Always on, whatever the OS input source.** The mod is on in every single-line text field, and
+  it types with its own engine from the raw key presses. For those fields it keeps the OS text
+  input off (`TextInputManagerMixin`), so no OS input method, JIS Korean included, composes the
+  same keys a second time; switch input sources (Ctrl+Space) as you like. Keys the engine doesn't
+  know (the numeric keypad, Option combinations) type nothing in those fields.
+- **The mode follows JIS Korean's.** On macOS the mod reads the input method's current mode
+  (`defaults read me.sjun.inputmethod.JISKorean CurrentModeID`, spec §8.2) each time a screen
+  opens, and types Mode A (JIS) or Mode B (US ANSI) to match. Elsewhere, or if JIS Korean has never
+  run, it's Mode A. The macOS input method isn't changed for this: the mod only reads its public
+  API.
 - **Karabiner ろ rule:** on Macs where a Karabiner rule turns ろ into Option+¥ (as in
   hhkb-ekj-trilingual), the mod reads Option+¥ back as ろ.
 - **Supported fields:** single-line text fields (`EditBox`): chat, commands, anvils, command

@@ -31,6 +31,7 @@ public final class WasmEngine {
 	private final ExportFunction flush;
 	private final ExportFunction clear;
 	private final ExportFunction activate;
+	private final ExportFunction setMode;
 	private final ExportFunction isEscaped;
 	private final ExportFunction commitPtr;
 	private final ExportFunction commitLen;
@@ -45,6 +46,7 @@ public final class WasmEngine {
 		flush = instance.export("jk_flush");
 		clear = instance.export("jk_clear");
 		activate = instance.export("jk_activate");
+		setMode = instance.export("jk_set_mode");
 		isEscaped = instance.export("jk_is_escaped");
 		commitPtr = instance.export("jk_commit_ptr");
 		commitLen = instance.export("jk_commit_len");
@@ -100,6 +102,14 @@ public final class WasmEngine {
 	/** Leaves any F8 escape. */
 	public void activate() {
 		activate.apply(handle);
+	}
+
+	/**
+	 * Switches the layout mode by its stable id (spec §3.6): 0 is Mode A (JIS), 1 is Mode B (US
+	 * ANSI). Unknown ids are ignored by the engine.
+	 */
+	public void setMode(int mode) {
+		setMode.apply(handle, mode);
 	}
 
 	public boolean escaped() {

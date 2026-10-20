@@ -19,6 +19,10 @@ import java.util.Set;
  * for Korean words ({@code tools/build_ranker.py}, which also reports accuracy). Rules on top cover
  * what a model can't see: explicit overrides, Shift on keys Korean never shifts, exact word lists,
  * leftover bare jamo, command lines, and the language of the previous word.
+ *
+ * <p>The word lists add Minecraft-only vocabulary from 미래서버 (tools/mirae/README.md) when the jar
+ * has it: words from the server's public chat, and the Mirae plugin's commands. A command name is
+ * English, unless it's one of the plugin's Korean aliases (/귓말, /지역, /스폰).
  */
 public final class Ranker {
 	public enum Language { KOREAN, ENGLISH }
@@ -56,12 +60,15 @@ public final class Ranker {
 	private final byte[] korean;
 	private final Set<String> englishWords;
 	private final Set<String> koreanWords;
+	/** Command names that are Korean (the Mirae plugin's Korean aliases). */
+	private final Set<String> koreanCommands;
 
-	Ranker(byte[] english, byte[] korean, Set<String> englishWords, Set<String> koreanWords) {
+	Ranker(byte[] english, byte[] korean, Set<String> englishWords, Set<String> koreanWords, Set<String> koreanCommands) {
 		this.english = english;
 		this.korean = korean;
 		this.englishWords = englishWords;
 		this.koreanWords = koreanWords;
+		this.koreanCommands = koreanCommands;
 	}
 
 	/** Loads the model and word lists bundled with the mod. */
@@ -75,7 +82,21 @@ public final class Ranker {
 			}
 			byte[] en = data.readNBytes(SIZE * SIZE * SIZE);
 			byte[] ko = data.readNBytes(SIZE * SIZE * SIZE);
-			return new Ranker(en, ko, words("common-en.txt"), words("common-ko.txt"));
+			resource("common-en.txt").close(); // required: fails loudly if the jar lacks them
+			resource("common-ko.txt").close();
+			Set<String> englishWords = words("common-en.txt");
+			Set<String> koreanWords = words("common-ko.txt");
+			Set<String> koreanCommands = new HashSet<>();
+			// Minecraft-only vocabulary, when the jar has it (tools/mirae).
+			englishWords.addAll(words("mirae-vocab-en.txt"));
+			koreanWords.addAll(words("mirae-vocab-ko.txt"));
+			for (String line : lines("mirae-commands.txt")) {
+				String[] fields = line.split("\t");
+				if (fields.length >= 2) {
+					(fields[1].equals("ko") ? koreanCommands : englishWords).add(fields[0].toLowerCase());
+				}
+			}
+			return new Ranker(en, ko, englishWords, koreanWords, koreanCommands);
 		} catch (IOException e) {
 			throw new UncheckedIOException(e);
 		}
@@ -113,7 +134,9 @@ public final class Ranker {
 			margin -= BARE_JAMO * bare;
 		}
 		if (context.command()) {
-			return new Choice(Language.ENGLISH, -99, "command");
+			return koreanCommands.contains(koreanText)
+					? new Choice(Language.KOREAN, 99, "ko command")
+					: new Choice(Language.ENGLISH, -99, "command");
 		}
 		if (context.previous() == Language.KOREAN) {
 			margin += STICKY;
@@ -167,18 +190,31 @@ public final class Ranker {
 		return in;
 	}
 
+	/** A word list's words. Generated entries are "word<TAB>count"; only the word is needed. */
 	private static Set<String> words(String name) throws IOException {
 		Set<String> words = new HashSet<>();
-		try (BufferedReader reader = new BufferedReader(new InputStreamReader(resource(name), StandardCharsets.UTF_8))) {
+		for (String line : lines(name)) {
+			int tab = line.indexOf('\t');
+			words.add(tab < 0 ? line : line.substring(0, tab));
+		}
+		return words;
+	}
+
+	/** A bundled text file's lines, without blanks and # comments. Empty if the jar doesn't have it. */
+	private static java.util.List<String> lines(String name) throws IOException {
+		java.util.List<String> lines = new java.util.ArrayList<>();
+		InputStream in = Ranker.class.getResourceAsStream("/assets/jiskorean/" + name);
+		if (in == null) {
+			return lines;
+		}
+		try (BufferedReader reader = new BufferedReader(new InputStreamReader(in, StandardCharsets.UTF_8))) {
 			for (String line; (line = reader.readLine()) != null; ) {
 				line = line.strip();
 				if (!line.isEmpty() && !line.startsWith("#")) {
-					// Generated entries are "word<TAB>count"; the mod only needs the word.
-					int tab = line.indexOf('\t');
-					words.add(tab < 0 ? line : line.substring(0, tab));
+					lines.add(line);
 				}
 			}
 		}
-		return words;
+		return lines;
 	}
 }

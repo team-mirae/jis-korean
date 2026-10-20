@@ -28,7 +28,7 @@ public class TypingGameTest implements FabricClientGameTest {
 	public void runTest(ClientGameTestContext context) {
 		try (TestSingleplayerContext world = context.worldBuilder().create()) {
 			world.getConnection().waitForChunksRender();
-			context.runOnClient(client -> JisKoreanClient.setEnabled(true));
+			context.runOnClient(client -> JisKoreanClient.pinMode(0));
 
 			check(context, "gksrmf ", "한글 ");
 			check(context, "hello ", "hello ");
