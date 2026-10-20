@@ -17,6 +17,16 @@ interface Exports {
   jk_key_code_ptr(key: number): number;
   jk_key_code_len(key: number): number;
   jk_legend(key: number, shift: number, escaped: number): number;
+  jk_legend_in(key: number, shift: number, escaped: number, mode: number): number;
+  jk_set_mode(h: number, mode: number): void;
+  jk_mode_count(): number;
+  jk_mode_name_ptr(mode: number): number;
+  jk_mode_name_len(mode: number): number;
+  jk_resolve_key_input(h: number, p: number, pl: number): number;
+  jk_resolve_key_input_after(h: number, c: number, cl: number, p: number, pl: number): number;
+  jk_resolve_keys_for_output(h: number, t: number, tl: number, min: bigint, max: bigint): number;
+  jk_resolved_ptr(h: number): number;
+  jk_resolved_len(h: number): number;
   jk_alloc(len: number): number;
   jk_dealloc(ptr: number, len: number): void;
   jk_dict_new(ptr: number, len: number): number;
@@ -365,6 +375,71 @@ export class Engine {
     };
   }
 
+  /** The modes (spec §3.6): id and name. Mode A (0) is the default. */
+  modes(): { id: number; name: string }[] {
+    const { x } = this;
+    return Array.from({ length: x.jk_mode_count() }, (_, id) => ({
+      id,
+      name: this.text(x.jk_mode_name_ptr(id), x.jk_mode_name_len(id)),
+    }));
+  }
+
+  /** Switches the mode: 0 = Mode A (JIS), 1 = Mode B (US ANSI). */
+  setMode(id: number): void {
+    this.mode = id;
+    this.x.jk_set_mode(this.handle, id);
+  }
+
+  private mode = 0;
+
+  /** Copies `text` into the engine's memory for one call. */
+  private withBytes<T>(texts: string[], f: (args: number[]) => T): T {
+    const { x } = this;
+    const args: number[] = [];
+    const held: [number, number][] = [];
+    for (const text of texts) {
+      const bytes = encoder.encode(text);
+      const ptr = x.jk_alloc(bytes.length);
+      new Uint8Array(x.memory.buffer, ptr, bytes.length).set(bytes);
+      args.push(ptr, bytes.length);
+      held.push([ptr, bytes.length]);
+    }
+    try {
+      return f(args);
+    } finally {
+      for (const [ptr, len] of held) x.jk_dealloc(ptr, len);
+    }
+  }
+
+  private resolved(): string {
+    return this.text(this.x.jk_resolved_ptr(this.handle), this.x.jk_resolved_len(this.handle));
+  }
+
+  /**
+   * resolveKeyCodeInput (spec §8.3): what a key press ("KeyG", "S-Digit2") types on its own, or,
+   * with `context`, what the field shows after that unconfirmed text and the key. Null if none.
+   * Runs on a copy of this engine: its mode and predictions.
+   */
+  resolveKeyCodeInput(press: string, context?: string): string | null {
+    const { x, handle: h } = this;
+    const found =
+      context === undefined
+        ? this.withBytes([press], ([p, pl]) => x.jk_resolve_key_input(h, p, pl))
+        : this.withBytes([context, press], ([c, cl, p, pl]) => x.jk_resolve_key_input_after(h, c, cl, p, pl));
+    return found ? this.resolved() : null;
+  }
+
+  /**
+   * resolveKeyCodeFromOutput (spec §8.3): every combination of key presses that types `text`, with
+   * `min` to `max` presses. Empty for a nonsensical range.
+   */
+  resolveKeyCodeFromOutput(text: string, min = 1, max = 1): string[][] {
+    const { x, handle: h } = this;
+    const clamp = (n: number) => BigInt(Math.trunc(Math.max(-1e15, Math.min(1e15, Number.isFinite(n) ? n : 0))));
+    this.withBytes([text], ([t, tl]) => x.jk_resolve_keys_for_output(h, t, tl, clamp(min), clamp(max)));
+    return JSON.parse(this.resolved()) as string[][];
+  }
+
   key(code: string, mods: Mods = {}): Output {
     const bits = (mods.shift ? 1 : 0) | (mods.ctrl ? 2 : 0) | (mods.alt ? 4 : 0) | (mods.meta ? 8 : 0);
     return this.output(this.x.jk_key(this.handle, this.id(code), bits) !== 0);
@@ -389,7 +464,7 @@ export class Engine {
 
   /** The character a key types, for key legends. Empty if none. */
   legend(code: string, shift: boolean, escaped: boolean): string {
-    const c = this.x.jk_legend(this.id(code), shift ? 1 : 0, escaped ? 1 : 0);
+    const c = this.x.jk_legend_in(this.id(code), shift ? 1 : 0, escaped ? 1 : 0, this.mode);
     return c ? String.fromCodePoint(c) : "";
   }
 }

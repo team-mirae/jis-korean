@@ -806,8 +806,9 @@ also takes a virtual key code (`5`, `S-5`). One press is one key, with or withou
 - **resolveKeyCodeInput(keyCode, context)** → what the field shows after `context` (unconfirmed
   text typed so far) and then the key: the context with the key's effect, including anything it
   commits (`하` + `KeyS` → 한; `한` + `Space` → `한 `; with predictions on, `hello` + `Space` →
-  `hello `). The context is staged by the first key route found that shows it. None when no keys
-  type the context.
+  `hello `). The context is staged by keys whose own Korean reading is the context, as a person types it
+  (국의 with its ㅇ); only when there are none, by keys that show it through the top prediction.
+  None when no keys type the context.
 - **resolveKeyCodeFromOutput(text, minKeypressCount = 1, maxKeypressCount = 1)** → every
   combination of key presses that types `text` from an empty field, with that many presses: `ㅃ`
   → `[Digit1]`, `[S-KeyQ]`. Fewest presses first, then fewest Shifts; at most 1000. **Never an

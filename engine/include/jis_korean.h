@@ -156,7 +156,7 @@ size_t jk_candidate_len(JkEngine *engine, size_t index);
 const uint8_t *jk_candidate_comment_ptr(JkEngine *engine, size_t index);
 size_t jk_candidate_comment_len(JkEngine *engine, size_t index);
 
-/* The last result's keystrokes read as English on stock JIS (letters with case, digits, JIS
+/* The last result's keystrokes read as English on the mode's stock keyboard (letters with case, digits,
  * symbols), for hosts that choose between Korean and English themselves. */
 const uint8_t *jk_english_ptr(JkEngine *engine);
 size_t jk_english_len(JkEngine *engine);

@@ -124,44 +124,62 @@ pub fn keys_for_output(template: &Engine, text: &str, min: i64, max: i64) -> Vec
 }
 
 /// The first key route found that types `text`, preferring plain keys: how the context of
-/// [`key_input_after`] is staged.
+/// [`key_input_after`] is staged. Keys whose own Korean reading is `text` come first, as a person
+/// types it; only if there are none does a match through the shown prediction count.
 fn route_to(template: &Engine, text: &str) -> Option<Vec<Press>> {
     let targets = targets(template, text);
     let alphabet = alphabet(template, text, &targets);
     let limit = 4 * text.chars().count() + 8;
-    let mut budget = BUDGET;
-    let mut route = Vec::new();
-    fn search(field: &Field, text: &str, targets: &[Vec<char>], alphabet: &[Press], route: &mut Vec<Press>, limit: usize, budget: &mut usize) -> bool {
-        if field.screen() == text {
-            return true;
+    let as_typed = |f: &Field| f.committed.clone() + &f.engine.preedit() == text;
+    let as_shown = |f: &Field| f.screen() == text;
+    for done in [&as_typed as &dyn Fn(&Field) -> bool, &as_shown] {
+        let mut budget = BUDGET;
+        let mut route = Vec::new();
+        if search(&Field::new(template), done, &targets, &alphabet, &mut route, limit, &mut budget) {
+            return Some(route);
         }
-        if route.len() >= limit {
+    }
+    None
+}
+
+/// Depth-first, in the alphabet's order, along presses heading toward a target.
+fn search(
+    field: &Field,
+    done: &dyn Fn(&Field) -> bool,
+    targets: &[Vec<char>],
+    alphabet: &[Press],
+    route: &mut Vec<Press>,
+    limit: usize,
+    budget: &mut usize,
+) -> bool {
+    if done(field) {
+        return true;
+    }
+    if route.len() >= limit {
+        return false;
+    }
+    for &p in alphabet {
+        if *budget == 0 {
             return false;
         }
-        for &p in alphabet {
-            if *budget == 0 {
-                return false;
-            }
-            if !field.can_press(p) {
-                continue;
-            }
-            *budget -= 1;
-            let mut child = field.clone();
-            child.press(p);
-            if child.same_as(field) {
-                continue;
-            }
-            if child.screen() == text || child.heads_toward(targets) {
-                route.push(p);
-                if search(&child, text, targets, alphabet, route, limit, budget) {
-                    return true;
-                }
-                route.pop();
-            }
+        if !field.can_press(p) {
+            continue;
         }
-        false
+        *budget -= 1;
+        let mut child = field.clone();
+        child.press(p);
+        if child.same_as(field) {
+            continue;
+        }
+        if done(&child) || child.heads_toward(targets) {
+            route.push(p);
+            if search(&child, done, targets, alphabet, route, limit, budget) {
+                return true;
+            }
+            route.pop();
+        }
     }
-    search(&Field::new(template), text, &targets, &alphabet, &mut route, limit, &mut budget).then_some(route)
+    false
 }
 
 /// The presses a search for `text` tries, plain before Shift: the keys whose character (in the
@@ -297,7 +315,8 @@ impl Field {
 /// their readings (typed before F7). At most 8.
 fn targets(template: &Engine, text: &str) -> Vec<Vec<char>> {
     let mut variants = vec![String::new()];
-    let readings = hanja_readings(template);
+    // Building the reverse index reads the whole dictionary: only for text with hanja.
+    let readings = if text.chars().any(is_hanja) { hanja_readings(template) } else { HashMap::new() };
     let chars: Vec<char> = text.chars().collect();
     let mut i = 0;
     while i < chars.len() {

@@ -88,7 +88,7 @@ body {
 main {
   max-width: 860px;
   margin: 0 auto;
-  padding: 56px 16px 64px;
+  padding: 40px 16px 64px;
   display: grid;
   gap: 32px;
 }
@@ -843,4 +843,279 @@ main.floating-keyboard .caret {
 /* Easy words under "Keys to try": a key run and its word stay on one line. */
 .easy-word {
   white-space: nowrap;
+}
+
+/* Top bar: brand, Playground / Docs, GitHub. Sticks to the top of the window. */
+
+.topbar {
+  position: sticky;
+  top: 0;
+  z-index: 30;
+  border-bottom: 1px solid var(--border);
+  background: color-mix(in srgb, var(--bg) 88%, transparent);
+  backdrop-filter: blur(8px);
+}
+
+.topbar-inner {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  max-width: 1120px;
+  margin: 0 auto;
+  padding: 10px 16px;
+}
+
+.brand {
+  color: var(--text);
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  text-decoration: none;
+}
+
+.topbar nav {
+  display: flex;
+  gap: 4px;
+}
+
+.topbar nav a {
+  padding: 4px 10px;
+  border-radius: 6px;
+  color: var(--muted);
+  font-size: 0.9rem;
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.topbar nav a:hover {
+  color: var(--text);
+}
+
+.topbar nav a[aria-current="page"] {
+  background: var(--highlight);
+  color: var(--text);
+}
+
+.topbar a:focus-visible,
+.docs a:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.loading {
+  padding: 48px 16px;
+  color: var(--muted);
+  text-align: center;
+}
+
+/* Docs: a sidebar with the repository's folders, and the page. */
+
+.docs {
+  display: grid;
+  grid-template-columns: 200px minmax(0, 1fr);
+  gap: 48px;
+  max-width: 1120px;
+  margin: 0 auto;
+  padding: 40px 16px 80px;
+}
+
+.docs-nav {
+  position: sticky;
+  top: 72px;
+  align-self: start;
+}
+
+.docs-nav-label {
+  display: block;
+  margin-bottom: 8px;
+  font-size: 0.75rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--muted);
+}
+
+.docs-nav ul {
+  display: grid;
+  gap: 2px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.docs-nav a {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 6px 10px;
+  border-radius: 6px;
+  color: var(--text);
+  text-decoration: none;
+}
+
+.docs-nav a:hover {
+  background: var(--surface);
+}
+
+.docs-nav a[aria-current="page"] {
+  background: var(--highlight);
+}
+
+.docs-nav-title {
+  font-weight: 600;
+}
+
+.docs-nav-folder {
+  font-family: var(--mono);
+  font-size: 0.75rem;
+  color: var(--muted);
+}
+
+.doc {
+  max-width: 760px;
+  min-width: 0;
+}
+
+.doc-head {
+  margin-bottom: 8px;
+}
+
+.doc-folder {
+  font-family: var(--mono);
+  font-size: 0.8rem;
+}
+
+.doc-folder a {
+  color: var(--accent);
+}
+
+.doc h1 {
+  margin: 4px 0 8px;
+  font-size: 2rem;
+}
+
+.doc h2 {
+  margin: 40px 0 12px;
+  padding-top: 16px;
+  border-top: 1px solid var(--border);
+  font-size: 1.25rem;
+  text-wrap: balance;
+}
+
+.doc h3 {
+  margin: 28px 0 8px;
+  font-size: 1.02rem;
+}
+
+.doc p,
+.doc li {
+  line-height: 1.65;
+}
+
+.doc ul,
+.doc ol {
+  padding-left: 1.3em;
+}
+
+.doc li + li {
+  margin-top: 6px;
+}
+
+.doc a {
+  color: var(--accent);
+}
+
+.doc :not(pre) > code,
+.doc td code {
+  padding: 1px 5px;
+  border-radius: 4px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  font-family: var(--mono);
+  font-size: 0.84em;
+}
+
+.code {
+  margin: 12px 0 18px;
+  padding: 14px 16px;
+  overflow-x: auto;
+  border-radius: 8px;
+  background: var(--plate);
+  color: #ece7e3;
+  font-family: var(--mono);
+  font-size: 0.82rem;
+  line-height: 1.6;
+}
+
+.table-wrap {
+  margin: 12px 0 18px;
+  overflow-x: auto;
+}
+
+.doc table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.9rem;
+}
+
+.doc th,
+.doc td {
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--border);
+  text-align: left;
+  vertical-align: top;
+}
+
+.doc th {
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--muted);
+}
+
+.doc td code {
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+@media (max-width: 760px) {
+  .docs {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 24px;
+    padding-top: 24px;
+  }
+
+  .docs-nav {
+    position: static;
+  }
+
+  .docs-nav ul {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+  }
+
+  .docs-nav-folder {
+    display: none;
+  }
+}
+
+.doc :not(pre) > code {
+  overflow-wrap: anywhere;
+}
+
+/* Phones: the bar keeps to one line. */
+@media (max-width: 480px) {
+  .topbar-inner {
+    gap: 10px;
+  }
+
+  .topbar nav a {
+    padding: 4px 8px;
+  }
+
+  .repo-label {
+    display: none;
+  }
 }

@@ -590,6 +590,9 @@ fn resolving_follows_predictions() {
     assert_eq!(type_keys(&predicting, &hello).as_deref(), Some("hello"));
     assert_eq!(key_input_after(&predicting, "hello", "Space").as_deref(), Some("hello "));
     assert_eq!(key_input_after(&plain, "옫이애", "Space").as_deref(), Some("옫이애 "));
+    // The context is staged as typed in Korean (국의 with ㅇ), not by keys whose Korean reading is
+    // 구긔 that only show 국의 through a prediction.
+    assert_eq!(key_input_after(&predicting, "대한민국의", "KeyS").as_deref(), Some("대한민국읜"));
     let found = keys_for_output(&predicting, "hello", 5, 5);
     assert!(found.iter().any(|r| r.join(" ") == "KeyH KeyE KeyL KeyL KeyO"), "{found:?}");
     for route in &found {
