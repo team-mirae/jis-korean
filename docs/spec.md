@@ -597,9 +597,12 @@ engine:
 | `LANG_EN` | English: the English mode used last (§3.6.2) | always English |
 | `LANG_JA` | Japanese | handed to the platform's Japanese input method |
 
-Each platform says which physical keys they are (macOS: §8.2.1; Windows: §8.4, where 한/영 toggles
-instead, **[decide]** whether Windows maps them). Each works while the others are held: holding
-`LANG_KO` doesn't stop `LANG_JA` from going to Japanese. These are shell keys, like Ctrl+Space:
+Each platform says which physical keys they are, where it has keys to spare (macOS: §8.2.1, where
+英数, かな and the Windows JIS カタカナ key give three). A platform without independent one-way keys
+doesn't have to invent them: Windows and Linux keyboards usually have one toggle per language pair
+(한/영 on Korean keyboards, 半角/全角 on Japanese ones), and there the toggle is the platform's key
+(Windows: 한/영 switches JIS Korean off and on, §8.4). Where they exist, each works while the others
+are held: holding `LANG_KO` doesn't stop `LANG_JA` from going to Japanese. These are shell keys, like Ctrl+Space:
 they select input modes and never reach the engine.
 
 ---
