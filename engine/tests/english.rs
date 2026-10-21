@@ -193,11 +193,12 @@ fn korean_modes_ignore_the_repeat() {
 }
 
 #[test]
-fn caps_lock_holds_offer_capitals() {
+fn caps_lock_changes_nothing() {
+    // Caps Lock switches to Korean on macOS (spec §8.2.1), so the English modes don't read it.
     let mut engine = english();
     engine.key(key("KeyU"), CAPS);
     let out = engine.key(key("KeyU"), Mods { repeat: true, ..CAPS });
-    assert_eq!((out.preedit.as_str(), list(&out)[1].as_str()), ("U", "Ü"));
+    assert_eq!((out.preedit.as_str(), list(&out)[1].as_str()), ("u", "ü"));
 }
 
 /// `B_QWERTY` (9) and `CJ_QWERTY` (10): JIS English on US ANSI and UK ISO symbols (spec §3.6.2).

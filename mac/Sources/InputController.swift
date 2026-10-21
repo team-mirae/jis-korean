@@ -65,11 +65,34 @@ final class JKInputController: IMKInputController {
     }
 
     override func recognizedEvents(_ sender: Any!) -> Int {
-        Int(NSEvent.EventTypeMask.keyDown.rawValue)
+        // Modifier changes too: Caps Lock is one, and in the English modes it switches to Korean.
+        Int(NSEvent.EventTypeMask.keyDown.rawValue | NSEvent.EventTypeMask.flagsChanged.rawValue)
     }
 
     override func handle(_ event: NSEvent!, client sender: Any!) -> Bool {
-        guard let event, event.type == .keyDown, let client = sender as? IMKTextInput else { return false }
+        guard let event, let client = sender as? IMKTextInput else { return false }
+        if event.type == .flagsChanged {
+            #if ENGLISH
+            // Caps Lock in an English mode goes to the last Korean mode (spec §8.2.1). Its light
+            // still toggles; no mode types capitals from it, so that doesn't matter.
+            if Int(event.keyCode) == kVK_CapsLock {
+                DiagnosticLog.note("Caps Lock in \(client.bundleIdentifier() ?? "?")")
+                if !InputModes.current.korean, InputModes.isEnabled(InputModes.lastKorean) {
+                    flush(client)
+                    applyMode(InputModes.lastKorean, client: client)
+                    selectLater(InputModes.lastKorean)
+                    return true
+                }
+            }
+            #endif
+            return false
+        }
+        guard event.type == .keyDown else { return false }
+        if engineKey(event.keyCode) == UInt32(JK_KEY_OTHER) {
+            // Keys JIS Korean doesn't map, with the app: shows which keys an app passes on at all
+            // (iTerm keeps F1–F19 to itself) and what code a remapped key arrives as.
+            DiagnosticLog.note("unmapped key code \(event.keyCode) in \(client.bundleIdentifier() ?? "?")")
+        }
         #if ENGLISH
         if let handled = handleSwitchKey(event, client) {
             return handled

@@ -293,8 +293,8 @@ the Korean modes, so switching between them never leaves JIS Korean (§8.2.1).
 It isn't a 2-set mode (nor are ids 4–8): none of §3.1–3.5 or §4 onward applies. It behaves like
 the Japanese input method's Romaji mode without its Japanese conversions: the engine consumes no key
 (every key goes to the app, typed by the mode's keyboard layout, §8.1) and composes nothing; no
-predictions, hanja or F6–F10: F9 and F10 go to the app, Shift+Z types Z and Shift+X types X. Caps
-Lock types capitals. The one thing it adds is press and hold (§3.6.3). Switching in commits whatever a Korean mode left unconfirmed. The core principle (§1) is about the Korean modes and
+predictions, hanja or F6–F10: F9 and F10 go to the app, Shift+Z types Z and Shift+X types X.
+Capitals come from Shift: on macOS Caps Lock switches to Korean instead (§8.2.1). The one thing it adds is press and hold (§3.6.3). Switching in commits whatever a Korean mode left unconfirmed. The core principle (§1) is about the Korean modes and
 is unaffected. The engine still names the layout: its key table is the JIS stock table (Mode A's
 stock keyboard), which the macOS keyboard layout is generated from, so the symbols can't drift from
 Mode A's F8 escape.
@@ -344,8 +344,6 @@ While the list is open:
 
 Other keys repeat as usual: a key without variants, a repeat whose key or Shift differs from the
 press before it, and anything with Ctrl, Option or Cmd. The Korean modes ignore `JK_MOD_REPEAT`.
-
-With Caps Lock on, the letter and its variants are capitals.
 
 Examples (key codes; `…` is the key's auto-repeat): `KeyU KeyU… Digit2` → ü; `S-KeyU S-KeyU… Digit2`
 → Ü; `KeyE KeyE… ArrowLeft Enter` → ę; `KeyA KeyA… KeyB` → ab; `KeyO KeyO… Backspace` → nothing.
@@ -1023,7 +1021,12 @@ that go back to Korean go to the Korean mode used last.
   works without further setup. The input menu offers None and F13 to F19 (Korean Key (Back to
   Korean)); any other key code is set with `defaults write me.sjun.inputmethod.JISKorean KoreanKey
   -int <code>` (-1 for none).
-- 英数 and the Korean Key only act when the mode they'd select is added in System Settings;
+- **Caps Lock** in an English mode goes to the last Korean mode, like the Korean Key. Caps Lock
+  reaches the input method as a modifier change, which apps that keep function keys to themselves
+  (iTerm keeps F1–F19, so F18 never arrives there) still pass on. Its light still toggles, so no
+  English mode types capitals from it (their keyboard layouts have no Caps Lock layer); in the
+  Korean modes it does nothing, as before.
+- 英数, the Korean Key and Caps Lock only act when the mode they'd select is added in System Settings;
   otherwise they go on as usual. The switch
   key is consumed (it never reaches the app); 英数 reaches JIS Korean only if macOS passes it on, and
   is left to macOS when it doesn't. Switching commits what's unconfirmed first (§5.1).
@@ -1034,7 +1037,7 @@ same language, whatever is selected:
 
 | From | To | Key |
 |---|---|---|
-| JIS English | Korean (the last Korean mode) | F18 (another key remapped to it, e.g. with Karabiner), or Ctrl+Space |
+| JIS English | Korean (the last Korean mode) | Caps Lock, or F18 (another key remapped to it, e.g. with Karabiner; not in iTerm), or Ctrl+Space |
 | any | English (JIS English, or the English mode used last) | 英数, the JIS Romaji key |
 | any | Japanese (Kana) | かな, the JIS Kana key, handled by macOS |
 | Japanese | Korean | out of scope for this repository: the Japanese input method has the keys there. F18 doesn't reach JIS Korean while Japanese is selected; Ctrl+Space or the input menu do. |
