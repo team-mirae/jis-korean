@@ -12,6 +12,9 @@ enum HardwareKeys {
     private static var manager: IOHIDManager?
     fileprivate static var katakanaDown = false
     fileprivate static var katakanaReleased = Date.distantPast
+    /// The real かな key (LANG_JA, usage 0x90), so a かな event made of it is never taken for カタカナ.
+    fileprivate static var kanaDown = false
+    fileprivate static var kanaReleased = Date.distantPast
 
     static func start(ask: Bool = false) {
         guard manager == nil else { return }
@@ -36,6 +39,11 @@ enum HardwareKeys {
             // The Japanese keys (0x87–0x94: ろ, カタカナ, ¥, 変換, 無変換, かな, 英数), for the log.
             if (0x87...0x94).contains(usage) {
                 DiagnosticLog.note(String(format: "hardware key 0x%02X %@", usage, down ? "down" : "up"))
+            }
+            if usage == UInt32(kHIDUsage_KeyboardLANG1) {  // 0x90, かな
+                if !down { HardwareKeys.kanaReleased = Date() }
+                HardwareKeys.kanaDown = down
+                return
             }
             guard usage == UInt32(kHIDUsage_KeyboardInternational2) else { return }  // 0x88, カタカナ
             if !down { HardwareKeys.katakanaReleased = Date() }
@@ -85,10 +93,13 @@ enum HardwareKeys {
     }
     private static var lastState = ""
 
-    /// Whether カタカナ is held (for a key down), or was just let go (for its key up: the release
-    /// may be seen first).
+    /// Whether a かな event is カタカナ's: カタカナ is held (for a key down) or was just let go (for its
+    /// key up: the release may be seen first), and the real かな key isn't. With both held, かな is
+    /// the real one: LANG_JA works while LANG_KO is down.
     static func katakanaHeld(release: Bool) -> Bool {
-        katakanaDown || (release && Date().timeIntervalSince(katakanaReleased) < 0.3)
+        let katakana = katakanaDown || (release && Date().timeIntervalSince(katakanaReleased) < 0.3)
+        let kana = kanaDown || (release && Date().timeIntervalSince(kanaReleased) < 0.3)
+        return katakana && !kana
     }
 }
 #endif

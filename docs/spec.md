@@ -589,6 +589,19 @@ engine:
   `KeyboardEvent.code`. On non-JIS keyboards, `IntlYen` and `IntlRo` don't exist, so the page needs
   on-screen keys for them.
 
+**Language keys.** Three platform-independent keys select a language, whatever is selected now:
+
+| Key | Goes to | Meaning |
+|---|---|---|
+| `LANG_KO` | Korean: the Korean mode used last | always Korean, never a toggle |
+| `LANG_EN` | English: the English mode used last (§3.6.2) | always English |
+| `LANG_JA` | Japanese | handed to the platform's Japanese input method |
+
+Each platform says which physical keys they are (macOS: §8.2.1; Windows: §8.4, where 한/영 toggles
+instead, **[decide]** whether Windows maps them). Each works while the others are held: holding
+`LANG_KO` doesn't stop `LANG_JA` from going to Japanese. These are shell keys, like Ctrl+Space:
+they select input modes and never reach the engine.
+
 ---
 
 ## 9. Open questions
@@ -991,6 +1004,15 @@ Hammerspoon's `hs.keycodes.currentSourceID`) is macOS's own switching and isn't 
 setting.
 
 ### 8.2.1 Switching between Korean and English (macOS)
+
+The language keys (§8) on macOS:
+
+| Key | macOS keys |
+|---|---|
+| `LANG_KO` | カタカナ (the Windows JIS keyboards' カタカナ/ひらがな key, read at the hardware level), and the Korean Key (F18 by default) |
+| `LANG_EN` | 英数 |
+| `LANG_JA` | かな, left to macOS |
+
 
 On Windows, 한/영 switches JIS Korean off and on inside one input method (§8.4). On macOS the same
 idea is an input mode, JIS English (`A_QWERTY`, §3.6.2), instead of a hidden on/off flag. The same
