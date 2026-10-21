@@ -268,7 +268,8 @@ the Korean modes, so switching between them never leaves JIS Korean (§8.2.1).
 It isn't a 2-set mode (nor are ids 4–8): none of §3.1–3.5 or §4 onward applies. It behaves like
 the Japanese input method's Romaji mode without its Japanese conversions: the engine consumes no key
 (every key goes to the app, typed by the mode's keyboard layout, §8.1), composes nothing, and offers
-no predictions, hanja or F6–F10; Shift+Z is Z. Caps Lock types capitals. The one thing it adds is
+no predictions, hanja or F6–F10; Shift+Z is Z. Caps Lock types capitals. On macOS, Shift+X goes back
+to Korean by default (§8.2.1); capital X is then typed with Caps Lock. The one thing it adds is
 press and hold (§3.6.3). Switching in commits whatever a Korean mode left unconfirmed. The core principle (§1) is about the Korean modes and
 is unaffected. The engine still names the layout: its key table is the JIS stock table (Mode A's
 stock keyboard), which the macOS keyboard layout is generated from, so the symbols can't drift from
@@ -974,11 +975,16 @@ idea is an input mode, JIS English (`A_QWERTY`, §3.6.2), instead of a hidden on
   Korean mode, and the menu bar shows its badge (`docs/logo/mode-a-qwerty.svg`). Unlike Windows'
   ABC it's **remembered**, like any input source, not reset to Korean.
 - **Switching back.** In JIS English, JIS Korean is still the selected input method, so it still
-  sees every key. かな selects the last Korean mode used. A setting, **Switch Key**, adds one more key
-  that toggles between JIS English and the last Korean mode, in both directions: any key the shell
-  can see, such as F18 sent from another key by Karabiner. Default: none. The input menu offers F13
-  to F19 (Switch Key (JIS English ↔ Korean)); any other key code is set with `defaults write
-  me.sjun.inputmethod.JISKorean SwitchKey -int <code>`. 英数, かな and the Switch Key only act when
+  sees every key. かな selects the last Korean mode used.
+- **Switch Key:** one key toggles between JIS English and the last Korean mode, in both directions.
+  **F18 by default**, so a key remapped to F18 (Karabiner, or a keyboard's own firmware) works
+  without further setup. The input menu offers None and F13 to F19 (Switch Key (JIS English ↔
+  Korean)); any other key code is set with `defaults write me.sjun.inputmethod.JISKorean SwitchKey
+  -int <code>` (-1 for none).
+- **Shift+X** in JIS English goes back to the last Korean mode, for users without a remapping tool
+  (Hammerspoon, Karabiner) or a spare key. **On by default**, turned off in the input menu (Shift+X
+  in JIS English Returns to Korean); with it on, capital X is typed with Caps Lock. Only in JIS
+  English: in the Korean modes Shift+X is ㅌ as always (§1). 英数, かな and the Switch Key only act when
   the mode they'd select is added in System Settings; otherwise they go on as usual. The switch key is
   consumed (it never reaches the app); 英数 and かな reach JIS Korean only if macOS passes them on,
   and are left to macOS when it doesn't. Switching commits what's unconfirmed first (§5.1).

@@ -96,9 +96,10 @@ Japanese Romaji mode without its conversions, and holding a letter offers its ac
 (u → ü, spec §3.6.3).
 
 Switching stays inside JIS Korean: 英数 selects JIS English, かな goes back to the last Korean mode,
-and the input menu's **Switch Key (JIS English ↔ Korean)** adds a toggle key (F13–F19, or any key
-code with `defaults write me.sjun.inputmethod.JISKorean SwitchKey -int <code>`), for example F18
-sent by Karabiner. `tools/add-english-mode.sh` adds the mode to the built bundle's Info.plist; the
+**F18** toggles between them (the input menu's **Switch Key (JIS English ↔ Korean)** picks F13–F19
+or none, or any key code with `defaults write me.sjun.inputmethod.JISKorean SwitchKey -int <code>`),
+and **Shift+X** in JIS English goes back to Korean (on by default; turn it off in the input menu to
+type capital X with Shift again). `tools/add-english-mode.sh` adds the mode to the built bundle's Info.plist; the
 checked-in Info.plist has the Korean modes only.
 
 Still to check on a real install: that macOS sends 英数 and かな to the input method rather than

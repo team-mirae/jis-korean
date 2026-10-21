@@ -6,8 +6,14 @@ private let enterCommitsDefault = "EnterCommits"
 private let symbolKeysDefault = "DedicatedSymbolKeys"
 #if ENGLISH
 /// The Switch Key (spec §8.2.1): a virtual key code that toggles between JIS English and the last
-/// Korean mode. Unset: none.
+/// Korean mode. F18 by default; -1: none.
 private let switchKeyDefault = "SwitchKey"
+/// Shift+X in JIS English goes back to the last Korean mode (spec §8.2.1). On by default.
+private let shiftXDefault = "ShiftXReturnsToKorean"
+
+private func registerSwitchDefaults() {
+    UserDefaults.standard.register(defaults: [switchKeyDefault: kVK_F18, shiftXDefault: true])
+}
 #endif
 #if PREDICT
 private let predictionsDefault = "Predictions"
@@ -206,7 +212,8 @@ final class JKInputController: IMKInputController {
         // `defaults write me.sjun.inputmethod.JISKorean SwitchKey -int <code>`.
         let switching = NSMenuItem(title: "Switch Key (JIS English ↔ Korean)", action: nil, keyEquivalent: "")
         let keys = NSMenu()
-        let current = UserDefaults.standard.object(forKey: switchKeyDefault) as? Int ?? -1
+        registerSwitchDefaults()
+        let current = UserDefaults.standard.integer(forKey: switchKeyDefault)
         for (title, code) in [("None", -1), ("F13", kVK_F13), ("F14", kVK_F14), ("F15", kVK_F15), ("F16", kVK_F16),
                               ("F17", kVK_F17), ("F18", kVK_F18), ("F19", kVK_F19)] {
             let key = NSMenuItem(title: title, action: #selector(setSwitchKey(_:)), keyEquivalent: "")
@@ -216,6 +223,9 @@ final class JKInputController: IMKInputController {
         }
         switching.submenu = keys
         menu.addItem(switching)
+        let shiftX = NSMenuItem(title: "Shift+X in JIS English Returns to Korean", action: #selector(toggleShiftX(_:)), keyEquivalent: "")
+        shiftX.state = UserDefaults.standard.bool(forKey: shiftXDefault) ? .on : .off
+        menu.addItem(shiftX)
         #endif
         // The public API's one setting (spec §8.2): reading the mode is always open, changing it isn't.
         let allow = NSMenuItem(title: "Let Other Apps Change the Mode", action: #selector(toggleAllowModeChange(_:)), keyEquivalent: "")
@@ -227,25 +237,31 @@ final class JKInputController: IMKInputController {
     #if ENGLISH
     @objc func setSwitchKey(_ sender: Any?) {
         guard let code = (sender as? NSMenuItem)?.tag else { return }
-        if code < 0 {
-            UserDefaults.standard.removeObject(forKey: switchKeyDefault)
-        } else {
-            UserDefaults.standard.set(code, forKey: switchKeyDefault)
-        }
+        UserDefaults.standard.set(code, forKey: switchKeyDefault)
     }
 
-    /// 英数, かな and the Switch Key (spec §8.2.1): switch between JIS English and the last Korean
-    /// mode, inside this input method. Nil: not a switch key here, or the mode to switch to isn't
+    @objc func toggleShiftX(_ sender: Any?) {
+        registerSwitchDefaults()
+        UserDefaults.standard.set(!UserDefaults.standard.bool(forKey: shiftXDefault), forKey: shiftXDefault)
+    }
+
+    /// 英数, かな, the Switch Key and Shift+X (spec §8.2.1): switch between JIS English and the last
+    /// Korean mode, inside this input method. Nil: not a switch key here, or the mode to switch to isn't
     /// added in System Settings (then the key goes on as usual, and macOS may act on it).
     private func handleSwitchKey(_ event: NSEvent, _ client: IMKTextInput) -> Bool? {
-        guard let english = InputModes.english.first,
-              modifiers(event.modifierFlags) & UInt32(JK_MOD_CTRL | JK_MOD_ALT | JK_MOD_META) == 0
+        let mods = modifiers(event.modifierFlags)
+        guard let english = InputModes.english.first, mods & UInt32(JK_MOD_CTRL | JK_MOD_ALT | JK_MOD_META) == 0
         else { return nil }
+        registerSwitchDefaults()
+        let defaults = UserDefaults.standard
         let code = Int(event.keyCode)
         let inEnglish = !InputModes.current.korean
         let target: InputModes.Mode
-        if code == UserDefaults.standard.object(forKey: switchKeyDefault) as? Int {
+        if code == defaults.integer(forKey: switchKeyDefault) {
             target = inEnglish ? InputModes.lastKorean : english
+        } else if inEnglish && code == kVK_ANSI_X && mods & UInt32(JK_MOD_SHIFT) != 0 && defaults.bool(forKey: shiftXDefault) {
+            // Only in JIS English: in the Korean modes Shift+X is ㅌ (the core principle).
+            target = InputModes.lastKorean
         } else if code == kVK_JIS_Kana && inEnglish {
             target = InputModes.lastKorean
         } else if code == kVK_JIS_Eisu {
