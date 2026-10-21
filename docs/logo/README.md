@@ -83,9 +83,9 @@ corners with sharp points flattened (miter limit 2, so A, V and M have flat tips
 A, M's middle point on the baseline, and C, G and S ending in horizontal cuts (rectangles masked out
 of the stroke). They're drawn, not taken from a font, so no font license comes into the logo.
 
-Each letter cuts a transparent border into the disc around it, as wide as a key's (half of
-`BORDER`), following its cuts. The disc shows inside open counters (U, C, D, …); counters too small
-for that (A's, B's) are cleared instead, so no slivers show. Every letter is `LETTER_WIDTH` ×
+The text cuts the disc the way a key does: one box around all its letters, half of `BORDER`
+bigger with rounded corners (a key's gap). Cutting around each letter's own outline left slivers of
+the disc between letters and inside counters, which looked jagged at icon sizes. Every letter is `LETTER_WIDTH` ×
 `LETTER_HEIGHT` (23 × 32), `LETTER_GAP` (4) apart, aligned to the lower right corner `EDGE` in
 (`letter_box()`). `letters()` draws A B C D G H K M Q S U V Y Z so far. At 16 px the text is at the limit of rule 7: the disc and a row of letters, not each letter, are what read there.
 

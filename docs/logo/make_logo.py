@@ -100,10 +100,8 @@ def letter_box(text):
 def letters(text, x, y, w, h, gap):
     """Letters in the style of a neo-grotesque (Helvetica) bold, as stroked centrelines in a box
     (x, y, w, h) of outer edges, gap apart: one stroke weight, square ends, flat-topped points, and
-    C, G and S ending in horizontal cuts. Returns one (path, cuts, holes) per letter: cuts are
-    rectangles (x, y, w, h) taken out of the stroke, which is how a round letter gets a horizontal
-    terminal; holes are counters too small to show the disc through them (A's, B's), cleared with
-    the letter's border instead of leaving slivers of the disc.
+    C, G and S ending in horizontal cuts. Returns one (path, cuts) per letter: cuts are rectangles
+    (x, y, w, h) taken out of the stroke, which is how a round letter gets a horizontal terminal.
     Draws A B C D G H K M Q S U V Y Z."""
     n = len(text)
     lw = (w - (n - 1) * gap) / n
@@ -119,14 +117,15 @@ def letters(text, x, y, w, h, gap):
         ellipse = (f"M{num(cx)} {num(top)}A{num(rx)} {num(ry)} 0 1 0 {num(cx)} {num(bottom)}"
                    f"A{num(rx)} {num(ry)} 0 1 0 {num(cx)} {num(top)}Z")
         far = lx + lw + 2  # past the letter's right edge, for cuts that open it on the right
-        d, cuts, holes = "", [], ""
+        d, cuts = "", []
         if ch == "A":
             # The crossbar low, as in a grotesque.
             bar = top + (bottom - top) * 0.66
             t = (bar - top) / (bottom - top)
+            # The bar ends half a stroke inside each leg's centreline, so its square ends stay
+            # inside the legs instead of poking out past them.
             d = (f"M{num(left)} {num(bottom)}L{num(cx)} {num(top)}L{num(right)} {num(bottom)}"
-                 f"M{num(cx + (left - cx) * t)} {num(bar)}H{num(cx + (right - cx) * t)}")
-            holes = f"M{num(cx)} {num(top)}L{num(cx + (left - cx) * t)} {num(bar)}H{num(cx + (right - cx) * t)}Z"
+                 f"M{num(cx + (left - cx) * t + half)} {num(bar)}H{num(cx + (right - cx) * t - half)}")
         elif ch == "B":
             # Straight top, middle and bottom; the lower bowl wider.
             r1, r2 = (mid - top) / 2, (bottom - mid) / 2
@@ -134,8 +133,6 @@ def letters(text, x, y, w, h, gap):
             d = (f"M{num(left)} {num(bottom)}V{num(top)}H{num(upper)}A{num(r1)} {num(r1)} 0 0 1 {num(upper)} {num(mid)}"
                  f"H{num(left)}M{num(upper)} {num(mid)}H{num(lower)}A{num(r2)} {num(r2)} 0 0 1 {num(lower)} {num(bottom)}"
                  f"H{num(left)}")
-            holes = (f"M{num(left)} {num(top)}H{num(upper)}A{num(r1)} {num(r1)} 0 0 1 {num(upper)} {num(mid)}H{num(left)}Z"
-                     f"M{num(left)} {num(mid)}H{num(lower)}A{num(r2)} {num(r2)} 0 0 1 {num(lower)} {num(bottom)}H{num(left)}Z")
         elif ch == "C":
             # The ellipse, opened on the right by a band: the cuts are horizontal.
             d = ellipse
@@ -188,44 +185,38 @@ def letters(text, x, y, w, h, gap):
             d = f"M{num(left)} {num(top)}H{num(right)}L{num(left)} {num(bottom)}H{num(right)}"
         else:
             raise ValueError(f"no glyph for {ch}")
-        glyphs.append((d, cuts, holes))
+        glyphs.append((d, cuts))
     return glyphs
 
 
-def lettered(title, disc, letters):
-    """The taegeuk with letters on top. Each letter cuts a transparent border half of BORDER wide
-    into the disc around it, the same gap a key leaves (its border is half outside its edge), and
-    the border follows the letter's cuts: it stops half of BORDER past each one."""
+def lettered(title, disc, letters, box):
+    """The taegeuk with letters on top, cut out of it the way a key is: the text's box (x, y, w, h,
+    gap from letter_box) cuts one clean shape out of the disc, half of BORDER bigger all round with
+    rounded corners, so no slivers of the disc are left between letters or inside them."""
     cx, cy, r = disc
     full = '<rect width="100" height="100" fill="#fff"/>'
     mask = '<mask id="{0}" maskUnits="userSpaceOnUse" x="0" y="0" width="100" height="100">{1}</mask>'
-    # Square ends and mitred corners, with sharp points flattened (miter limit 2), on the letters
-    # and on their borders alike, so the gap is even all round.
+    # Square ends and mitred corners, with sharp points flattened (miter limit 2).
     style = 'fill="none" stroke-linejoin="miter" stroke-miterlimit="2" stroke-linecap="square"'
-    masks, halo, ink = "", "", ""
-    for i, (d, cuts, holes) in enumerate(letters):
-        gap = BORDER / 2
-        if holes:
-            halo += f'<path d="{holes}" fill="#000"/>'
+    masks, ink = "", ""
+    for i, (d, cuts) in enumerate(letters):
         if cuts:
-            # The letter loses its cuts; its border loses them less the gap above and below.
-            letter_cut = "".join(f'<rect x="{num(x)}" y="{num(y)}" width="{num(w)}" height="{num(h)}" fill="#000"/>'
-                                 for x, y, w, h in cuts)
-            halo_cut = "".join(f'<rect x="{num(x)}" y="{num(y + gap)}" width="{num(w)}" height="{num(h - 2 * gap)}" fill="#000"/>'
-                               for x, y, w, h in cuts if h > 2 * gap)
-            masks += mask.format(f"l{i}", full + letter_cut) + mask.format(f"h{i}", full + halo_cut)
-            halo += f'<g mask="url(#h{i})"><path d="{d}" {style} stroke="#000" stroke-width="{LETTER + BORDER}"/></g>'
+            cut = "".join(f'<rect x="{num(x)}" y="{num(y)}" width="{num(w)}" height="{num(h)}" fill="#000"/>'
+                          for x, y, w, h in cuts)
+            masks += mask.format(f"l{i}", full + cut)
             ink += f'<path d="{d}" mask="url(#l{i})"/>'
         else:
-            halo += f'<path d="{d}" {style} stroke="#000" stroke-width="{LETTER + BORDER}"/>'
             ink += f'<path d="{d}"/>'
+    x, y, w, h, _ = box
+    text_cut = (f'<path d="{rect(x, y, w, h, 0)}" fill="#000" stroke="#000" stroke-width="{BORDER}" '
+                'stroke-linejoin="round"/>')
     s_cut = f'<path d="{s_curve(cx, cy, r)}" fill="none" stroke="#000" stroke-width="{S_GAP}"/>'
     return (f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" width="100" height="100">'
             "<!-- SPDX-License-Identifier: MIT. Copyright 2026 Mirae Research & Min Jun Sung. "
             "Drawn by docs/logo/make_logo.py; see docs/logo/README.md. -->"
             f"<title>{title}</title>"
             + masks
-            + mask.format("disc", full + s_cut + halo)
+            + mask.format("disc", full + s_cut + text_cut)
             + f'<circle cx="{num(cx)}" cy="{num(cy)}" r="{num(r)}" fill="{INK}" mask="url(#disc)"/>'
             + f'<g {style} stroke="{INK}" stroke-width="{LETTER}">' + ink
             + "</g></svg>\n")
@@ -260,19 +251,19 @@ def main():
 
     # A_QWERTY, JIS English: the taegeuk with ABC over its lower right.
     (out / "mode-a-qwerty.svg").write_text(
-        lettered("JIS English (A_QWERTY)", (41, 41, 39), letters("ABC", *letter_box("ABC"))))
+        lettered("JIS English (A_QWERTY)", (41, 41, 39), letters("ABC", *letter_box("ABC")), letter_box("ABC")))
 
     # B_QWERTY and CJ_QWERTY, US and UK English: the same badge, with their country code.
     (out / "mode-b-qwerty.svg").write_text(
-        lettered("US English (B_QWERTY)", (41, 41, 39), letters("US", *letter_box("US"))))
+        lettered("US English (B_QWERTY)", (41, 41, 39), letters("US", *letter_box("US")), letter_box("US")))
     (out / "mode-cj-qwerty.svg").write_text(
-        lettered("UK English (CJ_QWERTY)", (41, 41, 39), letters("GB", *letter_box("GB"))))
+        lettered("UK English (CJ_QWERTY)", (41, 41, 39), letters("GB", *letter_box("GB")), letter_box("GB")))
 
     # The reserved English-layout modes (spec §3.6.1, ids 4-8): drawn ahead of their layouts.
     for name, title, text in [("mode-cj-qwertz", "CJ_QWERTZ", "QZ"), ("mode-cj-swiss-qz", "CJ_SWISS_QZ", "CH"),
                               ("mode-cj-azerty", "CJ_AZERTY", "AY"), ("mode-a-dvorak", "A_DVORAK", "DV"),
                               ("mode-a-colemak", "A_COLEMAK", "CMK")]:
-        (out / f"{name}.svg").write_text(lettered(f"{title} (reserved)", (41, 41, 39), letters(text, *letter_box(text))))
+        (out / f"{name}.svg").write_text(lettered(f"{title} (reserved)", (41, 41, 39), letters(text, *letter_box(text)), letter_box(text)))
 
 
 if __name__ == "__main__":
