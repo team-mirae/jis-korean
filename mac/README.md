@@ -100,8 +100,9 @@ Japanese Romaji mode without its conversions, and holding a letter offers its ac
 Switching stays inside JIS Korean: 英数 always goes to English and **F18** always goes back to Korean
 (the input menu's **Korean Key (Back to Korean)** picks F13–F19 or none, or any key code with
 `defaults write me.sjun.inputmethod.JISKorean KoreanKey -int <code>`), and so does **Caps Lock** in
-an English mode, which works in iTerm too (F18 doesn't: iTerm keeps F-keys). Every other key types
-as on ABC, Shift+Z, Shift+X, F9 and F10 included; capitals come from Shift. かな is left to macOS, which selects Japanese.
+an English mode, which works in iTerm too (F18 doesn't: iTerm keeps F-keys). Plain Caps Lock never
+locks capitals (JIS Korean turns the lock back off); Shift+Caps Lock or Option+Caps Lock is a real
+Caps Lock. Every other key types as on ABC, Shift+Z, Shift+X, F9 and F10 included. かな is left to macOS, which selects Japanese.
 `tools/add-english-mode.sh` adds the mode to the built bundle's Info.plist; the checked-in
 Info.plist has the Korean modes only.
 

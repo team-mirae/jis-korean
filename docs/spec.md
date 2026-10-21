@@ -294,7 +294,8 @@ It isn't a 2-set mode (nor are ids 4–8): none of §3.1–3.5 or §4 onward app
 the Japanese input method's Romaji mode without its Japanese conversions: the engine consumes no key
 (every key goes to the app, typed by the mode's keyboard layout, §8.1) and composes nothing; no
 predictions, hanja or F6–F10: F9 and F10 go to the app, Shift+Z types Z and Shift+X types X.
-Capitals come from Shift: on macOS Caps Lock switches to Korean instead (§8.2.1). The one thing it adds is press and hold (§3.6.3). Switching in commits whatever a Korean mode left unconfirmed. The core principle (§1) is about the Korean modes and
+Caps Lock types capitals when it's on; on macOS plain Caps Lock is the switch to Korean instead, and
+the lock is turned on with a modifier (§8.2.1). The one thing it adds is press and hold (§3.6.3). Switching in commits whatever a Korean mode left unconfirmed. The core principle (§1) is about the Korean modes and
 is unaffected. The engine still names the layout: its key table is the JIS stock table (Mode A's
 stock keyboard), which the macOS keyboard layout is generated from, so the symbols can't drift from
 Mode A's F8 escape.
@@ -1021,11 +1022,13 @@ that go back to Korean go to the Korean mode used last.
   works without further setup. The input menu offers None and F13 to F19 (Korean Key (Back to
   Korean)); any other key code is set with `defaults write me.sjun.inputmethod.JISKorean KoreanKey
   -int <code>` (-1 for none).
-- **Caps Lock** in an English mode goes to the last Korean mode, like the Korean Key. Caps Lock
-  reaches the input method as a modifier change, which apps that keep function keys to themselves
-  (iTerm keeps F1–F19, so F18 never arrives there) still pass on. Its light still toggles, so no
-  English mode types capitals from it (their keyboard layouts have no Caps Lock layer); in the
-  Korean modes it does nothing, as before.
+- **Plain Caps Lock** is JIS Korean's: in an English mode it goes to the last Korean mode, like the
+  Korean Key; in a Korean mode it does nothing. Either way it doesn't act as Caps Lock: macOS
+  toggles the lock before the input method hears of it, so JIS Korean turns the lock straight back
+  off. Caps Lock reaches the input method as a modifier change, which apps that keep function keys
+  to themselves (iTerm keeps F1–F19, so F18 never arrives there) still pass on.
+- **Caps Lock with Shift, Option, Ctrl or Cmd** is left alone: a real Caps Lock, and in the English
+  modes capitals (and capital press-and-hold variants) while it's on.
 - 英数, the Korean Key and Caps Lock only act when the mode they'd select is added in System Settings;
   otherwise they go on as usual. The switch
   key is consumed (it never reaches the app); 英数 reaches JIS Korean only if macOS passes it on, and

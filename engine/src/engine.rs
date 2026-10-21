@@ -757,7 +757,7 @@ impl Engine {
             // Any other key keeps what's shown, then goes to the app.
             commit = self.take_segment();
         }
-        let upper = mods.shift;
+        let upper = mods.shift || mods.caps;
         if !mods.is_shortcut()
             && mods.repeat
             && self.last_letter == Some((key, mods.shift))

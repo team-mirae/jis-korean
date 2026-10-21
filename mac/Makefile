@@ -68,7 +68,7 @@ $(BUILD)/%/JISKorean: $(SOURCES) $(HEADER) $(BUILD)/libjis_korean.a
 	@mkdir -p $(dir $@)
 	swiftc -O -swift-version 5 $(SWIFT_DEFINES) -target $*-apple-macos$(MIN_MACOS) \
 		-import-objc-header $(HEADER) \
-		-framework Cocoa -framework InputMethodKit -framework Carbon \
+		-framework Cocoa -framework InputMethodKit -framework Carbon -framework IOKit \
 		$(SOURCES) $(BUILD)/libjis_korean.a -o $@
 
 $(BUILD)/JISKorean: $(BUILD)/arm64/JISKorean $(BUILD)/x86_64/JISKorean
@@ -107,17 +107,17 @@ $(BUILD)/JISKoreanANSI.keylayout: $(BUILD)/make-keylayout $(BUILD)/legends-1.tsv
 $(BUILD)/JISKoreanISO.keylayout: $(BUILD)/make-keylayout $(BUILD)/legends-2.tsv
 	$(BUILD)/make-keylayout $(BUILD)/legends-2.tsv $@ JISKoreanISO ISO -23458
 
-# The English modes: their symbols on any keyboard. No Caps Lock layer: Caps Lock switches to Korean
-# there (spec §8.2.1). JIS English (3), US
+# The English modes: their symbols on any keyboard, and capitals under Caps Lock (turned on with a
+# modifier: plain Caps Lock is JIS Korean's switch, spec §8.2.1). JIS English (3), US
 # English (9) and UK English (10).
 $(BUILD)/JISEnglish.keylayout: $(BUILD)/make-keylayout $(BUILD)/legends-3.tsv
-	$(BUILD)/make-keylayout $(BUILD)/legends-3.tsv $@ JISEnglish JIS -23459
+	$(BUILD)/make-keylayout $(BUILD)/legends-3.tsv $@ JISEnglish JIS -23459 caps
 
 $(BUILD)/USEnglish.keylayout: $(BUILD)/make-keylayout $(BUILD)/legends-9.tsv
-	$(BUILD)/make-keylayout $(BUILD)/legends-9.tsv $@ USEnglish ANSI -23460
+	$(BUILD)/make-keylayout $(BUILD)/legends-9.tsv $@ USEnglish ANSI -23460 caps
 
 $(BUILD)/UKEnglish.keylayout: $(BUILD)/make-keylayout $(BUILD)/legends-10.tsv
-	$(BUILD)/make-keylayout $(BUILD)/legends-10.tsv $@ UKEnglish ISO -23461
+	$(BUILD)/make-keylayout $(BUILD)/legends-10.tsv $@ UKEnglish ISO -23461 caps
 
 KEYLAYOUTS := $(BUILD)/JISKorean.keylayout $(BUILD)/JISKoreanANSI.keylayout $(BUILD)/JISKoreanISO.keylayout
 ifeq ($(ENGLISH),1)
