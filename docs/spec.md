@@ -1063,7 +1063,9 @@ that go back to Korean go to the Korean mode used last.
   カタカナ there instead. So カタカナ works with Karabiner on or off for the keyboard, as long as no
   Karabiner rule remaps `japanese_pc_katakana`. (Tested with an HHKB Hybrid Type-S JIS and an HHKB
   Studio, with Karabiner on and off.) A keyboard configured as JIS later counts once JIS Korean
-  restarts.
+  restarts. The type is stored per keyboard (40 ANSI, 41 ISO, 42 JIS), and a JIS keyboard can be
+  stored as ANSI while typing JIS fine through Karabiner; Karabiner's own JIS setting doesn't write
+  it ([troubleshooting](troubleshooting/macos-katakana-and-eisu.md)).
 - **Caught system-wide.** The Korean Key and カタカナ are caught by that tap before any app sees
   them, so they work in apps that keep keys to themselves (iTerm keeps F1–F19) and from other input
   sources. Until both permissions are granted, the Korean Key works only in apps that pass it on,
@@ -1093,9 +1095,11 @@ layout), and an input method's modes don't count as one, so Apple's ABC can't be
 input sources. macOS needs it for secure input (password fields), where it bypasses input methods
 and types through a plain layout. JIS English sits beside it.
 
-Open: does macOS give 英数 to a Roman mode of a third-party input method? To be checked on a real
-build before the mode ships. If macOS switches to ABC on 英数 before JIS Korean sees it, the
-flow needs 英数 remapped (Karabiner) to a key JIS Korean does see.
+Seen on macOS 27.0.1: with Apple's ABC enabled, 英数 selects ABC, not JIS English, although JIS
+Korean's tap sees the key. With ABC – Extended as the plain layout instead of ABC, 英数 goes to JIS
+English. Until JIS Korean wins over ABC by itself, that swap is the documented workaround
+([#2](https://github.com/team-mirae/jis-korean/issues/2),
+[troubleshooting](troubleshooting/macos-katakana-and-eisu.md)).
 
 ### 8.3 Resolving keys and text
 

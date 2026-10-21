@@ -108,7 +108,9 @@ JIS Korean reads カタカナ only from keyboards macOS has configured as JIS. W
 **Karabiner-Elements**, a keyboard Karabiner remaps is held by Karabiner, and its keys come out of
 Karabiner's virtual keyboard (it reports itself as an Apple keyboard, vendor 1452, product 593):
 keep that configured as JIS and don't remap `japanese_pc_katakana`, and カタカナ works with
-Karabiner on or off (tested with an HHKB Hybrid Type-S JIS and an HHKB Studio).
+Karabiner on or off (tested with an HHKB Hybrid Type-S JIS and an HHKB Studio). If カタカナ acts as
+かな, the keyboard (or Karabiner's virtual keyboard) is probably stored as ANSI: see
+[docs/troubleshooting/macos-katakana-and-eisu.md](../docs/troubleshooting/macos-katakana-and-eisu.md).
 
 The permissions follow the build's signature: signed with an Apple Development certificate (the
 Makefile picks one from the keychain), they survive rebuilds; ad hoc, every build has to be granted
@@ -126,9 +128,11 @@ Recommended for a JIS keyboard with Japanese also installed (spec §8.2.1):
 | Japanese | Korean | カタカナ or F18 work here too |
 
 Apple's ABC can't be removed from the input sources: macOS always keeps one plain keyboard layout
-for password fields, and input method modes don't count (spec §8.2.1). Still to check on a real
-install: that macOS sends 英数 to the input method rather than switching to ABC itself, and that
-System Settings lists the mode under English.
+for password fields, and input method modes don't count (spec §8.2.1). But with **ABC** itself
+enabled, macOS sends 英数 to ABC instead of JIS English: add **ABC – Extended**, then remove ABC
+([#2](https://github.com/team-mirae/jis-korean/issues/2),
+[troubleshooting](../docs/troubleshooting/macos-katakana-and-eisu.md)). System Settings lists the
+English modes under English.
 
 ## Files
 
