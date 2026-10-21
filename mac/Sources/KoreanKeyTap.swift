@@ -59,17 +59,21 @@ enum KoreanKeyTap {
         let code = Int(event.getIntegerValueField(.keyboardEventKeycode))
         let key = UserDefaults.standard.object(forKey: "KoreanKey") as? Int ?? kVK_F18
         let katakana = code == kVK_JIS_Kana && HardwareKeys.katakanaHeld(release: type == .keyUp)
+        if code == kVK_JIS_Kana || code == kVK_JIS_Eisu || code == key {
+            DiagnosticLog.note("tap: key code \(code) \(type == .keyDown ? "down" : "up"), カタカナ held \(katakana)")
+        }
         guard code == key || katakana, event.flags.intersection([.maskCommand, .maskControl, .maskAlternate]).isEmpty
         else {
             return Unmanaged.passUnretained(event)
         }
-        if type == .keyDown && event.getIntegerValueField(.keyboardEventAutorepeat) == 0 {
+        // カタカナ already went to Korean from the hardware listener: a かな made of it is only swallowed.
+        if !katakana && type == .keyDown && event.getIntegerValueField(.keyboardEventAutorepeat) == 0 {
             DispatchQueue.main.async { goToKorean() }
         }
         return nil  // swallowed: no app sees it
     }
 
-    private static func goToKorean() {
+    static func goToKorean() {
         if InputModes.selectedNow() != nil, let controller = JKInputController.focused {
             controller.koreanKeyFromTap()
         } else {

@@ -5,8 +5,8 @@ import IOKit.hid
 
 #if ENGLISH
 /// The keyboard read at the hardware level (USB HID usages), for the one key macOS loses: the Windows
-/// JIS カタカナ key (usage 0x88), which macOS turns into かな (spec §8.2.1). Only whether it's held is
-/// kept. Only keyboards configured as JIS (Keyboard Setup Assistant's type for each keyboard) are
+/// JIS カタカナ key (usage 0x88), which macOS discards (or on some setups turns into かな) (spec
+/// §8.2.1). A press goes to Korean; whether it's held is kept for the key tap. Only keyboards configured as JIS (Keyboard Setup Assistant's type for each keyboard) are
 /// opened: カタカナ means nothing on the others. Needs Input Monitoring permission, which it asks for.
 enum HardwareKeys {
     private static var manager: IOHIDManager?
@@ -30,11 +30,20 @@ enum HardwareKeys {
         } as CFArray)
         IOHIDManagerRegisterInputValueCallback(manager, { _, _, _, value in
             let element = IOHIDValueGetElement(value)
-            guard IOHIDElementGetUsagePage(element) == UInt32(kHIDPage_KeyboardOrKeypad),
-                  IOHIDElementGetUsage(element) == UInt32(kHIDUsage_KeyboardInternational2)  // 0x88, カタカナ
-            else { return }
+            let usage = IOHIDElementGetUsage(element)
+            guard IOHIDElementGetUsagePage(element) == UInt32(kHIDPage_KeyboardOrKeypad) else { return }
             let down = IOHIDValueGetIntegerValue(value) != 0
+            // The Japanese keys (0x87–0x94: ろ, カタカナ, ¥, 変換, 無変換, かな, 英数), for the log.
+            if (0x87...0x94).contains(usage) {
+                DiagnosticLog.note(String(format: "hardware key 0x%02X %@", usage, down ? "down" : "up"))
+            }
+            guard usage == UInt32(kHIDUsage_KeyboardInternational2) else { return }  // 0x88, カタカナ
             if !down { HardwareKeys.katakanaReleased = Date() }
+            // macOS discards カタカナ (no app or tap sees it) or turns it into かな: either way, the
+            // press itself goes to Korean, here.
+            if down && !HardwareKeys.katakanaDown {
+                DispatchQueue.main.async { KoreanKeyTap.goToKorean() }
+            }
             HardwareKeys.katakanaDown = down
         }, nil)
         IOHIDManagerScheduleWithRunLoop(manager, CFRunLoopGetMain(), CFRunLoopMode.defaultMode.rawValue)
