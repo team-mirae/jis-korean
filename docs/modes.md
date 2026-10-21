@@ -1,14 +1,32 @@
 # Modes: the contract for adding one
 
-A **mode** is one keyboard's key map (spec §3.6). JIS Korean ships three:
+A **mode** is one keyboard's key map (spec §3.6). JIS Korean ships three Korean modes, has a
+fourth specified (JIS English, spec §3.6.2) and five more reserved:
 
-| Id | Mode | Name | Keyboard |
+| Id | Mode name | Display name | Keyboard |
 |---|---|---|---|
-| 0 | A | JIS Korean Original Layout | JIS |
-| 1 | B | JIS Korean for US ANSI | US ANSI (HHKB US, MacBook US) |
-| 2 | C | JIS Korean for UK ISO | ISO (UK) |
+| 0 | `A` | JIS Korean Original Layout | JIS |
+| 1 | `B` | JIS Korean for US ANSI | US ANSI (HHKB US, MacBook US) |
+| 2 | `C` | JIS Korean for UK ISO | ISO (UK) |
+| 3 | `A_QWERTY` | JIS English | any (JIS symbols) |
+| 4–8 | `A_QWERTZ`, `A_SWISS_QZ`, `A_AZERTY`, `A_DVORAK`, `A_COLEMAK` | reserved | |
 
-A new mode takes the next unused id (3), and the next letter (D).
+## Naming a new mode
+
+A new mode takes the next unused id (9) and a **mode name** in upper-case snake case
+(`SPLIT_ORTHO_LAYOUTDESIGNERNAME`, spec §3.6.1). Its first word is its namespace:
+
+- **`A_`** is Mirae Research's, for official modes only.
+- **`B_` and `C_`** are for modes contributed to this repository. They follow everything on this
+  page as an official mode does: the full key and stock tables, the tests below, the spec section,
+  the layout drawing and a badge, and review before merging. (What separates `B_` from `C_` is
+  still open: spec §9.)
+- **Any other prefix** (`COMPANYNAME_QWERTZ`, `COMPANYNAME_CUSTOMLAYOUTNAME`) is yours, for a fork or
+  your own build: keep the naming rules and "What every mode keeps" below; the rest is up to you.
+  Pick a prefix no one else is likely to use, such as your company's or your own name.
+
+Mode names and ids are never renamed or reused once released. `A`, `B` and `C` keep their
+one-letter names; no new mode gets one.
 
 You can fork JIS Korean and add a mode for your own typing or your own keyboard (a UK ISO board,
 a split board with its own symbol keys, a layout with more symbols on Shift). This page is what a
@@ -43,7 +61,8 @@ swapped case needs one ISO user or one ISO keyboard to confirm.
 
 ## What every mode keeps
 
-These are shared by every mode, and a mode can't change them:
+These are shared by every Korean mode (JIS English, `A_QWERTY`, types English and keeps none of
+them), and a mode can't change them:
 
 - **Standard 2-set on the 26 letter keys**, Shift layer included (the core principle, spec §1).
 - **Shift+Z is F10**, and **F6–F10** work as spec §6 says.
@@ -57,7 +76,7 @@ All of it lives in `engine/src/layout.rs`, on the `Mode` enum:
 
 | Part | Where | Rule |
 |---|---|---|
-| Variant | `enum Mode`, `Mode::ALL` | Name it after its letter (`C`, `D`, …). Add it to `ALL` in id order. |
+| Variant | `enum Mode`, `Mode::ALL` | Name it after its mode name in Rust's style (`A_QWERTY` → `AQwerty`). Add it to `ALL` in id order. |
 | Id | `Mode::id` | The next unused number. Ids are saved in settings and passed over the C ABI (`jk_set_mode`), so never renumber or reuse one. |
 | Name | `Mode::name` | What a settings menu shows, e.g. "JIS Korean for UK ISO". Unique. |
 | Key table | `Mode::korean` → `<keyboard>_korean(key)` | What each non-letter key types: `(unshifted, shifted)`, each `Out::Jamo` (goes into the automaton) or `Out::Char` (goes in as-is). Return `None` for keys the mode leaves out: they commit and pass through to the app. |
@@ -108,9 +127,9 @@ Karabiner), and JIS Korean's public API reports the mode to any program.
 To add a mode on macOS:
 
 1. **Input mode:** a `tsInputModeListKey` entry in `mac/Info.plist`, listed in
-   `tsVisibleInputModeOrderedArrayKey`. Its ID is `me.sjun.inputmethod.JISKorean.2Set<Keyboard>`
-   (`.2Set` is Mode A, `.2SetANSI` Mode B), and it never changes once released: users' tools
-   select it by that ID.
+   `tsVisibleInputModeOrderedArrayKey`. Its ID is `me.sjun.inputmethod.JISKorean.<mode name>`
+   (`.A_QWERTY`; the first three are `.2Set`, `.2SetANSI` and `.2SetISO`), and it never changes
+   once released: users' tools select it by that ID.
 2. **Its name** in `mac/Resources/*.lproj/InfoPlist.strings`, keyed by the ID.
 3. **`InputModes.all`** in `mac/Sources/InputModes.swift`: the engine id, letter, input source ID
    and Keyboard Viewer layout name.

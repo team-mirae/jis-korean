@@ -128,7 +128,7 @@ normal behavior, except as §5 and §6 define. Any keystroke with Ctrl, Alt/Opti
 
 ### 3.6 Modes
 
-A **mode** is one keyboard's key map. Every mode keeps standard 2-set on the 26 letter keys
+A **mode** is one keyboard's key map. Every Korean mode keeps standard 2-set on the 26 letter keys
 (§1), Shift+Z as F10, F6–F10, the automaton (§4) and everything after §4. A mode only says what
 the other keys type, and which stock keyboard sits under it. Mode A is the default.
 
@@ -184,6 +184,66 @@ JIS in Mode B:
 
 Examples (Mode B): `Shift+[` → 「; `Shift+2` → 2, read in English as @; `F8 Shift+2` → @;
 `ㅎ ㅏ ㄴ Shift+Z` → gks.
+
+#### 3.6.1 Mode ids and names
+
+Every mode has three identifiers:
+
+- **Id:** a number, given in the order modes are added (0, 1, 2, 3, …). Ids are saved in settings
+  and passed over the C ABI (`jk_set_mode`), so an id is never renumbered or reused, even when its
+  mode is removed.
+- **Mode name:** what tools, settings and the public API (§8.2) use. Upper-case snake case: words of
+  `A`–`Z` and `0`–`9` joined by `_`, starting with a letter (`A_QWERTY`,
+  `SPLIT_ORTHO_LAYOUTDESIGNERNAME`). Unique, and never renamed once released.
+- **Display name:** what a menu shows (`JIS English`). Free text, unique, and it can be translated.
+
+A mode name's first word is its **namespace**:
+
+| Namespace | Whose | Rules |
+|---|---|---|
+| `A_` | Mirae Research's official modes only | Shipped and maintained here. |
+| `B_`, `C_` | Outside contributions accepted into this repository | The stricter guidelines in `docs/modes.md`: review, tests and docs as for an official mode. **[decide]** What separates `B_` from `C_`. |
+| Anything else (`COMPANYNAME_QWERTZ`, `COMPANYNAME_CUSTOMLAYOUTNAME`) | Whoever makes it, in a fork or their own build | Only the naming rules and §3.6's "what every mode keeps"; not reviewed here. Use a prefix of your own, such as your company or your name. |
+
+**The first three modes keep their one-letter names**, `A`, `B` and `C` (ids 0, 1, 2), as released:
+tools and the public API already use them. A one-letter name has no `_`, so it's in no namespace,
+and no new mode gets one.
+
+| Id | Mode name | Display name | Badge text | Status |
+|---|---|---|---|---|
+| 0 | `A` | JIS Korean Original Layout | (keys) | Shipped |
+| 1 | `B` | JIS Korean for US ANSI | (keys) | Shipped |
+| 2 | `C` | JIS Korean for UK ISO | (keys) | Shipped |
+| 3 | `A_QWERTY` | JIS English | ABC | Specified (§3.6.2) |
+| 4 | `A_QWERTZ` | **[decide]** | QZ | Reserved |
+| 5 | `A_SWISS_QZ` | **[decide]** | CH | Reserved |
+| 6 | `A_AZERTY` | **[decide]** | AY | Reserved |
+| 7 | `A_DVORAK` | **[decide]** | DV | Reserved |
+| 8 | `A_COLEMAK` | **[decide]** | CMK | Reserved |
+
+A **reserved** mode has its id and name held for it, and nothing else yet: no key table, no build.
+Ids 4–8 are Mirae Research's English-layout modes in the family of JIS English (§3.6.2): each its
+layout's letters, with the symbols still to be decided per mode, and a badge of the taegeuk with its
+badge text over the lower right, as `ABC` on JIS English's. The next new mode takes id 9.
+
+#### 3.6.2 `A_QWERTY`: JIS English
+
+**JIS English** types English: the standard JIS QWERTY layout, with JIS English legends and JIS
+symbols, on any keyboard (Shift+2 is `"`, the key right of P is `@`, `IntlYen` is `¥`, `IntlRo` is
+`\`). It's the Mac's ABC for JIS Korean users: an English input source in the same input method as
+the Korean modes, so switching between them never leaves JIS Korean (§8.2.1).
+
+It isn't a 2-set mode (nor are ids 4–8): none of §3.1–3.5 or §4 onward applies. The engine consumes no
+key in it (every key goes to the app, typed by the mode's keyboard layout, §8.1), composes nothing,
+and offers no predictions, hanja or F6–F10. The core principle (§1) is about the Korean modes and
+is unaffected. The engine still names the layout: its key table is the JIS stock table (Mode A's
+stock keyboard), which the macOS keyboard layout is generated from, so the symbols can't drift from
+Mode A's F8 escape.
+
+It's **optional**: built only on request (`make ENGLISH=1` on macOS), so a default build has the
+Korean modes only. Its id and name are reserved either way.
+
+Examples: `KeyG KeyK KeyS` → `gks`; `S-Digit2` → `"`; `BracketLeft` → `@`; `IntlYen` → `¥`.
 
 ---
 
@@ -455,6 +515,11 @@ Raised by this spec:
     cancel the segment instead?
 11. ~~**Non-JIS hardware.**~~ Settled: Mode B (§3.6) for US ANSI. It keeps Mode A's number row
     and brackets and leaves every other key as US ANSI has it.
+12. **`B_` and `C_` namespaces (§3.6.1).** Both are for outside contributions accepted here. What
+    makes a mode `B_` rather than `C_` (for example: `B_` follows an official mode's pattern on
+    another keyboard, `C_` is a new layout of its own)?
+13. **JIS English on other platforms (§3.6.2).** Windows keeps 한/영 (§8.4). Should Windows, the
+    web playground and Minecraft offer `A_QWERTY` too, or is it macOS only?
 
 ---
 
@@ -789,6 +854,9 @@ Romaji:
 | A | `me.sjun.inputmethod.JISKorean.2Set` | JIS Korean |
 | B | `me.sjun.inputmethod.JISKorean.2SetANSI` | JIS Korean for US ANSI |
 | C | `me.sjun.inputmethod.JISKorean.2SetISO` | JIS Korean for UK ISO |
+| `A_QWERTY` | `me.sjun.inputmethod.JISKorean.A_QWERTY` | JIS English |
+
+Modes after C take their mode name as the last part of the input source ID (§3.6.1).
 
 The user adds the ones they want in System Settings → Keyboard → Input Sources (Korean → JIS
 Korean). Installing enables Mode A only.
@@ -804,9 +872,9 @@ API:
 
 | | How | Allowed |
 |---|---|---|
-| Read the mode | `defaults read me.sjun.inputmethod.JISKorean CurrentMode` → `A` / `B` (also `CurrentModeID`, `CurrentModeInputSourceID`, `CurrentModeName`), or `JISKorean.app/Contents/MacOS/JISKorean mode` | always |
+| Read the mode | `defaults read me.sjun.inputmethod.JISKorean CurrentMode` → the mode name, `A`, `B`, `C` or `A_QWERTY` (also `CurrentModeID`, `CurrentModeInputSourceID`, `CurrentModeName`), or `JISKorean.app/Contents/MacOS/JISKorean mode` | always |
 | Hear changes | distributed notification `me.sjun.inputmethod.JISKorean.ModeDidChange`, user info `mode`, `id`, `inputSourceID`, `name` | always |
-| Change the mode | distributed notification `me.sjun.inputmethod.JISKorean.SetMode`, user info `mode` (`A`, `B`, an engine id or an input source ID), or `JISKorean mode B` | only with **Let Other Apps Change the Mode** on, in the input menu with JIS Korean's other settings (off by default) |
+| Change the mode | distributed notification `me.sjun.inputmethod.JISKorean.SetMode`, user info `mode` (a mode name, an engine id or an input source ID), or `JISKorean mode B` | only with **Let Other Apps Change the Mode** on, in the input menu with JIS Korean's other settings (off by default) |
 
 A change request is answered with `ModeDidChange`, or with
 `me.sjun.inputmethod.JISKorean.ModeChangeRefused` and a `reason`: the setting is off, the mode is
@@ -815,6 +883,36 @@ mode last used, whether or not JIS Korean is the selected input source now; the 
 says that. Selecting the input source directly (the input menu, `TISSelectInputSource`,
 Hammerspoon's `hs.keycodes.currentSourceID`) is macOS's own switching and isn't gated by the
 setting.
+
+### 8.2.1 Switching between Korean and English (macOS)
+
+On Windows, 한/영 switches JIS Korean off and on inside one input method (§8.4). On macOS the same
+idea is an input mode, JIS English (`A_QWERTY`, §3.6.2), instead of a hidden on/off flag:
+
+- **Why a mode, not a flag.** A flag inside the controller would switch fastest, but macOS wouldn't
+  know about it: the menu bar would keep the Korean icon, 英数 and Ctrl+Space would go to Apple's
+  ABC, and the state would be lost whenever macOS reselects an input source.
+- **Why a mode, not a separate input method.** Each input method is its own process. Switching
+  between two (JIS Korean and ABC) has macOS deselect one, select the other and reconnect the app,
+  asynchronously, so a key pressed right after can land in the wrong one. Switching between modes of
+  one input method stays in the same process and the same session with the app, which is how
+  Japanese switches between Kana and Romaji.
+- **It's macOS's English input source.** It's declared with the Roman script, so 英数 selects it
+  (as with Japanese input methods' own Romaji modes), Ctrl+Space switches between it and the last
+  Korean mode, and the menu bar shows its badge (`docs/logo/mode-a-qwerty.svg`). Unlike Windows'
+  ABC it's **remembered**, like any input source, not reset to Korean.
+- **Switching back.** In JIS English, JIS Korean is still the selected input method, so it still
+  sees every key. かな selects the last Korean mode used. A setting, **Switch Key**, adds one more key
+  that toggles between JIS English and the last Korean mode, in both directions: any key the shell
+  can see, such as F18 sent from another key by Karabiner. Default: none. The switch key is
+  consumed (it never reaches the app); 英数 and かな reach JIS Korean only if macOS passes them on,
+  and are left to macOS when it doesn't. Switching commits what's unconfirmed first (§5.1).
+- These keys are the shell's, like Ctrl+Space: they select input modes and never reach the engine.
+
+Open: does macOS give 英数 to a Roman mode of a third-party input method, and does it count that mode
+as ASCII-capable (so a user can remove Apple's ABC from their input sources)? Both to be checked on
+a real build before the mode ships; if 英数 still goes to ABC, the shell catches 英数 itself as it
+does かな.
 
 ### 8.3 Resolving keys and text
 

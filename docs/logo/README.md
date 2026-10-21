@@ -11,6 +11,7 @@ them, and draw your own badges with them; keep the copyright notice.
 | `mode-a.svg` | Mode A, JIS: the taegeuk and the ISO/JIS Enter. |
 | `mode-b.svg` | Mode B, US ANSI: the taegeuk, backslash and Enter. |
 | `mode-iso.svg` | Mode C, ISO: the taegeuk, Caps Lock, Shift, the ISO extra key and Z. |
+| `mode-a-qwerty.svg` | JIS English (`A_QWERTY`): the taegeuk with `ABC` over its lower right. The reserved English-layout modes (spec §3.6.1) get the same badge with their own text: QZ, CH, AY, DV, CMK. |
 | `make_logo.py` | Draws all of the above. Edit this, never the SVGs. |
 | `render.sh` | Renders the SVGs to the 16 px and 32 px PNGs the macOS input method ships. |
 | `downscale.swift` | Scales `render.sh`'s 1024 px renders down to icon size with smooth edges. |
@@ -70,6 +71,14 @@ The taegeuk follows the construction of the flag of Korea:
 | Mode A, JIS | Enter: 1.5 wide on the upper row, 1.25 on the lower (the step is on the left), 2 rows tall |
 | Mode B, US ANSI | Backslash 1.5 × 1, above Enter 2.25 × 1, right edges aligned |
 | Mode C, ISO | Caps Lock 1.75 × 1, above Shift 1.25, the extra key 1 (hollow) and Z 1 |
+
+### Lettered badges
+
+English-layout modes show letters instead of keys (`lettered()` in `make_logo.py`): the badge's
+text drawn as strokes `LETTER` (6) wide over the lower right of a right-keyed taegeuk, (41, 41, 39).
+Each letter cuts a transparent border `BORDER` wide into the disc around it, so letters and disc
+stay one color, separated by gaps only. `ABC` fills a 74 × 38 box from (24, 60). At 16 px the text
+is at the limit of rule 7: the disc and a row of letters, not each letter, are what read there.
 
 ### The cut-outs (masks)
 
