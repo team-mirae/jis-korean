@@ -48,6 +48,12 @@ func isMode(_ source: TISInputSource) -> Bool {
     return Unmanaged<CFString>.fromOpaque(type).takeUnretainedValue() == kTISTypeKeyboardInputMode
 }
 
+/// Waits `seconds` while running the run loop, so the system's input source notifications are
+/// delivered and acted on before the next change.
+func settle(_ seconds: Double) {
+    CFRunLoopRunInMode(.defaultMode, seconds, false)
+}
+
 /// Mode A: enabled when upgrading from a build that had no input modes.
 let defaultModeID = bundleID + ".2Set"
 let enabledBefore = Set(inputMethodSources(enabledOnly: true).compactMap(id))
@@ -74,24 +80,36 @@ if !allSources.contains(where: { isMode($0) && enabledBefore.contains(id($0) ?? 
 let sources = allSources.filter { keep.contains(id($0) ?? "") }
 if wasEnabled, !sources.isEmpty {
     var off = noErr, on = noErr
+    // Off, then on, each given time to land: back to back, the system can take the pair as no change
+    // at all, and running apps stay cut off from the input method (the user then had to turn every
+    // mode off and on in System Settings by hand).
     for source in sources { let s = TISDisableInputSource(source); if s != noErr { off = s } }
+    settle(1.0)
     for source in sources { let s = TISEnableInputSource(source); if s != noErr { on = s } }
+    settle(1.0)
     // Selecting straight after enabling can fail with paramErr until the system catches up.
     var select = noErr
+    var tried = ""
     if wasSelected {
-        for _ in 0..<10 {
+        for _ in 0..<20 {
             let enabled = inputMethodSources(enabledOnly: true)
             let target = enabled.first(where: { id($0) == selectedBefore && isMode($0) })
                 ?? enabled.first(where: { id($0) == defaultModeID }) ?? enabled.first(where: isMode) ?? enabled.first
             guard let target else { select = OSStatus(paramErr); break }
+            tried = id(target) ?? "?"
             select = TISSelectInputSource(target)
             if select == noErr { break }
-            Thread.sleep(forTimeInterval: 0.5)
+            settle(0.5)
         }
     }
     if off != noErr || on != noErr || select != noErr {
-        print("Re-enabling the input source failed (disable \(off), enable \(on), select \(select)):")
-        print("remove JIS Korean in System Settings → Keyboard → Input Sources and add it back.")
+        if off == noErr && on == noErr {
+            // Turned off and on again; only selecting the mode in use failed (it's enabled).
+            print("Re-enabled the input source, but couldn't select \(tried) again (\(select)): select it in the input menu.")
+        } else {
+            print("Re-enabling the input source failed (disable \(off), enable \(on), select \(select)):")
+            print("remove JIS Korean in System Settings → Keyboard → Input Sources and add it back.")
+        }
     } else {
         print("Re-enabled the input source\(wasSelected ? " and selected it again" : "").")
     }
