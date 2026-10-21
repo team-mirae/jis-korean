@@ -93,21 +93,28 @@ LETTER_HEIGHT = 32
 LETTER_GAP = 4
 
 
+TWO_LETTER_SCALE = 1.25  # two-letter codes (US, GB, QZ, …) have the room to be bigger
+
+
 def letter_box(text):
-    """The box (x, y, w, h, gap) for `text`, in the lower right corner, EDGE in from the canvas edge."""
-    w = len(text) * LETTER_WIDTH + (len(text) - 1) * LETTER_GAP
-    return EDGE - w, EDGE - LETTER_HEIGHT, w, LETTER_HEIGHT, LETTER_GAP
+    """The box (x, y, w, h, gap, weight) for `text`, in the lower right corner, EDGE in from the
+    canvas edge. Two-letter codes are scaled up by TWO_LETTER_SCALE, stroke weight included, so
+    they keep the same look as three-letter ones."""
+    scale = TWO_LETTER_SCALE if len(text) == 2 else 1
+    lw, h, gap = LETTER_WIDTH * scale, LETTER_HEIGHT * scale, LETTER_GAP * scale
+    w = len(text) * lw + (len(text) - 1) * gap
+    return EDGE - w, EDGE - h, w, h, gap, LETTER * scale
 
 
-def letters(text, x, y, w, h, gap):
+def letters(text, x, y, w, h, gap, weight=LETTER):
     """Letters in the style of a neo-grotesque (Helvetica) bold, as stroked centrelines in a box
     (x, y, w, h) of outer edges, gap apart: one stroke weight, square ends, flat-topped points, and
-    C, G and S ending in horizontal cuts. Returns one (path, cuts) per letter: cuts are rectangles
+    C, G and S ending in horizontal cuts. Returns one (path, cuts, weight) per letter: cuts are rectangles
     (x, y, w, h) taken out of the stroke, which is how a round letter gets a horizontal terminal.
     Draws A B C D G H K M Q S U V Y Z."""
     n = len(text)
     lw = (w - (n - 1) * gap) / n
-    half = LETTER / 2
+    half = weight / 2
     top, bottom = y + half, y + h - half
     mid = (top + bottom) / 2
     glyphs = []
@@ -215,7 +222,7 @@ def letters(text, x, y, w, h, gap):
         # Every letter is trimmed to its box: one cap line, one baseline, one width.
         cuts += [(lx - 12, y - 12, lw + 24, 12), (lx - 12, y + h, lw + 24, 12),
                  (lx - 12, y, 12, h), (lx + lw, y, 12, h)]
-        glyphs.append((d, cuts))
+        glyphs.append((d, cuts, weight))
     return glyphs
 
 
@@ -332,8 +339,8 @@ def lettered(title, disc, letters):
     from shapely.ops import unary_union
     cx, cy, r = disc
     inks = []
-    for d, cuts in letters:
-        ink = stroke(d, LETTER)
+    for d, cuts, weight in letters:
+        ink = stroke(d, weight)
         for x, y, w, h in cuts:
             ink = ink.difference(box(x, y, x + w, y + h))
         inks.append(ink)
