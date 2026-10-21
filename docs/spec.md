@@ -261,7 +261,7 @@ an ISO board, for example, isn't an issue this repository will fix.
 | 7 | `A_DVORAK` | **[decide]** | DV | Reserved |
 | 8 | `A_COLEMAK` | **[decide]** | CMK | Reserved |
 | 9 | `B_QWERTY` | US English | US | Specified (§3.6.2) |
-| 10 | `C_QWERTY` | UK English | UK | Specified (§3.6.2) |
+| 10 | `C_QWERTY` | UK English | GB | Specified (§3.6.2) |
 
 A **reserved** mode has its id and name held for it, and nothing else yet: no key table, no build.
 Ids 4–8 are Mirae Research's English-layout modes in the family of JIS English (§3.6.2): each its

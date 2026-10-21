@@ -117,6 +117,15 @@ def letters(text, x, y, w, h, gap):
             ox, oy = lx + lw / 2, mid
             ex, ey = rx * 0.72, ry * 0.69  # the open ends, about 45 degrees from the right
             paths.append(f"M{num(ox + ex)} {num(oy - ey)}A{num(rx)} {num(ry)} 0 1 0 {num(ox + ex)} {num(oy + ey)}")
+        elif ch == "G":
+            # C, closing lower on the right, with a bar in from its end.
+            rx, ry = lw / 2 - half, (bottom - top) / 2
+            ox, oy = lx + lw / 2, mid
+            ex, ey = rx * 0.72, ry * 0.69
+            # The arc ends 20 degrees below the right, rises to the middle, and the bar runs in.
+            gx, gy = ox + rx * 0.94, oy + ry * 0.34
+            paths.append(f"M{num(ox + ex)} {num(oy - ey)}A{num(rx)} {num(ry)} 0 1 0 {num(gx)} {num(gy)}"
+                         f"V{num(oy + ry * 0.08)}H{num(ox + rx * 0.05)}")
         elif ch == "U":
             # Two stems joined by a half ellipse at the bottom.
             rx = (right - left) / 2
@@ -192,11 +201,11 @@ def main():
     (out / "mode-a-qwerty.svg").write_text(
         lettered("JIS English (A_QWERTY)", (41, 41, 39), letters("ABC", 24, 60, 74, 38, 4)))
 
-    # B_QWERTY and C_QWERTY, US and UK English: the same badge, with their country.
+    # B_QWERTY and C_QWERTY, US and UK English: the same badge, with their country code.
     (out / "mode-b-qwerty.svg").write_text(
         lettered("US English (B_QWERTY)", (41, 41, 39), letters("US", 46, 60, 52, 38, 5)))
     (out / "mode-c-qwerty.svg").write_text(
-        lettered("UK English (C_QWERTY)", (41, 41, 39), letters("UK", 46, 60, 52, 38, 5)))
+        lettered("UK English (C_QWERTY)", (41, 41, 39), letters("GB", 46, 60, 52, 38, 5)))
 
 
 if __name__ == "__main__":
