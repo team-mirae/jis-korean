@@ -95,6 +95,16 @@ int main() {
     // Mode C (spec §3.6): the ISO extra key types · and —, [ types 「 with Shift; with Dedicated
     // symbol keys off they're UK ISO's \ | and { again.
     Check(jk_mode_count() >= 3, "three modes");
+    // Mode ids have gaps (spec §3.6.1): the menu lists them by index, and refuses unknown ids.
+    bool listed_c = false;
+    for (std::uint32_t i = 0; i < jk_mode_count(); ++i) listed_c |= jk_mode_id_at(i) == 2;
+    Check(listed_c && jk_mode_id_at(jk_mode_count()) == UINT32_MAX, "jk_mode_id_at lists Mode C");
+    Check(Str(jk_mode_code_ptr(2), jk_mode_code_len(2)) == "C", "Mode C's code is C");
+    {
+        JkEngine* e = jk_new();
+        Check(jk_set_mode(e, 2) == 1 && jk_set_mode(e, 4242) == 0, "unknown mode ids are refused");
+        jk_free(e);
+    }
     const Press iso = {0xE2, 0x56}, iso_shift = {0xE2, 0x56, true}, bracket_shift = {0xDB, 0x1A, true};
     Check((Type(2, {iso, iso_shift, bracket_shift}, &preedit), preedit == "\xC2\xB7\xE2\x80\x94\xE3\x80\x8C"),
           "Mode C: extra key · —, Shift+[ 「");

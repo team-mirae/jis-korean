@@ -40,7 +40,7 @@ enum MenuId : UINT {
     kMenuTrainingFolder,
     kMenuAppOff,
     kMenuEnterCommits,
-    kMenuModeFirst = 100,  // + the mode id (spec §3.6), one per engine mode
+    kMenuModeFirst = 100,  // + the mode's index in the engine's list (jk_mode_id_at)
 };
 
 // Mode C (spec §3.6), the mode whose symbol keys are optional (Dedicated symbol keys).
@@ -516,7 +516,10 @@ void TextService::ShowList() {
     const size_t hanja = jk_candidate_count(engine_);
     if (hanja > 0) {
         const size_t page = jk_candidate_page_size();
-        const size_t selected = jk_candidate_selected(engine_);
+        // A selected index equal to the count: nothing selected yet (spec §3.6.3); the first page.
+        const size_t raw = jk_candidate_selected(engine_);
+        const bool none = raw >= hanja;
+        const size_t selected = none ? 0 : raw;
         const size_t start = selected / page * page;
         std::vector<CandidateWindow::Row> rows;
         for (size_t i = start; i < hanja && i < start + page; ++i) {
@@ -525,8 +528,8 @@ void TextService::ShowList() {
                             Utf16(jk_candidate_comment_ptr(engine_, i),
                                   jk_candidate_comment_len(engine_, i))});
         }
-        list_.Show(std::move(rows), static_cast<int>(selected - start),
-                   std::to_wstring(selected + 1) + L"/" + std::to_wstring(hanja), anchor_,
+        list_.Show(std::move(rows), none ? -1 : static_cast<int>(selected - start),
+                   (none ? L"" : std::to_wstring(selected + 1) + L"/") + std::to_wstring(hanja), anchor_,
                    [this, start](size_t row) { PickHanja(start + row); });
         return;
     }
@@ -615,8 +618,7 @@ void TextService::SaveLearned() {
 void TextService::ApplySettings() {
     app_off_ = settings::AppOff(settings::ExeName());
     // The mode follows the keyboard, not the app: one setting for every app (spec §8.4).
-    const unsigned long mode = settings::ReadDword(L"Mode", 0);
-    SetMode(mode < jk_mode_count() ? static_cast<unsigned>(mode) : 0);
+    SetMode(static_cast<unsigned>(settings::ReadDword(L"Mode", 0)));
     jk_set_dedicated_symbols(engine_, settings::ReadDword(L"DedicatedSymbols", 1) ? 1 : 0);
     jk_set_enter_commits(engine_, settings::ReadDword(L"EnterCommits", 0) ? 1 : 0);
 #ifdef JK_PREDICT
@@ -647,8 +649,13 @@ void TextService::ApplySettings() {
 
 void TextService::SetMode(unsigned mode) {
     if (mode == mode_) return;
+    // An id this build doesn't have (a mode set by a newer version, or an English mode left out
+    // of the build) is refused: Mode A then.
+    if (!jk_set_mode(engine_, mode)) {
+        mode = 0;
+        jk_set_mode(engine_, mode);
+    }
     mode_ = mode;
-    jk_set_mode(engine_, mode);
     if (lang_bar_) lang_bar_->SetState(mode_, open_);
 }
 
@@ -665,11 +672,13 @@ void TextService::InitMenu(ITfMenu* menu) {
     add(kMenuEnglish, L"ABC: Keys Pass Through (한/영)", !open_);
     add(kMenuAppOff, L"Off in " + settings::ExeName() + L" (Keys Pass Through There)", app_off_);
     separator();
-    // Every mode the engine has, by its own name (spec §3.6): Mode A: JIS Korean Original Layout...
-    for (std::uint32_t id = 0; id < jk_mode_count(); ++id) {
+    // Every mode this build has, in the engine's order and by its names (spec §3.6.1): ids have
+    // gaps, so they're listed with jk_mode_id_at. "Mode A: JIS Korean Original Layout"...
+    for (std::uint32_t index = 0; index < jk_mode_count(); ++index) {
+        const std::uint32_t id = jk_mode_id_at(index);
+        const std::wstring code = Utf16(jk_mode_code_ptr(id), jk_mode_code_len(id));
         const std::wstring name = Utf16(jk_mode_name_ptr(id), jk_mode_name_len(id));
-        add(kMenuModeFirst + id, L"Mode " + std::wstring(1, static_cast<wchar_t>(L'A' + id)) + L": " + name,
-            mode_ == id);
+        add(kMenuModeFirst + index, L"Mode " + code + L": " + name, mode_ == id);
     }
     // Mode C's symbol keys are optional (spec §3.6), as in macOS's input menu while it's active.
     if (mode_ == kModeC) {
@@ -716,7 +725,7 @@ void TextService::InitMenu(ITfMenu* menu) {
 void TextService::OnMenu(UINT id) {
     if (id >= kMenuModeFirst && id < kMenuModeFirst + jk_mode_count()) {
         if (composition_context_) Flush(composition_context_.Get());
-        settings::WriteDword(L"Mode", id - kMenuModeFirst);
+        settings::WriteDword(L"Mode", jk_mode_id_at(id - kMenuModeFirst));
         ApplySettings();
         return;
     }
