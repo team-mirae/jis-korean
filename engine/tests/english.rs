@@ -4,8 +4,9 @@
 
 use jis_korean::{Engine, Key, Layout, Mode, Mods, Out, Output, output_in};
 
-const REPEAT: Mods = Mods { shift: false, ctrl: false, alt: false, meta: false, repeat: true };
+const REPEAT: Mods = Mods { repeat: true, ..Mods::NONE };
 const SHIFT_REPEAT: Mods = Mods { shift: true, repeat: true, ..REPEAT };
+const CAPS: Mods = Mods { caps: true, ..Mods::NONE };
 
 fn english() -> Engine {
     let mut engine = Engine::new();
@@ -37,7 +38,8 @@ fn it_is_mode_3_a_qwerty_and_not_korean() {
 #[test]
 fn every_key_goes_to_the_app() {
     let mut engine = english();
-    for code in ["KeyG", "KeyK", "KeyS", "Digit2", "BracketLeft", "IntlYen", "IntlRo", "Space", "Enter", "Backspace", "F6", "F7", "F8", "F9", "F10"] {
+    // All but F9 and F10 (and Shift+Z), which convert the word just typed (spec §3.6.4).
+    for code in ["KeyG", "KeyK", "KeyS", "Digit2", "BracketLeft", "IntlYen", "IntlRo", "Space", "Enter", "Backspace", "F6", "F7", "F8"] {
         for mods in [Mods::NONE, Mods::SHIFTED] {
             let out = engine.key(key(code), mods);
             assert!(!out.consumed && out.commit.is_empty() && out.preedit.is_empty(), "{code} {mods:?}: {out:?}");
@@ -188,4 +190,98 @@ fn korean_modes_ignore_the_repeat() {
     let out = engine.key(key("KeyU"), REPEAT);
     assert!(out.consumed && out.take_back == 0 && out.candidates.is_none());
     assert_eq!(out.preedit, "여여");
+}
+
+fn typed(engine: &mut Engine, codes: &[&str]) {
+    for code in codes {
+        assert!(!engine.key(key(code), Mods::NONE).consumed, "{code} goes to the app");
+    }
+}
+
+fn shift_z(engine: &mut Engine) -> Output {
+    engine.key(key("KeyZ"), Mods::SHIFTED)
+}
+
+/// Spec §3.6.4: x, then Shift+Z, is X: the x already typed is taken back as X.
+#[test]
+fn shift_z_capitalizes_the_word_just_typed() {
+    let mut engine = english();
+    typed(&mut engine, &["KeyX"]);
+    let out = shift_z(&mut engine);
+    assert_eq!((out.take_back, out.preedit.as_str(), out.consumed), (1, "X", true));
+    let out = engine.key(key("Space"), Mods::NONE);
+    assert_eq!((out.commit.as_str(), out.consumed), ("X", false), "kept, and the space goes on");
+}
+
+#[test]
+fn f10_cycles_upper_capitalized_as_typed_and_f9_is_full_width() {
+    let mut engine = english();
+    typed(&mut engine, &["KeyA", "KeyB", "KeyC"]);
+    let out = engine.key(key("F10"), Mods::NONE);
+    assert_eq!((out.take_back, out.preedit.as_str()), (3, "ABC"));
+    let out = engine.key(key("F10"), Mods::NONE);
+    assert_eq!((out.take_back, out.preedit.as_str()), (0, "Abc"));
+    assert_eq!(shift_z(&mut engine).preedit, "abc");
+    assert_eq!(engine.key(key("F9"), Mods::NONE).preedit, "ａｂｃ");
+    assert_eq!(engine.key(key("F9"), Mods::NONE).preedit, "ＡＢＣ");
+    // Esc: the word as typed.
+    let out = engine.key(key("Escape"), Mods::NONE);
+    assert_eq!((out.commit.as_str(), out.consumed), ("abc", true));
+}
+
+#[test]
+fn f9_first_converts_as_typed() {
+    let mut engine = english();
+    typed(&mut engine, &["KeyA", "Digit1"]);
+    let out = engine.key(key("F9"), Mods::NONE);
+    assert_eq!((out.take_back, out.preedit.as_str()), (2, "ａ１"));
+}
+
+#[test]
+fn the_word_is_what_the_app_has() {
+    let mut engine = english();
+    // Backspace shortens it; digits are part of it.
+    typed(&mut engine, &["KeyA", "KeyB", "KeyC", "Backspace", "Digit1"]);
+    assert_eq!(engine.key(key("F10"), Mods::NONE).preedit, "AB1");
+    // A space, a symbol or a shortcut ends it.
+    for end in [("Space", Mods::NONE), ("Digit2", Mods::SHIFTED), ("KeyV", Mods { meta: true, ..Mods::NONE })] {
+        let mut engine = english();
+        typed(&mut engine, &["KeyA"]);
+        engine.key(key(end.0), end.1);
+        let out = engine.key(key("F10"), Mods::NONE);
+        assert_eq!((out.consumed, out.take_back, out.preedit.as_str()), (true, 0, ""), "after {}", end.0);
+    }
+    // So does anything that moves the caret elsewhere.
+    let mut engine = english();
+    typed(&mut engine, &["KeyA"]);
+    engine.flush();
+    assert_eq!(engine.key(key("F10"), Mods::NONE).take_back, 0);
+    // With nothing typed, Shift+Z does nothing (and isn't typed).
+    let mut engine = english();
+    let out = shift_z(&mut engine);
+    assert!(out.consumed && out.commit.is_empty() && out.preedit.is_empty());
+}
+
+#[test]
+fn caps_lock_is_the_case_the_app_typed() {
+    let mut engine = english();
+    for code in ["KeyA", "KeyB"] {
+        engine.key(key(code), CAPS);
+    }
+    assert_eq!(engine.key(key("F10"), Mods::NONE).preedit, "AB");
+    assert_eq!(engine.key(key("F10"), Mods::NONE).preedit, "Ab");
+    // Held with Caps Lock: capitals.
+    let mut engine = english();
+    engine.key(key("KeyU"), CAPS);
+    let out = engine.key(key("KeyU"), Mods { repeat: true, ..CAPS });
+    assert_eq!((out.preedit.as_str(), list(&out)[1].as_str()), ("U", "Ü"));
+}
+
+#[test]
+fn f10_after_a_press_and_hold_takes_the_letter_too() {
+    let mut engine = english();
+    typed(&mut engine, &["KeyA", "KeyB"]);
+    hold(&mut engine, "KeyU", false);
+    let out = engine.key(key("F10"), Mods::NONE);
+    assert_eq!((out.commit.as_str(), out.take_back, out.preedit.as_str()), ("u", 3, "ABU"));
 }

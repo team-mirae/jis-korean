@@ -90,9 +90,11 @@ final class JKInputController: IMKInputController {
         }
         chosen = nil
         #endif
-        // The auto-repeat of a held key: JIS English's press and hold reads it (spec §3.6.3).
-        let repeating = event.isARepeat ? UInt32(JK_MOD_REPEAT) : 0
-        let consumed = jk_key(engine, engineKey(event.keyCode), modifiers(event.modifierFlags) | repeating)
+        // The auto-repeat of a held key, and Caps Lock: JIS English's press and hold and F9/F10 read
+        // them (spec §3.6.3, §3.6.4); the Korean modes ignore them.
+        var extra = event.isARepeat ? UInt32(JK_MOD_REPEAT) : 0
+        if event.modifierFlags.contains(.capsLock) { extra |= UInt32(JK_MOD_CAPS) }
+        let consumed = jk_key(engine, engineKey(event.keyCode), modifiers(event.modifierFlags) | extra)
         apply(to: client)
         #if PREDICT
         saveLearned()

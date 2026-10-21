@@ -267,10 +267,11 @@ the Korean modes, so switching between them never leaves JIS Korean (§8.2.1).
 
 It isn't a 2-set mode (nor are ids 4–8): none of §3.1–3.5 or §4 onward applies. It behaves like
 the Japanese input method's Romaji mode without its Japanese conversions: the engine consumes no key
-(every key goes to the app, typed by the mode's keyboard layout, §8.1), composes nothing, and offers
-no predictions, hanja or F6–F10; Shift+Z is Z. Caps Lock types capitals. On macOS, Shift+X goes back
-to Korean by default (§8.2.1); capital X is then typed with Caps Lock. The one thing it adds is
-press and hold (§3.6.3). Switching in commits whatever a Korean mode left unconfirmed. The core principle (§1) is about the Korean modes and
+(every key goes to the app, typed by the mode's keyboard layout, §8.1) and composes nothing; no
+predictions, hanja, F6, F7 or F8. Caps Lock types capitals. It adds press and hold (§3.6.3) and
+F9/F10 on the word just typed, with Shift+Z as F10 as in the Korean modes (§3.6.4). On macOS,
+Shift+X goes back to Korean by default (§8.2.1); capital X is then x followed by Shift+Z, or Caps
+Lock. Switching in commits whatever a Korean mode left unconfirmed. The core principle (§1) is about the Korean modes and
 is unaffected. The engine still names the layout: its key table is the JIS stock table (Mode A's
 stock keyboard), which the macOS keyboard layout is generated from, so the symbols can't drift from
 Mode A's F8 escape.
@@ -314,8 +315,31 @@ While the list is open:
 Other keys repeat as usual: a key without variants, a repeat whose key or Shift differs from the
 press before it, and anything with Ctrl, Option or Cmd. The Korean modes ignore `JK_MOD_REPEAT`.
 
+With Caps Lock on, the letter and its variants are capitals.
+
 Examples (key codes; `…` is the key's auto-repeat): `KeyU KeyU… Digit2` → ü; `S-KeyU S-KeyU… Digit2`
 → Ü; `KeyE KeyE… ArrowLeft Enter` → ę; `KeyA KeyA… KeyB` → ab; `KeyO KeyO… Backspace` → nothing.
+
+#### 3.6.4 F9 / F10 in JIS English
+
+JIS English keeps the Japanese input method's F9/F10 (zenkaku / hankaku) on the word just typed, so a
+capital is a lower-case letter plus Shift+Z. The engine follows the **word just typed** from the keys
+it lets through: ASCII letters and digits extend it, in the case the app typed (it's told Caps
+Lock's state, `JK_MOD_CAPS`); Backspace shortens it; anything else ends it (Space, symbols, Enter,
+arrows, shortcuts), and so does anything that moves the caret elsewhere (a click, a focus change, a
+mode switch: flush and activate).
+
+- **F10, or Shift+Z,** takes the word back into the preedit (`take_back`: its length) as **UPPER**,
+  then cycles **Capitalized → as typed → UPPER …**. (§6.2's cycle starts at "as typed", but here
+  that's what the document already has, so F10 starts one step on.)
+- **F9** takes it back in **full width**, as typed, then cycles UPPER → Capitalized → as typed.
+- Switching between F9 and F10 changes the width and keeps the case, as in §6.2.
+- **Esc** puts back the word as typed. **Any other key** keeps the conversion and goes on to the app.
+- With no word, F9, F10 and Shift+Z do nothing (and aren't typed).
+- After a press-and-hold list, the letter it leaves (if it's a plain letter) is part of the word.
+
+Examples: `KeyX S-KeyZ` → X; `KeyA KeyB KeyC F10 F10` → Abc; `KeyA Digit1 F9` → ａ１;
+`KeyA KeyB KeyC F10 Escape` → abc; `KeyA Space S-KeyZ` → a and a space.
 
 Examples: `KeyG KeyK KeyS` → `gks`; `S-Digit2` → `"`; `BracketLeft` → `@`; `IntlYen` → `¥`.
 
@@ -983,7 +1007,7 @@ idea is an input mode, JIS English (`A_QWERTY`, §3.6.2), instead of a hidden on
   -int <code>` (-1 for none).
 - **Shift+X** in JIS English goes back to the last Korean mode, for users without a remapping tool
   (Hammerspoon, Karabiner) or a spare key. **On by default**, turned off in the input menu (Shift+X
-  in JIS English Returns to Korean); with it on, capital X is typed with Caps Lock. Only in JIS
+  in JIS English Returns to Korean); with it on, capital X is x then Shift+Z (§3.6.4), or Caps Lock. Only in JIS
   English: in the Korean modes Shift+X is ㅌ as always (§1). 英数, かな and the Switch Key only act when
   the mode they'd select is added in System Settings; otherwise they go on as usual. The switch key is
   consumed (it never reaches the app); 英数 and かな reach JIS Korean only if macOS passes them on,

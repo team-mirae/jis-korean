@@ -94,6 +94,7 @@ enum {
     JK_MOD_ALT = 4,  /* Alt / Option */
     JK_MOD_META = 8, /* Cmd / Win */
     JK_MOD_REPEAT = 16, /* the key's auto-repeat while held (JIS English's press and hold) */
+    JK_MOD_CAPS = 32,   /* Caps Lock on (JIS English's F9/F10 read the case typed) */
 };
 
 JkEngine *jk_new(void);

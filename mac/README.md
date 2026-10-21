@@ -99,7 +99,8 @@ Switching stays inside JIS Korean: 英数 selects JIS English, かな goes back 
 **F18** toggles between them (the input menu's **Switch Key (JIS English ↔ Korean)** picks F13–F19
 or none, or any key code with `defaults write me.sjun.inputmethod.JISKorean SwitchKey -int <code>`),
 and **Shift+X** in JIS English goes back to Korean (on by default; turn it off in the input menu to
-type capital X with Shift again). `tools/add-english-mode.sh` adds the mode to the built bundle's Info.plist; the
+type capital X with Shift again). F10 or Shift+Z capitalizes the word just typed, so x then Shift+Z
+is X; F9 makes it full width (spec §3.6.4). `tools/add-english-mode.sh` adds the mode to the built bundle's Info.plist; the
 checked-in Info.plist has the Korean modes only.
 
 Still to check on a real install: that macOS sends 英数 and かな to the input method rather than
