@@ -88,7 +88,8 @@ Lettered badges are computed as geometry rather than drawn with masks (`lettered
 its cuts), its transparent border is that outline grown by half of `BORDER` (a key's gap), and the
 disc is what's left once the S and the borders are taken out. Any leftover piece of the disc smaller
 than `MIN_PIECE_AREA` or thinner than `MIN_PIECE_THICKNESS` is dropped: the disc shows inside a
-letter only where a real piece of it fits (U's opening), never as a sliver. The SVG is two plain
+letter only where it comes in from outside (U's opening), never as a sliver or as a piece sealed
+inside a letter's bowl (G, B, D), which read as a stray shape. The SVG is two plain
 filled paths, the disc and the letters. Every letter is trimmed to its box, so all share one cap line and one baseline and have the same
 height: diagonals are aimed so their outer edge lands on the box edge and cut flat there, as in
 Helvetica (A's apex, V's and M's points, K's and Y's arms). Every letter is `LETTER_WIDTH` ×

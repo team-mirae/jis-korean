@@ -166,9 +166,11 @@ def letters(text, x, y, w, h, gap, weight=LETTER):
             d = ellipse
             cuts.append((cx, mid - ry * 0.48, far - cx, ry * 0.96))
         elif ch == "G":
-            # C's upper cut; below it, a bar into the middle and the bowl closing up to it.
-            d = ellipse + f"M{num(cx + rx * 0.08)} {num(mid + half * 0.5)}H{num(right)}V{num(bottom - ry * 0.4)}"
-            cuts.append((cx, mid - ry * 0.48, far - cx, ry * 0.48))
+            # C's upper cut; the bowl comes up on the right to the bar's height, and the bar runs in
+            # from there to the middle: one hook, as in a grotesque.
+            bar = mid + (bottom - top) * 0.06
+            d = ellipse + f"M{num(cx)} {num(bar)}H{num(right)}V{num(mid + ry * 0.5)}"
+            cuts.append((cx, mid - ry * 0.48, far - cx, bar - half - (mid - ry * 0.48)))
         elif ch == "D":
             # The stem, and a bowl as wide as the letter.
             x1 = left + (right - left) * 0.3
@@ -348,8 +350,13 @@ def lettered(title, disc, letters):
     border = ink.buffer(BORDER / 2, join_style="round", quad_segs=16)
     s_band = stroke(s_curve(cx, cy, r), S_GAP, cap="flat", join="round")
     shape = Point(cx, cy).buffer(r, quad_segs=64).difference(s_band).difference(border)
+    # The disc shows inside a letter only where it comes in from outside (U's opening): a piece
+    # sealed inside the text, within its box, reads as a stray shape and goes, as do pieces too
+    # small or too thin to read.
+    text_box = box(*ink.bounds)
     pieces = [p for p in getattr(shape, "geoms", [shape])
-              if p.area >= MIN_PIECE_AREA and 2 * p.area / p.length >= MIN_PIECE_THICKNESS]
+              if p.area >= MIN_PIECE_AREA and 2 * p.area / p.length >= MIN_PIECE_THICKNESS
+              and not p.within(text_box)]
     return (f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" width="100" height="100">'
             "<!-- SPDX-License-Identifier: MIT. Copyright 2026 Mirae Research & Min Jun Sung. "
             "Drawn by docs/logo/make_logo.py; see docs/logo/README.md. -->"
