@@ -1,11 +1,13 @@
 import ApplicationServices
+import Carbon
 import Foundation
 import IOKit.hid
 
 #if ENGLISH
 /// The keyboard read at the hardware level (USB HID usages), for the one key macOS loses: the Windows
 /// JIS カタカナ key (usage 0x88), which macOS turns into かな (spec §8.2.1). Only whether it's held is
-/// kept. Needs Input Monitoring permission, which it asks for.
+/// kept. Only keyboards configured as JIS (Keyboard Setup Assistant's type for each keyboard) are
+/// opened: カタカナ means nothing on the others. Needs Input Monitoring permission, which it asks for.
 enum HardwareKeys {
     private static var manager: IOHIDManager?
     fileprivate static var katakanaDown = false
@@ -16,9 +18,16 @@ enum HardwareKeys {
         if ask && IOHIDCheckAccess(kIOHIDRequestTypeListenEvent) != kIOHIDAccessTypeGranted {
             _ = IOHIDRequestAccess(kIOHIDRequestTypeListenEvent)
         }
+        let keyboards = jisKeyboards()
+        guard !keyboards.isEmpty else {
+            DiagnosticLog.note("hardware keys: no keyboard is configured as JIS; カタカナ isn't listened for")
+            return
+        }
         let manager = IOHIDManagerCreate(kCFAllocatorDefault, IOOptionBits(kIOHIDOptionsTypeNone))
-        let keyboards = [kIOHIDDeviceUsagePageKey: kHIDPage_GenericDesktop, kIOHIDDeviceUsageKey: kHIDUsage_GD_Keyboard]
-        IOHIDManagerSetDeviceMatching(manager, keyboards as CFDictionary)
+        IOHIDManagerSetDeviceMatchingMultiple(manager, keyboards.map {
+            [kIOHIDVendorIDKey: $0.vendor, kIOHIDProductIDKey: $0.product,
+             kIOHIDDeviceUsagePageKey: kHIDPage_GenericDesktop, kIOHIDDeviceUsageKey: kHIDUsage_GD_Keyboard]
+        } as CFArray)
         IOHIDManagerRegisterInputValueCallback(manager, { _, _, _, value in
             let element = IOHIDValueGetElement(value)
             guard IOHIDElementGetUsagePage(element) == UInt32(kHIDPage_KeyboardOrKeypad),
@@ -45,11 +54,26 @@ enum HardwareKeys {
             DispatchQueue.main.asyncAfter(deadline: .now() + 3) { start() }
             return
         }
-        DiagnosticLog.note("hardware keys: on\(status == kIOReturnSuccess ? "" : " (some keyboards are held by another program)")")
+        DiagnosticLog.note("hardware keys: on for \(keyboards.count) JIS keyboard(s)\(status == kIOReturnSuccess ? "" : ", some held by another program")")
         self.manager = manager
     }
 
     private static var waiting = false
+
+    /// The keyboards macOS has configured as JIS: /Library/Preferences/com.apple.keyboardtype lists
+    /// each keyboard ("product-vendor-country") with its keyboard type.
+    private static func jisKeyboards() -> [(vendor: Int, product: Int)] {
+        let types = (UserDefaults(suiteName: "/Library/Preferences/com.apple.keyboardtype")?
+            .dictionary(forKey: "keyboardtype") as? [String: Int]) ?? [:]
+        var keyboards: [(vendor: Int, product: Int)] = []
+        for (device, type) in types where KBGetLayoutType(Int16(type)) == OSType(kKeyboardJIS) {
+            let parts = device.split(separator: "-").compactMap { Int($0) }
+            if parts.count >= 2, !keyboards.contains(where: { $0.vendor == parts[1] && $0.product == parts[0] }) {
+                keyboards.append((vendor: parts[1], product: parts[0]))
+            }
+        }
+        return keyboards
+    }
     private static var lastState = ""
 
     /// Whether カタカナ is held (for a key down), or was just let go (for its key up: the release
