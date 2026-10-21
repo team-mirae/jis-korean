@@ -83,9 +83,13 @@ corners with sharp points flattened (miter limit 2, so A, V and M have flat tips
 A, M's middle point on the baseline, and C, G and S ending in horizontal cuts (rectangles masked out
 of the stroke). They're drawn, not taken from a font, so no font license comes into the logo.
 
-The text cuts the disc the way a key does: one box around all its letters, half of `BORDER`
-bigger with rounded corners (a key's gap). Cutting around each letter's own outline left slivers of
-the disc between letters and inside counters, which looked jagged at icon sizes. Every letter is `LETTER_WIDTH` ×
+Lettered badges are computed as geometry rather than drawn with masks (`lettered()`, with
+[shapely](https://pypi.org/project/shapely/)): each letter's stroke becomes a filled outline (minus
+its cuts), its transparent border is that outline grown by half of `BORDER` (a key's gap), and the
+disc is what's left once the S and the borders are taken out. Any leftover piece of the disc smaller
+than `MIN_PIECE_AREA` or thinner than `MIN_PIECE_THICKNESS` is dropped: the disc shows inside a
+letter only where a real piece of it fits (U's opening), never as a sliver. The SVG is two plain
+filled paths, the disc and the letters. Every letter is `LETTER_WIDTH` ×
 `LETTER_HEIGHT` (23 × 32), `LETTER_GAP` (4) apart, aligned to the lower right corner `EDGE` in
 (`letter_box()`). `letters()` draws A B C D G H K M Q S U V Y Z so far. At 16 px the text is at the limit of rule 7: the disc and a row of letters, not each letter, are what read there.
 
@@ -105,7 +109,7 @@ alike, which is what makes overlapping borders transparent (rule 3).
 1. In `make_logo.py`, add a block to `main()` like Mode B's: pick *u*, build the key outlines with
    `rect(x, y, w, h)` (or `rounded([...points])` for a shape like the ISO Enter), put the disc on
    the side away from the keys, and write it with `badge(title, (cx, cy, r), keys, hollow=[...])`.
-2. Run `python3 -I make_logo.py`, then look at it at 128, 32 and 16 px on a light and a dark
+2. Run `python3 make_logo.py` (lettered badges need `pip install shapely`), then look at it at 128, 32 and 16 px on a light and a dark
    background. Check rule 7 above all.
 3. Run `sh render.sh` (needs Google Chrome) to write `mac/Resources/icons/<name>.png` and
    `<name>@2x.png`. Add your name to its loop.

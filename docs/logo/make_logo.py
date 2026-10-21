@@ -10,7 +10,9 @@ color, recolored for light and dark menu bars), so these are built that way from
 The taegeuk follows the flag's construction: the dividing diameter on the flag's 2:3 slope, and
 an S of two half-radius arcs. Key proportions are real keyboard units.
 
-Usage: python3 -I make_logo.py   (writes taegeuk.svg, mode-a.svg, mode-b.svg, mode-iso.svg and
+Lettered badges need shapely (`pip install shapely`), which computes their shapes.
+
+Usage: python3 make_logo.py   (writes taegeuk.svg, mode-a.svg, mode-b.svg, mode-iso.svg and
 mode-a-qwerty.svg, mode-b-qwerty.svg and mode-cj-qwerty.svg here)
 """
 
@@ -189,37 +191,137 @@ def letters(text, x, y, w, h, gap):
     return glyphs
 
 
-def lettered(title, disc, letters, box):
-    """The taegeuk with letters on top, cut out of it the way a key is: the text's box (x, y, w, h,
-    gap from letter_box) cuts one clean shape out of the disc, half of BORDER bigger all round with
-    rounded corners, so no slivers of the disc are left between letters or inside them."""
+# --- Lettered badges are computed as geometry (shapely), not drawn with masks: each letter becomes
+#     a filled outline, its transparent border is that outline grown by half of BORDER, and the
+#     disc is what's left once the S and the borders are taken out, less any piece too small or
+#     too thin to read as part of it (slivers between a letter and the disc's edge).
+
+ARC_STEPS = 64  # points per half ellipse when flattening arcs
+MIN_PIECE_AREA = 20  # a leftover piece of the disc smaller than this (square units) is dropped
+MIN_PIECE_THICKNESS = 1.6  # ... and so is one thinner than this (twice its area over its perimeter)
+
+
+def flatten(d):
+    """An SVG path of M L H V A Z (arcs unrotated) as subpaths: (points, closed)."""
+    import re
+    tokens = re.findall(r"[MLHVAZ]|-?[0-9.]+", d)
+    subpaths, points, pos, i = [], [], (0.0, 0.0), 0
+    cmd = None
+
+    def take(n):
+        nonlocal i
+        values = [float(t) for t in tokens[i:i + n]]
+        i += n
+        return values
+
+    while i < len(tokens):
+        if tokens[i].isalpha():
+            cmd = tokens[i]
+            i += 1
+        if cmd == "M":
+            if len(points) > 1:
+                subpaths.append((points, False))
+            pos = tuple(take(2))
+            points = [pos]
+            cmd = "L"
+        elif cmd == "L":
+            pos = tuple(take(2))
+            points.append(pos)
+        elif cmd == "H":
+            pos = (take(1)[0], pos[1])
+            points.append(pos)
+        elif cmd == "V":
+            pos = (pos[0], take(1)[0])
+            points.append(pos)
+        elif cmd == "A":
+            rx, ry, _, large, sweep, x, y = take(7)
+            points.extend(arc_points(pos, (x, y), rx, ry, large, sweep))
+            pos = (x, y)
+        elif cmd == "Z":
+            subpaths.append((points, True))
+            points = [points[0]]
+            pos = points[0]
+            cmd = None
+    if len(points) > 1:
+        subpaths.append((points, False))
+    return subpaths
+
+
+def arc_points(p1, p2, rx, ry, large, sweep):
+    """Points along an unrotated SVG elliptical arc from p1 to p2 (the endpoint conversion of the
+    SVG spec, with the radii scaled up if they're too small)."""
+    x1p, y1p = (p1[0] - p2[0]) / 2, (p1[1] - p2[1]) / 2
+    scale = (x1p / rx) ** 2 + (y1p / ry) ** 2
+    if scale > 1:
+        rx, ry = rx * math.sqrt(scale), ry * math.sqrt(scale)
+    num_ = rx * rx * ry * ry - rx * rx * y1p * y1p - ry * ry * x1p * x1p
+    den = rx * rx * y1p * y1p + ry * ry * x1p * x1p
+    k = math.sqrt(max(0.0, num_ / den)) * (-1 if large == sweep else 1)
+    cxp, cyp = k * rx * y1p / ry, -k * ry * x1p / rx
+    cx, cy = cxp + (p1[0] + p2[0]) / 2, cyp + (p1[1] + p2[1]) / 2
+    a1 = math.atan2((y1p - cyp) / ry, (x1p - cxp) / rx)
+    a2 = math.atan2((-y1p - cyp) / ry, (-x1p - cxp) / rx)
+    delta = a2 - a1
+    if sweep and delta < 0:
+        delta += 2 * math.pi
+    elif not sweep and delta > 0:
+        delta -= 2 * math.pi
+    steps = max(2, int(abs(delta) / math.pi * ARC_STEPS))
+    return [(cx + rx * math.cos(a1 + delta * t / steps), cy + ry * math.sin(a1 + delta * t / steps))
+            for t in range(1, steps + 1)]
+
+
+def stroke(d, width, cap="square", join="mitre", mitre=2.0):
+    """The outline of path `d` stroked `width` wide, as SVG would draw it."""
+    from shapely.geometry import LinearRing, LineString
+    from shapely.ops import unary_union
+    parts = []
+    for points, closed in flatten(d):
+        line = LinearRing(points) if closed else LineString(points)
+        parts.append(line.buffer(width / 2, cap_style=cap if not closed else "flat", join_style=join,
+                                 mitre_limit=mitre, quad_segs=16))
+    return unary_union(parts)
+
+
+def svg_path(geometry):
+    """A filled shapely geometry as one SVG path (even-odd)."""
+    polygons = getattr(geometry, "geoms", [geometry])
+    d = ""
+    for polygon in polygons:
+        if polygon.is_empty:
+            continue
+        for ring in [polygon.exterior, *polygon.interiors]:
+            coords = list(ring.coords)[:-1]
+            d += "M" + "L".join(f"{num(x)} {num(y)}" for x, y in coords) + "Z"
+    return d
+
+
+def lettered(title, disc, letters):
+    """The taegeuk with letters on top, as filled shapes: each letter's outline, grown by half of
+    BORDER (a key's gap), is taken out of the disc; then any leftover piece of the disc that's too
+    small or too thin to read (MIN_PIECE_*) goes too, so no jagged slivers are left."""
+    from shapely.geometry import Point, box
+    from shapely.ops import unary_union
     cx, cy, r = disc
-    full = '<rect width="100" height="100" fill="#fff"/>'
-    mask = '<mask id="{0}" maskUnits="userSpaceOnUse" x="0" y="0" width="100" height="100">{1}</mask>'
-    # Square ends and mitred corners, with sharp points flattened (miter limit 2).
-    style = 'fill="none" stroke-linejoin="miter" stroke-miterlimit="2" stroke-linecap="square"'
-    masks, ink = "", ""
-    for i, (d, cuts) in enumerate(letters):
-        if cuts:
-            cut = "".join(f'<rect x="{num(x)}" y="{num(y)}" width="{num(w)}" height="{num(h)}" fill="#000"/>'
-                          for x, y, w, h in cuts)
-            masks += mask.format(f"l{i}", full + cut)
-            ink += f'<path d="{d}" mask="url(#l{i})"/>'
-        else:
-            ink += f'<path d="{d}"/>'
-    x, y, w, h, _ = box
-    text_cut = (f'<path d="{rect(x, y, w, h, 0)}" fill="#000" stroke="#000" stroke-width="{BORDER}" '
-                'stroke-linejoin="round"/>')
-    s_cut = f'<path d="{s_curve(cx, cy, r)}" fill="none" stroke="#000" stroke-width="{S_GAP}"/>'
+    inks = []
+    for d, cuts in letters:
+        ink = stroke(d, LETTER)
+        for x, y, w, h in cuts:
+            ink = ink.difference(box(x, y, x + w, y + h))
+        inks.append(ink)
+    ink = unary_union(inks)
+    border = ink.buffer(BORDER / 2, join_style="round", quad_segs=16)
+    s_band = stroke(s_curve(cx, cy, r), S_GAP, cap="flat", join="round")
+    shape = Point(cx, cy).buffer(r, quad_segs=64).difference(s_band).difference(border)
+    pieces = [p for p in getattr(shape, "geoms", [shape])
+              if p.area >= MIN_PIECE_AREA and 2 * p.area / p.length >= MIN_PIECE_THICKNESS]
     return (f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" width="100" height="100">'
             "<!-- SPDX-License-Identifier: MIT. Copyright 2026 Mirae Research & Min Jun Sung. "
             "Drawn by docs/logo/make_logo.py; see docs/logo/README.md. -->"
             f"<title>{title}</title>"
-            + masks
-            + mask.format("disc", full + s_cut + text_cut)
-            + f'<circle cx="{num(cx)}" cy="{num(cy)}" r="{num(r)}" fill="{INK}" mask="url(#disc)"/>'
-            + f'<g {style} stroke="{INK}" stroke-width="{LETTER}">' + ink
-            + "</g></svg>\n")
+            f'<path fill="{INK}" fill-rule="evenodd" d="{svg_path(unary_union(pieces))}"/>'
+            f'<path fill="{INK}" fill-rule="evenodd" d="{svg_path(ink)}"/>'
+            "</svg>\n")
 
 
 def main():
@@ -251,19 +353,19 @@ def main():
 
     # A_QWERTY, JIS English: the taegeuk with ABC over its lower right.
     (out / "mode-a-qwerty.svg").write_text(
-        lettered("JIS English (A_QWERTY)", (41, 41, 39), letters("ABC", *letter_box("ABC")), letter_box("ABC")))
+        lettered("JIS English (A_QWERTY)", (41, 41, 39), letters("ABC", *letter_box("ABC"))))
 
     # B_QWERTY and CJ_QWERTY, US and UK English: the same badge, with their country code.
     (out / "mode-b-qwerty.svg").write_text(
-        lettered("US English (B_QWERTY)", (41, 41, 39), letters("US", *letter_box("US")), letter_box("US")))
+        lettered("US English (B_QWERTY)", (41, 41, 39), letters("US", *letter_box("US"))))
     (out / "mode-cj-qwerty.svg").write_text(
-        lettered("UK English (CJ_QWERTY)", (41, 41, 39), letters("GB", *letter_box("GB")), letter_box("GB")))
+        lettered("UK English (CJ_QWERTY)", (41, 41, 39), letters("GB", *letter_box("GB"))))
 
     # The reserved English-layout modes (spec §3.6.1, ids 4-8): drawn ahead of their layouts.
     for name, title, text in [("mode-cj-qwertz", "CJ_QWERTZ", "QZ"), ("mode-cj-swiss-qz", "CJ_SWISS_QZ", "CH"),
                               ("mode-cj-azerty", "CJ_AZERTY", "AY"), ("mode-a-dvorak", "A_DVORAK", "DV"),
                               ("mode-a-colemak", "A_COLEMAK", "CMK")]:
-        (out / f"{name}.svg").write_text(lettered(f"{title} (reserved)", (41, 41, 39), letters(text, *letter_box(text)), letter_box(text)))
+        (out / f"{name}.svg").write_text(lettered(f"{title} (reserved)", (41, 41, 39), letters(text, *letter_box(text))))
 
 
 if __name__ == "__main__":
