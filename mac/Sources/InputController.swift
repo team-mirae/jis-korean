@@ -255,7 +255,7 @@ final class JKInputController: IMKInputController {
             // In a Korean mode it selects that mode again: macOS shows the input source under the
             // caret, confirming Korean. Nothing unconfirmed is committed then.
             if !inEnglish {
-                if !event.isARepeat { InputModes.select(InputModes.current) }
+                if !event.isARepeat { selectLater(InputModes.current) }
                 return true
             }
             target = InputModes.lastKorean
@@ -268,10 +268,20 @@ final class JKInputController: IMKInputController {
         }
         guard let target, InputModes.isEnabled(target) else { return nil }
         if !event.isARepeat {
+            // The field being typed in switches now, in place: its engine and keyboard layout. Asking
+            // macOS first left it on the old mode (the open session isn't always told) and cost a
+            // round trip; macOS is told afterwards, for the menu bar and the next field.
             flush(client)
-            InputModes.select(target)
+            applyMode(target, client: client)
+            selectLater(target)
         }
         return true
+    }
+
+    /// Selects `mode`'s input source once the key being handled is done: selecting it from inside
+    /// handle(_:client:) can cut the open session off (Terminal then gets the keys itself).
+    private func selectLater(_ mode: InputModes.Mode) {
+        DispatchQueue.main.async { InputModes.select(mode) }
     }
     #endif
 
