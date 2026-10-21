@@ -79,7 +79,7 @@ $(BUILD)/JISKorean: $(BUILD)/arm64/JISKorean $(BUILD)/x86_64/JISKorean
 
 ICONS := $(BUILD)/taegeuk.tiff $(BUILD)/mode-a.tiff $(BUILD)/mode-b.tiff $(BUILD)/mode-iso.tiff
 ifeq ($(ENGLISH),1)
-  ICONS += $(BUILD)/mode-a-qwerty.tiff $(BUILD)/mode-b-qwerty.tiff $(BUILD)/mode-c-qwerty.tiff
+  ICONS += $(BUILD)/mode-a-qwerty.tiff $(BUILD)/mode-b-qwerty.tiff $(BUILD)/mode-cj-qwerty.tiff
 endif
 
 $(BUILD)/%.tiff: Resources/icons/%.png Resources/icons/%@2x.png

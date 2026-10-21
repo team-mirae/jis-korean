@@ -60,9 +60,10 @@ pub enum Mode {
     /// `B_QWERTY`: JIS English's US ANSI sibling, US symbols (spec §3.6.2). `english` feature.
     #[cfg(feature = "english")]
     BQwerty = 9,
-    /// `C_QWERTY`: JIS English's UK ISO sibling, UK symbols (spec §3.6.2). `english` feature.
+    /// `CJ_QWERTY`: JIS English's UK ISO sibling, UK symbols; designed for ISO, and on a JIS board
+    /// ¥ and ろ type the ISO keys JIS lacks (spec §3.6.2). `english` feature.
     #[cfg(feature = "english")]
-    CQwerty = 10,
+    CjQwerty = 10,
 }
 
 impl Mode {
@@ -71,7 +72,7 @@ impl Mode {
     pub const ALL: &'static [Mode] = &[Mode::A, Mode::B, Mode::C];
     /// Every mode this build has, in the order menus list them. Not indexed by id.
     #[cfg(feature = "english")]
-    pub const ALL: &'static [Mode] = &[Mode::A, Mode::B, Mode::C, Mode::AQwerty, Mode::BQwerty, Mode::CQwerty];
+    pub const ALL: &'static [Mode] = &[Mode::A, Mode::B, Mode::C, Mode::AQwerty, Mode::BQwerty, Mode::CjQwerty];
 
     /// The stable id over the C ABI and in saved settings (spec §3.6.1). Never reuse or renumber
     /// one.
@@ -91,7 +92,7 @@ impl Mode {
             #[cfg(feature = "english")]
             9 => Some(Mode::BQwerty),
             #[cfg(feature = "english")]
-            10 => Some(Mode::CQwerty),
+            10 => Some(Mode::CjQwerty),
             _ => None,
         }
     }
@@ -108,7 +109,7 @@ impl Mode {
             #[cfg(feature = "english")]
             Mode::BQwerty => "B_QWERTY",
             #[cfg(feature = "english")]
-            Mode::CQwerty => "C_QWERTY",
+            Mode::CjQwerty => "CJ_QWERTY",
         }
     }
 
@@ -118,7 +119,7 @@ impl Mode {
         match self {
             Mode::A | Mode::B | Mode::C => true,
             #[cfg(feature = "english")]
-            Mode::AQwerty | Mode::BQwerty | Mode::CQwerty => false,
+            Mode::AQwerty | Mode::BQwerty | Mode::CjQwerty => false,
         }
     }
 
@@ -133,7 +134,7 @@ impl Mode {
             #[cfg(feature = "english")]
             Mode::BQwerty => "US English",
             #[cfg(feature = "english")]
-            Mode::CQwerty => "UK English",
+            Mode::CjQwerty => "UK English",
         }
     }
 
@@ -144,7 +145,7 @@ impl Mode {
         match self {
             Mode::A | Mode::B => &[],
             #[cfg(feature = "english")]
-            Mode::AQwerty | Mode::BQwerty | Mode::CQwerty => &[],
+            Mode::AQwerty | Mode::BQwerty | Mode::CjQwerty => &[],
             Mode::C => &[Key::BracketLeft, Key::BracketRight, Key::IntlBackslash],
         }
     }
@@ -161,7 +162,7 @@ impl Mode {
             Mode::C => iso_korean(key),
             // Not Korean: the JIS symbols as they are.
             #[cfg(feature = "english")]
-            Mode::AQwerty | Mode::BQwerty | Mode::CQwerty => {
+            Mode::AQwerty | Mode::BQwerty | Mode::CjQwerty => {
                 self.stock(key).map(|(base, shifted)| (Out::Char(base), Out::Char(shifted)))
             }
         }
@@ -180,7 +181,7 @@ impl Mode {
             #[cfg(feature = "english")]
             Mode::BQwerty => stock_us(key),
             #[cfg(feature = "english")]
-            Mode::CQwerty => stock_uk(key),
+            Mode::CjQwerty => stock_uk_on_jis(key),
         }
     }
 }
@@ -316,6 +317,19 @@ fn iso_korean(key: Key) -> Option<(Out, Out)> {
 }
 
 /// The stock UK ISO characters (PC legends) on the non-letter keys: Mode C's F8 escape and English
+/// UK ISO for a `CJ_` mode (spec §3.6.1): designed for ISO, also supports JIS. A JIS board has ¥
+/// and ろ, which ISO lacks, and lacks the ISO extra key and the key left of 1 (a JIS board's
+/// 半角/全角): ろ types the extra key's characters and ¥ those of the key left of 1, so every UK
+/// character is reachable on JIS too.
+#[cfg(feature = "english")]
+fn stock_uk_on_jis(key: Key) -> Option<(char, char)> {
+    match key {
+        Key::IntlRo => stock_uk(Key::IntlBackslash),
+        Key::IntlYen => stock_uk(Key::Backquote),
+        _ => stock_uk(key),
+    }
+}
+
 /// readings. `Backslash` is the ISO key left of Enter (# ~).
 fn stock_uk(key: Key) -> Option<(char, char)> {
     use Key::*;

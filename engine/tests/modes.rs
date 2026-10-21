@@ -41,8 +41,8 @@ fn mode_names_and_ids_are_in_their_ranges() {
         let in_range = match words.as_slice() {
             _ if (10_000..=11_000).contains(&id) => true, // a preview's temporary id
             [_] => id <= 2,                              // A, B and C keep their letters
-            // A_ JIS, B_ US ANSI, C_ ISO: official (0–14) or contributed (15–30).
-            ["A" | "B" | "C", ..] => id <= 30,
+            // A_ JIS, B_ US ANSI, C_ ISO, CJ_ ISO also on JIS: official (0–14) or contributed (15–30).
+            ["A" | "B" | "C" | "CJ", ..] => id <= 30,
             _ => (31..=99).contains(&id),
         };
         assert!(in_range, "{code} can't have id {id}");

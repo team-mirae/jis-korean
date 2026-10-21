@@ -11,7 +11,7 @@ The taegeuk follows the flag's construction: the dividing diameter on the flag's
 an S of two half-radius arcs. Key proportions are real keyboard units.
 
 Usage: python3 -I make_logo.py   (writes taegeuk.svg, mode-a.svg, mode-b.svg, mode-iso.svg and
-mode-a-qwerty.svg, mode-b-qwerty.svg and mode-c-qwerty.svg here)
+mode-a-qwerty.svg, mode-b-qwerty.svg and mode-cj-qwerty.svg here)
 """
 
 import math
@@ -86,87 +86,148 @@ def badge(title, disc, keys, hollow=()):
 LETTER = 6  # the stroke of a drawn letter
 
 
+LETTER_WIDTH = 23  # every letter's box, the same in every badge
+LETTER_HEIGHT = 32
+LETTER_GAP = 4
+
+
+def letter_box(text):
+    """The box (x, y, w, h, gap) for `text`, in the lower right corner, EDGE in from the canvas edge."""
+    w = len(text) * LETTER_WIDTH + (len(text) - 1) * LETTER_GAP
+    return EDGE - w, EDGE - LETTER_HEIGHT, w, LETTER_HEIGHT, LETTER_GAP
+
+
 def letters(text, x, y, w, h, gap):
-    """Letters (A B C K S U) as stroked centrelines, in a box (x, y, w, h) of outer edges, gap apart."""
+    """Letters in the style of a neo-grotesque (Helvetica) bold, as stroked centrelines in a box
+    (x, y, w, h) of outer edges, gap apart: one stroke weight, square ends, flat-topped points, and
+    C, G and S ending in horizontal cuts. Returns one (path, cuts, holes) per letter: cuts are
+    rectangles (x, y, w, h) taken out of the stroke, which is how a round letter gets a horizontal
+    terminal; holes are counters too small to show the disc through them (A's, B's), cleared with
+    the letter's border instead of leaving slivers of the disc.
+    Draws A B C D G H K M Q S U V Y Z."""
     n = len(text)
     lw = (w - (n - 1) * gap) / n
     half = LETTER / 2
     top, bottom = y + half, y + h - half
     mid = (top + bottom) / 2
-    paths = []
+    glyphs = []
     for i, ch in enumerate(text):
         lx = x + i * (lw + gap)
         left, right = lx + half, lx + lw - half
+        cx = lx + lw / 2
+        rx, ry = (right - left) / 2, (bottom - top) / 2  # an ellipse filling the box
+        ellipse = (f"M{num(cx)} {num(top)}A{num(rx)} {num(ry)} 0 1 0 {num(cx)} {num(bottom)}"
+                   f"A{num(rx)} {num(ry)} 0 1 0 {num(cx)} {num(top)}Z")
+        far = lx + lw + 2  # past the letter's right edge, for cuts that open it on the right
+        d, cuts, holes = "", [], ""
         if ch == "A":
-            # Two legs to the apex, and the crossbar a little below the middle.
-            apex = lx + lw / 2
-            bar = top + (bottom - top) * 0.62
+            # The crossbar low, as in a grotesque.
+            bar = top + (bottom - top) * 0.66
             t = (bar - top) / (bottom - top)
-            paths.append(f"M{num(left)} {num(bottom)}L{num(apex)} {num(top)}L{num(right)} {num(bottom)}"
-                         f"M{num(apex + (left - apex) * t)} {num(bar)}H{num(apex + (right - apex) * t)}")
+            d = (f"M{num(left)} {num(bottom)}L{num(cx)} {num(top)}L{num(right)} {num(bottom)}"
+                 f"M{num(cx + (left - cx) * t)} {num(bar)}H{num(cx + (right - cx) * t)}")
+            holes = f"M{num(cx)} {num(top)}L{num(cx + (left - cx) * t)} {num(bar)}H{num(cx + (right - cx) * t)}Z"
         elif ch == "B":
-            # The stem and two bowls, the lower one wider.
+            # Straight top, middle and bottom; the lower bowl wider.
             r1, r2 = (mid - top) / 2, (bottom - mid) / 2
-            upper, lower = right - r1 - 2, right - r2
-            paths.append(f"M{num(left)} {num(bottom)}V{num(top)}H{num(upper)}A{num(r1)} {num(r1)} 0 0 1 {num(upper)} {num(mid)}"
-                         f"H{num(left)}M{num(upper)} {num(mid)}H{num(lower)}A{num(r2)} {num(r2)} 0 0 1 {num(lower)} {num(bottom)}"
-                         f"H{num(left)}")
+            upper, lower = right - r1 - 1.5, right - r2
+            d = (f"M{num(left)} {num(bottom)}V{num(top)}H{num(upper)}A{num(r1)} {num(r1)} 0 0 1 {num(upper)} {num(mid)}"
+                 f"H{num(left)}M{num(upper)} {num(mid)}H{num(lower)}A{num(r2)} {num(r2)} 0 0 1 {num(lower)} {num(bottom)}"
+                 f"H{num(left)}")
+            holes = (f"M{num(left)} {num(top)}H{num(upper)}A{num(r1)} {num(r1)} 0 0 1 {num(upper)} {num(mid)}H{num(left)}Z"
+                     f"M{num(left)} {num(mid)}H{num(lower)}A{num(r2)} {num(r2)} 0 0 1 {num(lower)} {num(bottom)}H{num(left)}Z")
         elif ch == "C":
-            # An ellipse open on the right.
-            rx, ry = lw / 2 - half, (bottom - top) / 2
-            ox, oy = lx + lw / 2, mid
-            ex, ey = rx * 0.72, ry * 0.69  # the open ends, about 45 degrees from the right
-            paths.append(f"M{num(ox + ex)} {num(oy - ey)}A{num(rx)} {num(ry)} 0 1 0 {num(ox + ex)} {num(oy + ey)}")
+            # The ellipse, opened on the right by a band: the cuts are horizontal.
+            d = ellipse
+            cuts.append((cx, mid - ry * 0.48, far - cx, ry * 0.96))
         elif ch == "G":
-            # C, closing lower on the right, with a bar in from its end.
-            rx, ry = lw / 2 - half, (bottom - top) / 2
-            ox, oy = lx + lw / 2, mid
-            ex, ey = rx * 0.72, ry * 0.69
-            # The arc ends 20 degrees below the right, rises to the middle, and the bar runs in.
-            gx, gy = ox + rx * 0.94, oy + ry * 0.34
-            paths.append(f"M{num(ox + ex)} {num(oy - ey)}A{num(rx)} {num(ry)} 0 1 0 {num(gx)} {num(gy)}"
-                         f"V{num(oy + ry * 0.08)}H{num(ox + rx * 0.05)}")
-        elif ch == "U":
-            # Two stems joined by a half ellipse at the bottom.
-            rx = (right - left) / 2
-            ry = min(rx * 1.2, (bottom - top) / 2)
-            paths.append(f"M{num(left)} {num(top)}V{num(bottom - ry)}A{num(rx)} {num(ry)} 0 0 0 {num(right)} {num(bottom - ry)}"
-                         f"V{num(top)}")
+            # C's upper cut; below it, a bar into the middle and the bowl closing up to it.
+            d = ellipse + f"M{num(cx + rx * 0.08)} {num(mid + half * 0.5)}H{num(right)}V{num(bottom - ry * 0.4)}"
+            cuts.append((cx, mid - ry * 0.48, far - cx, ry * 0.48))
+        elif ch == "D":
+            # The stem, and a bowl as wide as the letter.
+            x1 = left + (right - left) * 0.3
+            d = (f"M{num(left)} {num(top)}H{num(x1)}A{num(right - x1)} {num(ry)} 0 0 1 {num(x1)} {num(bottom)}"
+                 f"H{num(left)}Z")
+        elif ch == "H":
+            d = (f"M{num(left)} {num(top)}V{num(bottom)}M{num(right)} {num(top)}V{num(bottom)}"
+                 f"M{num(left)} {num(mid)}H{num(right)}")
         elif ch == "K":
-            # The stem, and two arms from a point on it a little below the middle.
-            join = mid + (bottom - top) * 0.06
-            paths.append(f"M{num(left)} {num(top)}V{num(bottom)}M{num(right)} {num(top)}L{num(left)} {num(join)}"
-                         f"M{num(left + (right - left) * 0.3)} {num(join - (join - top) * 0.3)}L{num(right)} {num(bottom)}")
+            # The arm into the stem a little below the middle; the leg off the arm.
+            join = mid + (bottom - top) * 0.08
+            leg = (left + (right - left) * 0.38, join - (join - top) * 0.38)
+            d = (f"M{num(left)} {num(top)}V{num(bottom)}M{num(right)} {num(top)}L{num(left)} {num(join)}"
+                 f"M{num(leg[0])} {num(leg[1])}L{num(right)} {num(bottom)}")
+        elif ch == "M":
+            # Upright stems, and the middle point down on the baseline.
+            d = f"M{num(left)} {num(bottom)}V{num(top)}L{num(cx)} {num(bottom)}L{num(right)} {num(top)}V{num(bottom)}"
+        elif ch == "Q":
+            # The ellipse, and a tail across its lower right.
+            d = ellipse + f"M{num(cx + rx * 0.2)} {num(mid + ry * 0.45)}L{num(right + half * 0.3)} {num(bottom + half * 0.3)}"
         elif ch == "S":
-            # Two bowls: the upper one open at the lower left, the lower one at the upper right.
-            rx = (right - left) / 2
+            # Two bowls meeting in the middle, each ending in a horizontal cut: the upper one on
+            # the right, the lower one on the left.
             ry1, ry2 = (mid - top) / 2, (bottom - mid) / 2
-            cx = lx + lw / 2
-            start = (cx + rx * 0.82, top + ry1 - ry1 * 0.57)
-            end = (cx - rx * 0.82, bottom - ry2 + ry2 * 0.57)
-            paths.append(f"M{num(start[0])} {num(start[1])}A{num(rx)} {num(ry1)} 0 1 0 {num(cx)} {num(mid)}"
-                         f"A{num(rx)} {num(ry2)} 0 1 1 {num(end[0])} {num(end[1])}")
+            d = (f"M{num(right)} {num(top + ry1)}A{num(rx)} {num(ry1)} 0 1 0 {num(cx)} {num(mid)}"
+                 f"A{num(rx)} {num(ry2)} 0 1 1 {num(left)} {num(bottom - ry2)}")
+            cuts.append((cx + rx * 0.2, top + ry1 * 0.55, far - cx, ry1 * 0.45 + half + 0.5))
+            cuts.append((lx - 2, bottom - ry2 - half - 0.5, cx - rx * 0.2 - lx + 2, ry2 * 0.45 + half + 0.5))
+        elif ch == "U":
+            # Upright stems into a half ellipse.
+            r = min(rx * 1.15, ry)
+            d = (f"M{num(left)} {num(top)}V{num(bottom - r)}A{num(rx)} {num(r)} 0 0 0 {num(right)} {num(bottom - r)}"
+                 f"V{num(top)}")
+        elif ch == "V":
+            d = f"M{num(left)} {num(top)}L{num(cx)} {num(bottom)}L{num(right)} {num(top)}"
+        elif ch == "Y":
+            # The arms meet just above the middle.
+            meet = mid - (bottom - top) * 0.04
+            d = (f"M{num(left)} {num(top)}L{num(cx)} {num(meet)}L{num(right)} {num(top)}"
+                 f"M{num(cx)} {num(meet)}V{num(bottom)}")
+        elif ch == "Z":
+            d = f"M{num(left)} {num(top)}H{num(right)}L{num(left)} {num(bottom)}H{num(right)}"
         else:
             raise ValueError(f"no glyph for {ch}")
-    return paths
+        glyphs.append((d, cuts, holes))
+    return glyphs
 
 
 def lettered(title, disc, letters):
-    """The taegeuk with letters on top: the letters cut a transparent border into the disc."""
+    """The taegeuk with letters on top. Each letter cuts a transparent border half of BORDER wide
+    into the disc around it, the same gap a key leaves (its border is half outside its edge), and
+    the border follows the letter's cuts: it stops half of BORDER past each one."""
     cx, cy, r = disc
     full = '<rect width="100" height="100" fill="#fff"/>'
-    s_cut = f'<path d="{s_curve(cx, cy, r)}" fill="none" stroke="#000" stroke-width="{S_GAP}"/>'
-    halo = "".join(f'<path d="{d}" fill="none" stroke="#000" stroke-width="{LETTER + 2 * BORDER}" '
-                   'stroke-linejoin="round"/>' for d in letters)
     mask = '<mask id="{0}" maskUnits="userSpaceOnUse" x="0" y="0" width="100" height="100">{1}</mask>'
+    # Square ends and mitred corners, with sharp points flattened (miter limit 2), on the letters
+    # and on their borders alike, so the gap is even all round.
+    style = 'fill="none" stroke-linejoin="miter" stroke-miterlimit="2" stroke-linecap="square"'
+    masks, halo, ink = "", "", ""
+    for i, (d, cuts, holes) in enumerate(letters):
+        gap = BORDER / 2
+        if holes:
+            halo += f'<path d="{holes}" fill="#000"/>'
+        if cuts:
+            # The letter loses its cuts; its border loses them less the gap above and below.
+            letter_cut = "".join(f'<rect x="{num(x)}" y="{num(y)}" width="{num(w)}" height="{num(h)}" fill="#000"/>'
+                                 for x, y, w, h in cuts)
+            halo_cut = "".join(f'<rect x="{num(x)}" y="{num(y + gap)}" width="{num(w)}" height="{num(h - 2 * gap)}" fill="#000"/>'
+                               for x, y, w, h in cuts if h > 2 * gap)
+            masks += mask.format(f"l{i}", full + letter_cut) + mask.format(f"h{i}", full + halo_cut)
+            halo += f'<g mask="url(#h{i})"><path d="{d}" {style} stroke="#000" stroke-width="{LETTER + BORDER}"/></g>'
+            ink += f'<path d="{d}" mask="url(#l{i})"/>'
+        else:
+            halo += f'<path d="{d}" {style} stroke="#000" stroke-width="{LETTER + BORDER}"/>'
+            ink += f'<path d="{d}"/>'
+    s_cut = f'<path d="{s_curve(cx, cy, r)}" fill="none" stroke="#000" stroke-width="{S_GAP}"/>'
     return (f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" width="100" height="100">'
             "<!-- SPDX-License-Identifier: MIT. Copyright 2026 Mirae Research & Min Jun Sung. "
             "Drawn by docs/logo/make_logo.py; see docs/logo/README.md. -->"
             f"<title>{title}</title>"
+            + masks
             + mask.format("disc", full + s_cut + halo)
             + f'<circle cx="{num(cx)}" cy="{num(cy)}" r="{num(r)}" fill="{INK}" mask="url(#disc)"/>'
-            + f'<g fill="none" stroke="{INK}" stroke-width="{LETTER}" stroke-linejoin="round" stroke-linecap="butt">'
-            + "".join(f'<path d="{d}"/>' for d in letters)
+            + f'<g {style} stroke="{INK}" stroke-width="{LETTER}">' + ink
             + "</g></svg>\n")
 
 
@@ -199,13 +260,19 @@ def main():
 
     # A_QWERTY, JIS English: the taegeuk with ABC over its lower right.
     (out / "mode-a-qwerty.svg").write_text(
-        lettered("JIS English (A_QWERTY)", (41, 41, 39), letters("ABC", 24, 60, 74, 38, 4)))
+        lettered("JIS English (A_QWERTY)", (41, 41, 39), letters("ABC", *letter_box("ABC"))))
 
-    # B_QWERTY and C_QWERTY, US and UK English: the same badge, with their country code.
+    # B_QWERTY and CJ_QWERTY, US and UK English: the same badge, with their country code.
     (out / "mode-b-qwerty.svg").write_text(
-        lettered("US English (B_QWERTY)", (41, 41, 39), letters("US", 46, 60, 52, 38, 5)))
-    (out / "mode-c-qwerty.svg").write_text(
-        lettered("UK English (C_QWERTY)", (41, 41, 39), letters("GB", 46, 60, 52, 38, 5)))
+        lettered("US English (B_QWERTY)", (41, 41, 39), letters("US", *letter_box("US"))))
+    (out / "mode-cj-qwerty.svg").write_text(
+        lettered("UK English (CJ_QWERTY)", (41, 41, 39), letters("GB", *letter_box("GB"))))
+
+    # The reserved English-layout modes (spec §3.6.1, ids 4-8): drawn ahead of their layouts.
+    for name, title, text in [("mode-cj-qwertz", "CJ_QWERTZ", "QZ"), ("mode-cj-swiss-qz", "CJ_SWISS_QZ", "CH"),
+                              ("mode-cj-azerty", "CJ_AZERTY", "AY"), ("mode-a-dvorak", "A_DVORAK", "DV"),
+                              ("mode-a-colemak", "A_COLEMAK", "CMK")]:
+        (out / f"{name}.svg").write_text(lettered(f"{title} (reserved)", (41, 41, 39), letters(text, *letter_box(text))))
 
 
 if __name__ == "__main__":

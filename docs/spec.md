@@ -231,6 +231,7 @@ Modes A, B and C do; the **id range** says who maintains it:
 | `A_` | JIS (Mode A's) | 0–14 official, 15–30 contributed |
 | `B_` | US ANSI (Mode B's): also minor adjustments on an ANSI board, such as Korean ANSI or a modified laptop keyboard | 0–14 official, 15–30 contributed |
 | `C_` | ISO (Mode C's, UK): also other ISO locales | 0–14 official, 15–30 contributed |
+| `CJ_` | ISO, also supporting JIS: designed for an ISO board, with JIS's extra keys bound (below) | 0–14 official, 15–30 contributed |
 | Anything else (`COMPANYNAME_QWERTZ`, `COMPANYNAME_CUSTOMLAYOUTNAME`) | any | 31–99 |
 
 - **Official** (0–14): Mirae Research's, shipped and maintained here.
@@ -245,7 +246,14 @@ Modes A, B and C do; the **id range** says who maintains it:
 tools and the public API already use them. A one-letter name has no `_`, so it's in no namespace,
 and no new mode gets one.
 
-**Scope.** `A_` modes are for JIS boards, `B_` for US ANSI and `C_` for ISO. No mode forbids any
+**`CJ_` on a JIS board.** A JIS board has two keys ISO lacks, ¥ (`IntlYen`) and ろ (`IntlRo`), and
+lacks two ISO keys: the extra key left of Z (`IntlBackslash`) and the key left of 1 (`Backquote`,
+半角/全角 on a JIS board). A `CJ_` mode binds **ろ to the ISO extra key's characters** and **¥ to
+those of the key left of 1**, so every character of the ISO layout is reachable on JIS. The European
+layouts are `CJ_` modes: their people mostly have ISO boards, and JIS users can use them too.
+
+**Scope.** `A_` modes are for JIS boards, `B_` for US ANSI, and `C_` and `CJ_` for ISO (`CJ_` on
+JIS too). No mode forbids any
 keyboard, but support covers only the board family a mode is for: a `B_` mode that doesn't work on
 an ISO board, for example, isn't an issue this repository will fix.
 
@@ -255,21 +263,22 @@ an ISO board, for example, isn't an issue this repository will fix.
 | 1 | `B` | JIS Korean for US ANSI | (keys) | Shipped |
 | 2 | `C` | JIS Korean for UK ISO | (keys) | Shipped |
 | 3 | `A_QWERTY` | JIS English | ABC | Specified (§3.6.2) |
-| 4 | `A_QWERTZ` | **[decide]** | QZ | Reserved |
-| 5 | `A_SWISS_QZ` | **[decide]** | CH | Reserved |
-| 6 | `A_AZERTY` | **[decide]** | AY | Reserved |
+| 4 | `CJ_QWERTZ` | **[decide]** | QZ | Reserved |
+| 5 | `CJ_SWISS_QZ` | **[decide]** | CH | Reserved |
+| 6 | `CJ_AZERTY` | **[decide]** | AY | Reserved |
 | 7 | `A_DVORAK` | **[decide]** | DV | Reserved |
 | 8 | `A_COLEMAK` | **[decide]** | CMK | Reserved |
 | 9 | `B_QWERTY` | US English | US | Specified (§3.6.2) |
-| 10 | `C_QWERTY` | UK English | GB | Specified (§3.6.2) |
+| 10 | `CJ_QWERTY` | UK English | GB | Specified (§3.6.2) |
 
 A **reserved** mode has its id and name held for it, and nothing else yet: no key table, no build.
-Ids 4–8 are Mirae Research's English-layout modes in the family of JIS English (§3.6.2): each its
-layout's letters, with the symbols still to be decided per mode, and a badge of the taegeuk with its
+Ids 4–8 are Mirae Research's Latin-layout modes in the family of JIS English (§3.6.2): the European
+layouts as `CJ_` modes (4–6), and Dvorak and Colemak as `A_` modes (7–8), which aren't tied to
+European ISO boards. Each has its layout's letters, with the symbols still to be decided per mode, and a badge of the taegeuk with its
 badge text over the lower right, as `ABC` on JIS English's. Ids 11–14 are held for Mirae Research's
 next official modes.
 
-#### 3.6.2 `A_QWERTY`: JIS English, and `B_QWERTY` and `C_QWERTY`
+#### 3.6.2 `A_QWERTY`: JIS English, and `B_QWERTY` and `CJ_QWERTY`
 
 **JIS English** types English: the standard JIS QWERTY layout, with JIS English legends and JIS
 symbols, on any keyboard (Shift+2 is `"`, the key right of P is `@`, `IntlYen` is `¥`, `IntlRo` is
@@ -287,9 +296,10 @@ is unaffected. The engine still names the layout: its key table is the JIS stock
 stock keyboard), which the macOS keyboard layout is generated from, so the symbols can't drift from
 Mode A's F8 escape.
 
-**US English** (`B_QWERTY`, id 9) and **UK English** (`C_QWERTY`, id 10) are the same mode on the
+**US English** (`B_QWERTY`, id 9) and **UK English** (`CJ_QWERTY`, id 10) are the same mode on the
 other keyboard families: QWERTY with Mode B's stock symbols (US ANSI: Shift+2 is `@`) and Mode C's
-(UK ISO: Shift+2 is `"`, Shift+3 is `£`, the ISO extra key is `\`). Everything else here, press and
+(UK ISO: Shift+2 is `"`, Shift+3 is `£`, the ISO extra key is `\`). UK English is a `CJ_` mode: on
+a JIS board ろ types `\ |` and ¥ types `` ` ¬ `` (§3.6.1). Everything else here, press and
 hold (§3.6.3) and F9/F10 (§3.6.4) included, is the same for all three. Together they're the
 **English modes**.
 
@@ -970,7 +980,7 @@ Romaji:
 | C | `me.sjun.inputmethod.JISKorean.2SetISO` | JIS Korean for UK ISO |
 | `A_QWERTY` | `me.sjun.inputmethod.JISKorean.A_QWERTY` | JIS English |
 | `B_QWERTY` | `me.sjun.inputmethod.JISKorean.B_QWERTY` | US English |
-| `C_QWERTY` | `me.sjun.inputmethod.JISKorean.C_QWERTY` | UK English |
+| `CJ_QWERTY` | `me.sjun.inputmethod.JISKorean.CJ_QWERTY` | UK English |
 
 Modes after C take their mode name as the last part of the input source ID (§3.6.1).
 

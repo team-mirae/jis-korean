@@ -17,7 +17,8 @@ work=$(mktemp -d)
 trap 'rm -rf "$work"' EXIT
 mkdir -p "$out"
 
-for name in taegeuk mode-a mode-b mode-iso mode-a-qwerty mode-b-qwerty mode-c-qwerty; do
+for name in taegeuk mode-a mode-b mode-iso mode-a-qwerty mode-b-qwerty mode-cj-qwerty \
+    mode-cj-qwertz mode-cj-swiss-qz mode-cj-azerty mode-a-dvorak mode-a-colemak; do
   cp "$here/$name.svg" "$work/$name.svg"
   printf '<!doctype html><style>html,body{margin:0;background:transparent}img{display:block}</style><img src="%s.svg" width="1024" height="1024">' \
     "$name" >"$work/$name.html"

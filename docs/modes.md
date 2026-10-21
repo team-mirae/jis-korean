@@ -9,9 +9,9 @@ fourth specified (JIS English, spec §3.6.2) and five more reserved:
 | 1 | `B` | JIS Korean for US ANSI | US ANSI (HHKB US, MacBook US) |
 | 2 | `C` | JIS Korean for UK ISO | ISO (UK) |
 | 3 | `A_QWERTY` | JIS English | any (JIS symbols) |
-| 4–8 | `A_QWERTZ`, `A_SWISS_QZ`, `A_AZERTY`, `A_DVORAK`, `A_COLEMAK` | reserved | |
+| 4–8 | `CJ_QWERTZ`, `CJ_SWISS_QZ`, `CJ_AZERTY`, `A_DVORAK`, `A_COLEMAK` | reserved | |
 | 9 | `B_QWERTY` | US English | any (US ANSI symbols) |
-| 10 | `C_QWERTY` | UK English | any (UK ISO symbols) |
+| 10 | `CJ_QWERTY` | UK English | any (UK ISO symbols) |
 
 ## Naming a new mode
 
@@ -32,7 +32,9 @@ It also takes a **mode name** in upper-case snake case (`SPLIT_ORTHO_LAYOUTDESIG
 §3.6.1). Its first word is its namespace, the keyboard family it's for, as Modes A, B and C are:
 
 - **`A_`** JIS, **`B_`** US ANSI (also minor adjustments on an ANSI board, such as Korean ANSI or a
-  modified laptop keyboard), **`C_`** ISO (also ISO locales other than the UK). On ids 0–14 they're
+  modified laptop keyboard), **`C_`** ISO (also ISO locales other than the UK), **`CJ_`** ISO that
+  also supports JIS: ろ types the ISO extra key's characters and ¥ those of the key left of 1
+  (spec §3.6.1). European layouts are `CJ_`. On ids 0–14 they're
   Mirae Research's official modes; on 15–30, modes contributed to this repository, which follow
   everything on this page as an official mode does: the full key and stock tables, the tests
   below, the spec section, the layout drawing and a badge, review, and a majority of the

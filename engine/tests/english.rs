@@ -286,10 +286,10 @@ fn f10_after_a_press_and_hold_takes_the_letter_too() {
     assert_eq!((out.commit.as_str(), out.take_back, out.preedit.as_str()), ("u", 3, "ABU"));
 }
 
-/// `B_QWERTY` (9) and `C_QWERTY` (10): JIS English on US ANSI and UK ISO symbols (spec §3.6.2).
+/// `B_QWERTY` (9) and `CJ_QWERTY` (10): JIS English on US ANSI and UK ISO symbols (spec §3.6.2).
 #[test]
 fn us_and_uk_english_are_modes_9_and_10() {
-    for (id, code, name) in [(9, "B_QWERTY", "US English"), (10, "C_QWERTY", "UK English")] {
+    for (id, code, name) in [(9, "B_QWERTY", "US English"), (10, "CJ_QWERTY", "UK English")] {
         let mode = Mode::from_id(id).unwrap();
         assert_eq!((mode.code(), mode.name(), mode.is_korean()), (code, name, false));
     }
@@ -312,6 +312,11 @@ fn us_and_uk_english_type_their_own_symbols() {
     assert_eq!(typed(10, "Quote", true), Some('@'));
     assert_eq!(typed(10, "Backslash", false), Some('#'));
     assert_eq!(typed(10, "IntlBackslash", false), Some('\\'));
+    // Designed for ISO, also supports JIS: ろ is the ISO extra key, ¥ the key left of 1.
+    assert_eq!((typed(10, "IntlRo", false), typed(10, "IntlRo", true)), (Some('\\'), Some('|')));
+    assert_eq!((typed(10, "IntlYen", false), typed(10, "IntlYen", true)), (Some('`'), Some('¬')));
+    // US English has no JIS keys.
+    assert_eq!((typed(9, "IntlRo", false), typed(9, "IntlYen", false)), (None, None));
 }
 
 #[test]

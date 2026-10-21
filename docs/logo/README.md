@@ -12,7 +12,8 @@ them, and draw your own badges with them; keep the copyright notice.
 | `mode-b.svg` | Mode B, US ANSI: the taegeuk, backslash and Enter. |
 | `mode-iso.svg` | Mode C, ISO: the taegeuk, Caps Lock, Shift, the ISO extra key and Z. |
 | `mode-a-qwerty.svg` | JIS English (`A_QWERTY`): the taegeuk with `ABC` over its lower right. The reserved English-layout modes (spec §3.6.1) get the same badge with their own text: QZ, CH, AY, DV, CMK. |
-| `mode-b-qwerty.svg`, `mode-c-qwerty.svg` | US English (`B_QWERTY`) and UK English (`C_QWERTY`): the same badge with their country codes, `US` and `GB`. |
+| `mode-b-qwerty.svg`, `mode-cj-qwerty.svg` | US English (`B_QWERTY`) and UK English (`CJ_QWERTY`): the same badge with their country codes, `US` and `GB`. |
+| `mode-cj-qwertz.svg`, `mode-cj-swiss-qz.svg`, `mode-cj-azerty.svg`, `mode-a-dvorak.svg`, `mode-a-colemak.svg` | The reserved modes (ids 4–8): QZ, CH, AY, DV and CMK. Drawn ahead of their layouts; no build ships them yet. |
 | `make_logo.py` | Draws all of the above. Edit this, never the SVGs. |
 | `render.sh` | Renders the SVGs to the 16 px and 32 px PNGs the macOS input method ships. |
 | `downscale.swift` | Scales `render.sh`'s 1024 px renders down to icon size with smooth edges. |
@@ -76,11 +77,17 @@ The taegeuk follows the construction of the flag of Korea:
 ### Lettered badges
 
 English-layout modes show letters instead of keys (`lettered()` in `make_logo.py`): the badge's
-text drawn as strokes `LETTER` (6) wide over the lower right of a right-keyed taegeuk, (41, 41, 39).
-Each letter cuts a transparent border `BORDER` wide into the disc around it, so letters and disc
-stay one color, separated by gaps only. `ABC` fills a 74 × 38 box from (24, 60), `US` and `GB` a
-52 × 38 box from (46, 60); `letters()` draws A, B, C, G, K, S and U so far. At 16 px the text
-is at the limit of rule 7: the disc and a row of letters, not each letter, are what read there.
+text over the lower right of a right-keyed taegeuk, (41, 41, 39). The letters are our own drawing in
+the style of a bold neo-grotesque (Helvetica): strokes `LETTER` (6) wide with square ends, mitred
+corners with sharp points flattened (miter limit 2, so A, V and M have flat tips), a low crossbar on
+A, M's middle point on the baseline, and C, G and S ending in horizontal cuts (rectangles masked out
+of the stroke). They're drawn, not taken from a font, so no font license comes into the logo.
+
+Each letter cuts a transparent border into the disc around it, as wide as a key's (half of
+`BORDER`), following its cuts. The disc shows inside open counters (U, C, D, …); counters too small
+for that (A's, B's) are cleared instead, so no slivers show. Every letter is `LETTER_WIDTH` ×
+`LETTER_HEIGHT` (23 × 32), `LETTER_GAP` (4) apart, aligned to the lower right corner `EDGE` in
+(`letter_box()`). `letters()` draws A B C D G H K M Q S U V Y Z so far. At 16 px the text is at the limit of rule 7: the disc and a row of letters, not each letter, are what read there.
 
 ### The cut-outs (masks)
 

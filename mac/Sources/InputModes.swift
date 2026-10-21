@@ -37,7 +37,7 @@ enum InputModes {
              keyboardViewerLayout: "JISEnglish", korean: false),
         Mode(id: 9, letter: "B_QWERTY", sourceID: "me.sjun.inputmethod.JISKorean.B_QWERTY",
              keyboardViewerLayout: "USEnglish", korean: false),
-        Mode(id: 10, letter: "C_QWERTY", sourceID: "me.sjun.inputmethod.JISKorean.C_QWERTY",
+        Mode(id: 10, letter: "CJ_QWERTY", sourceID: "me.sjun.inputmethod.JISKorean.CJ_QWERTY",
              keyboardViewerLayout: "UKEnglish", korean: false),
     ]
     #else

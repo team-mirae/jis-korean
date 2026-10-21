@@ -90,7 +90,7 @@ As notifications: post `me.sjun.inputmethod.JISKorean.ResolveKeyCodeInput` (`key
 ## JIS English (spec §3.6.2, §8.2.1)
 
 `make ENGLISH=1` adds the English modes: **JIS English** (`A_QWERTY`), and **US English**
-(`B_QWERTY`) and **UK English** (`C_QWERTY`) with US ANSI and UK ISO symbols, which work the same way.
+(`B_QWERTY`) and **UK English** (`CJ_QWERTY`) with US ANSI and UK ISO symbols, which work the same way.
 Below, JIS English stands for the English mode used last. JIS English is an English input mode of JIS Korean, listed
 under English in System Settings → Keyboard → Input Sources (log out and back in after the first
 install, as for any new mode). It types JIS QWERTY with JIS symbols on any keyboard, like the
