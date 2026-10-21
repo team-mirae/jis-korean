@@ -247,9 +247,10 @@ final class JKInputController: IMKInputController {
         UserDefaults.standard.set(!UserDefaults.standard.bool(forKey: shiftXDefault), forKey: shiftXDefault)
     }
 
-    /// 英数, かな, the Switch Key and Shift+X (spec §8.2.1): switch between JIS English and the last
-    /// Korean mode, inside this input method. Nil: not a switch key here, or the mode to switch to isn't
-    /// added in System Settings (then the key goes on as usual, and macOS may act on it).
+    /// 英数, the Switch Key and Shift+X (spec §8.2.1): switch between JIS English and the last Korean
+    /// mode, inside this input method. Nil: not a switch key here, or the mode to switch to isn't
+    /// added in System Settings (then the key goes on as usual, and macOS may act on it). かな is left
+    /// to macOS, which selects Japanese.
     private func handleSwitchKey(_ event: NSEvent, _ client: IMKTextInput) -> Bool? {
         let mods = modifiers(event.modifierFlags)
         guard let english = InputModes.english.first, mods & UInt32(JK_MOD_CTRL | JK_MOD_ALT | JK_MOD_META) == 0
@@ -263,8 +264,6 @@ final class JKInputController: IMKInputController {
             target = inEnglish ? InputModes.lastKorean : english
         } else if inEnglish && code == kVK_ANSI_X && mods & UInt32(JK_MOD_SHIFT) != 0 && defaults.bool(forKey: shiftXDefault) {
             // Only in JIS English: in the Korean modes Shift+X is ㅌ (the core principle).
-            target = InputModes.lastKorean
-        } else if code == kVK_JIS_Kana && inEnglish {
             target = InputModes.lastKorean
         } else if code == kVK_JIS_Eisu {
             // Already English: nothing to do, and ABC isn't wanted.

@@ -999,7 +999,8 @@ idea is an input mode, JIS English (`A_QWERTY`, §3.6.2), instead of a hidden on
   Korean mode, and the menu bar shows its badge (`docs/logo/mode-a-qwerty.svg`). Unlike Windows'
   ABC it's **remembered**, like any input source, not reset to Korean.
 - **Switching back.** In JIS English, JIS Korean is still the selected input method, so it still
-  sees every key. かな selects the last Korean mode used.
+  sees every key, and the keys below go back to the last Korean mode used. かな isn't one of them:
+  JIS Korean leaves it to macOS, which selects Japanese.
 - **Switch Key:** one key toggles between JIS English and the last Korean mode, in both directions.
   **F18 by default**, so a key remapped to F18 (Karabiner, or a keyboard's own firmware) works
   without further setup. The input menu offers None and F13 to F19 (Switch Key (JIS English ↔
@@ -1008,16 +1009,29 @@ idea is an input mode, JIS English (`A_QWERTY`, §3.6.2), instead of a hidden on
 - **Shift+X** in JIS English goes back to the last Korean mode, for users without a remapping tool
   (Hammerspoon, Karabiner) or a spare key. **On by default**, turned off in the input menu (Shift+X
   in JIS English Returns to Korean); with it on, capital X is x then Shift+Z (§3.6.4), or Caps Lock. Only in JIS
-  English: in the Korean modes Shift+X is ㅌ as always (§1). 英数, かな and the Switch Key only act when
-  the mode they'd select is added in System Settings; otherwise they go on as usual. The switch key is
-  consumed (it never reaches the app); 英数 and かな reach JIS Korean only if macOS passes them on,
-  and are left to macOS when it doesn't. Switching commits what's unconfirmed first (§5.1).
+  English: in the Korean modes Shift+X is ㅌ as always (§1). 英数, Shift+X and the Switch Key only act
+  when the mode they'd select is added in System Settings; otherwise they go on as usual. The switch
+  key is consumed (it never reaches the app); 英数 reaches JIS Korean only if macOS passes it on, and
+  is left to macOS when it doesn't. Switching commits what's unconfirmed first (§5.1).
 - These keys are the shell's, like Ctrl+Space: they select input modes and never reach the engine.
+
+**Recommended flow (macOS, JIS keyboard, Japanese also installed).** Each key always leads to the
+same language, whatever is selected:
+
+| From | To | Key |
+|---|---|---|
+| JIS English | Korean (the last Korean mode) | Shift+X, or F18 (another key remapped to it, e.g. with Karabiner) |
+| any | English (JIS English) | 英数, the JIS Romaji key |
+| any | Japanese (Kana) | かな, the JIS Kana key, handled by macOS |
+| Japanese | Korean | out of scope for this repository: the Japanese input method has the keys there. F18 doesn't reach JIS Korean while Japanese is selected; Ctrl+Space or the input menu do. |
+
+So Korean is reached through English: 英数 then Shift+X (or F18) from anywhere. In the Korean modes
+F18 also goes to English, and Shift+X is ㅌ as always.
 
 Open: does macOS give 英数 to a Roman mode of a third-party input method, and does it count that mode
 as ASCII-capable (so a user can remove Apple's ABC from their input sources)? Both to be checked on
-a real build before the mode ships; if 英数 still goes to ABC, the shell catches 英数 itself as it
-does かな.
+a real build before the mode ships. If macOS switches to ABC on 英数 before JIS Korean sees it, the
+flow needs 英数 remapped (Karabiner) to a key JIS Korean does see.
 
 ### 8.3 Resolving keys and text
 
