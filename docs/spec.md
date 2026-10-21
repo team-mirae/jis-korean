@@ -189,21 +189,30 @@ Examples (Mode B): `Shift+[` → 「; `Shift+2` → 2, read in English as @; `F8
 
 Every mode has three identifiers:
 
-- **Id:** a number, given in the order modes are added (0, 1, 2, 3, …). Ids are saved in settings
-  and passed over the C ABI (`jk_set_mode`), so an id is never renumbered or reused, even when its
-  mode is removed.
+- **Id:** a number from 0 to 99, in the ranges below. Ids are saved in settings and passed over the
+  C ABI (`jk_set_mode`), so an id is never renumbered or reused, even when its mode is removed.
 - **Mode name:** what tools, settings and the public API (§8.2) use. Upper-case snake case: words of
   `A`–`Z` and `0`–`9` joined by `_`, starting with a letter (`A_QWERTY`,
   `SPLIT_ORTHO_LAYOUTDESIGNERNAME`). Unique, and never renamed once released.
 - **Display name:** what a menu shows (`JIS English`). Free text, unique, and it can be translated.
 
+Ids are in ranges; they don't have to be given in order:
+
+| Ids | For |
+|---|---|
+| 0–14 | Mirae Research's official modes. 0–8 are taken or reserved (below); 9–14 are held for future official designations. |
+| 15–30 | Official modes contributed from outside, each accepted by a majority of the contributors. |
+| 31–99 | Custom layouts: any free id, chosen by whoever makes the layout. Nothing coordinates them, so two forks can pick the same one. |
+
+The range may grow past 99 later; until then nothing outside 0–99 is a valid id.
+
 A mode name's first word is its **namespace**:
 
 | Namespace | Whose | Rules |
 |---|---|---|
-| `A_` | Mirae Research's official modes only | Shipped and maintained here. |
-| `B_`, `C_` | Outside contributions accepted into this repository | The stricter guidelines in `docs/modes.md`: review, tests and docs as for an official mode. **[decide]** What separates `B_` from `C_`. |
-| Anything else (`COMPANYNAME_QWERTZ`, `COMPANYNAME_CUSTOMLAYOUTNAME`) | Whoever makes it, in a fork or their own build | Only the naming rules and §3.6's "what every mode keeps"; not reviewed here. Use a prefix of your own, such as your company or your name. |
+| `A_` | Mirae Research's official modes only (ids 0–14) | Shipped and maintained here. |
+| `B_`, `C_` | Outside contributions accepted into this repository (ids 15–30) | The stricter guidelines in `docs/modes.md`: review, tests and docs as for an official mode, and a majority of the contributors in favour. **[decide]** What separates `B_` from `C_`. |
+| Anything else (`COMPANYNAME_QWERTZ`, `COMPANYNAME_CUSTOMLAYOUTNAME`) | Whoever makes it, in a fork or their own build (ids 31–99) | Only the naming rules and §3.6's "what every mode keeps"; not reviewed here. Use a prefix of your own, such as your company or your name. |
 
 **The first three modes keep their one-letter names**, `A`, `B` and `C` (ids 0, 1, 2), as released:
 tools and the public API already use them. A one-letter name has no `_`, so it's in no namespace,
@@ -224,7 +233,8 @@ and no new mode gets one.
 A **reserved** mode has its id and name held for it, and nothing else yet: no key table, no build.
 Ids 4–8 are Mirae Research's English-layout modes in the family of JIS English (§3.6.2): each its
 layout's letters, with the symbols still to be decided per mode, and a badge of the taegeuk with its
-badge text over the lower right, as `ABC` on JIS English's. The next new mode takes id 9.
+badge text over the lower right, as `ABC` on JIS English's. Ids 9–14 are held for Mirae Research's
+next official modes.
 
 #### 3.6.2 `A_QWERTY`: JIS English
 

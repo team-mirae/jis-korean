@@ -13,16 +13,19 @@ fourth specified (JIS English, spec §3.6.2) and five more reserved:
 
 ## Naming a new mode
 
-A new mode takes the next unused id (9) and a **mode name** in upper-case snake case
+A new mode takes a free id in its range, from 0 to 99 (spec §3.6.1; ids needn't be in order):
+0–14 are Mirae Research's (9–14 held for future official modes), 15–30 are for contributed official
+modes, and 31–99 are for custom layouts, any free one. It also takes a **mode name** in upper-case snake case
 (`SPLIT_ORTHO_LAYOUTDESIGNERNAME`, spec §3.6.1). Its first word is its namespace:
 
-- **`A_`** is Mirae Research's, for official modes only.
+- **`A_`** is Mirae Research's, for official modes only (ids 0–14).
 - **`B_` and `C_`** are for modes contributed to this repository. They follow everything on this
   page as an official mode does: the full key and stock tables, the tests below, the spec section,
-  the layout drawing and a badge, and review before merging. (What separates `B_` from `C_` is
+  the layout drawing and a badge, review, and a majority of the contributors in favour before
+  merging (ids 15–30). (What separates `B_` from `C_` is
   still open: spec §9.)
 - **Any other prefix** (`COMPANYNAME_QWERTZ`, `COMPANYNAME_CUSTOMLAYOUTNAME`) is yours, for a fork or
-  your own build: keep the naming rules and "What every mode keeps" below; the rest is up to you.
+  your own build, on any free id from 31 to 99: keep the naming rules and "What every mode keeps" below; the rest is up to you.
   Pick a prefix no one else is likely to use, such as your company's or your own name.
 
 Mode names and ids are never renamed or reused once released. `A`, `B` and `C` keep their
@@ -77,7 +80,7 @@ All of it lives in `engine/src/layout.rs`, on the `Mode` enum:
 | Part | Where | Rule |
 |---|---|---|
 | Variant | `enum Mode`, `Mode::ALL` | Name it after its mode name in Rust's style (`A_QWERTY` → `AQwerty`). Add it to `ALL` in id order. |
-| Id | `Mode::id` | The next unused number. Ids are saved in settings and passed over the C ABI (`jk_set_mode`), so never renumber or reuse one. |
+| Id | `Mode::id` | A free number in the mode's range (0–99, spec §3.6.1). Ids are saved in settings and passed over the C ABI (`jk_set_mode`), so never renumber or reuse one. |
 | Name | `Mode::name` | What a settings menu shows, e.g. "JIS Korean for UK ISO". Unique. |
 | Key table | `Mode::korean` → `<keyboard>_korean(key)` | What each non-letter key types: `(unshifted, shifted)`, each `Out::Jamo` (goes into the automaton) or `Out::Char` (goes in as-is). Return `None` for keys the mode leaves out: they commit and pass through to the app. |
 | Stock table | `Mode::stock` → `stock_<keyboard>(key)` | The characters the keyboard's own layout prints on those keys. It drives the F8 escape, the English reading and the standard 2-set prediction, so a mode never suggests a symbol from another keyboard. It must cover every key the key table maps to a `Char`. |
