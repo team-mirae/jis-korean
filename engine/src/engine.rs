@@ -99,10 +99,6 @@ pub struct Engine {
     /// The letter key JIS English typed last (key, Shift), whose auto-repeat opens the list.
     #[cfg(feature = "english")]
     last_letter: Option<(Key, bool)>,
-    /// The word JIS English just let through to the app (ASCII letters and digits since the last
-    /// other key), which F9/F10 take back to convert (spec §3.6.4).
-    #[cfg(feature = "english")]
-    typed: Vec<char>,
     /// The predictive layer; `None` is the deterministic lite engine.
     #[cfg(feature = "predict")]
     predictor: Option<Arc<Predictor>>,
@@ -156,8 +152,6 @@ impl Engine {
             held: None,
             #[cfg(feature = "english")]
             last_letter: None,
-            #[cfg(feature = "english")]
-            typed: Vec::new(),
             #[cfg(feature = "predict")]
             predictor: None,
             #[cfg(feature = "predict")]
@@ -200,7 +194,6 @@ impl Engine {
     /// effect from the next key.
     pub fn set_mode(&mut self, mode: Mode) {
         self.mode = mode;
-        self.forget_typed();
     }
 
     /// Setting: Dedicated symbol keys (spec §3.6), on by default. Off, the mode's optional symbol
@@ -233,20 +226,12 @@ impl Engine {
     /// The IME was switched back to: leave any F8 escape (spec §6.1).
     pub fn activate(&mut self) {
         self.layout = Layout::JisKorean;
-        self.forget_typed();
-    }
-
-    /// JIS English no longer knows what's before the caret (focus moved, a click, a mode switch).
-    fn forget_typed(&mut self) {
-        #[cfg(feature = "english")]
-        self.typed.clear();
     }
 
     /// Commits everything unconfirmed. Call on focus loss, app switch and IME switch.
     /// An open hanja list commits its selected candidate.
     pub fn flush(&mut self) -> Output {
         self.accept_hanja();
-        self.forget_typed();
         self.commit(String::new(), true)
     }
 
@@ -722,14 +707,7 @@ impl Engine {
         // JIS English stages nothing but a press-and-hold letter: what it shows is what commits.
         #[cfg(feature = "english")]
         if let Some(held) = self.held.take() {
-            // What it leaves behind is typed text again, as far as F9/F10 go.
-            let shown = held.shown();
-            if shown.is_ascii_alphanumeric() {
-                self.typed.push(shown);
-            } else {
-                self.typed.clear();
-            }
-            return shown.to_string();
+            return held.shown().to_string();
         }
         self.conversion = None;
         self.hanja = None;
@@ -740,25 +718,6 @@ impl Engine {
     /// letter's list is open, and the auto-repeat that opens it.
     #[cfg(feature = "english")]
     fn english_key(&mut self, key: Key, mods: Mods) -> Output {
-        // F9 / F10 (and Shift+Z): convert the word just typed (spec §3.6.4).
-        let width = match key {
-            _ if mods.is_shortcut() => None,
-            Key::F9 => Some(Width::Full),
-            Key::F10 => Some(Width::Half),
-            Key::KeyZ if mods.shift => Some(Width::Half),
-            _ => None,
-        };
-        if let Some(width) = width {
-            return self.english_convert(width);
-        }
-        if self.conversion.is_some() && key == Key::Escape && !mods.is_shortcut() {
-            // Back to the word as it was typed.
-            if let Some(conversion) = self.conversion.take() {
-                self.segment.truncate(conversion.start);
-                self.segment.extend(conversion.original);
-            }
-            return self.commit(String::new(), true);
-        }
         // Whatever a Korean mode left unconfirmed commits before the key, as on any switch.
         let mut commit = if self.held.is_none() { self.take_segment() } else { String::new() };
         self.layout = Layout::JisKorean;
@@ -807,56 +766,10 @@ impl Engine {
             let letter = if upper { letter.to_ascii_uppercase() } else { letter };
             self.held = Some(crate::hold::Held { key, letter, variants, selected: None });
             self.last_letter = None;
-            // The letter is taken back out of the document.
-            self.typed.pop();
             return Output { take_back: 1, ..self.held_output() };
         }
         self.last_letter = (!mods.is_shortcut() && !mods.repeat && key.letter().is_some()).then_some((key, mods.shift));
-        self.track_typed(key, mods);
         Output { commit, consumed: false, ..Output::default() }
-    }
-
-    /// Follows the word the app is typing from the keys JIS English lets through: ASCII letters and
-    /// digits extend it (in the case the app types, Caps Lock included), Backspace shortens it, and
-    /// anything else ends it.
-    #[cfg(feature = "english")]
-    fn track_typed(&mut self, key: Key, mods: Mods) {
-        if key == Key::Backspace && !mods.is_shortcut() {
-            self.typed.pop();
-            return;
-        }
-        match layout::output_with(self.mode, true, Layout::JisKorean, key, mods.shift) {
-            Some(Out::Char(c)) if !mods.is_shortcut() && c.is_ascii_alphanumeric() => {
-                self.typed.push(if mods.caps { c.to_ascii_uppercase() } else { c })
-            }
-            _ => self.typed.clear(),
-        }
-    }
-
-    /// F9 / F10 in JIS English (spec §3.6.4): the first press takes the word just typed back into
-    /// the preedit, converted; more presses cycle, as in §6.2. F10 starts at UPPER, since the word as
-    /// typed is what's already there.
-    #[cfg(feature = "english")]
-    fn english_convert(&mut self, width: Width) -> Output {
-        // An open press-and-hold list keeps what it shows first.
-        let mut commit = if self.held.is_some() { self.take_segment() } else { String::new() };
-        let mut take_back = 0;
-        if self.conversion.is_none() {
-            // Anything a Korean mode left unconfirmed commits first.
-            commit.push_str(&self.take_segment());
-            if self.typed.is_empty() {
-                return Output { commit, consumed: true, ..Output::default() };
-            }
-            take_back = self.typed.len();
-            self.segment = self.typed.drain(..).map(Token::Text).collect();
-            self.convert(width);
-            if width == Width::Half {
-                self.convert(width);
-            }
-        } else {
-            self.convert(width);
-        }
-        Output { commit, take_back, ..self.unchanged(true) }
     }
 
     /// The open press-and-hold list: the shown character as the preedit, the variants as the list

@@ -44,7 +44,7 @@ enum InputModes {
     static let english: [Mode] = []
     #endif
 
-    /// The Korean mode used last, which かな and the Switch Key go back to from JIS English (spec
+    /// The Korean mode used last, which the Korean Key goes back to from an English mode (spec
     /// §8.2.1).
     static var lastKorean: Mode {
         UserDefaults.standard.string(forKey: lastKoreanKey).flatMap(mode(sourceID:)).flatMap { $0.korean ? $0 : nil }
@@ -54,7 +54,7 @@ enum InputModes {
     private static let lastKoreanKey = "LastKoreanMode"
     private static let lastEnglishKey = "LastEnglishMode"
 
-    /// The English mode 英数 and the Switch Key go to (spec §8.2.1): the one used last if it's added
+    /// The English mode 英数 goes to (spec §8.2.1): the one used last if it's added
     /// in System Settings, else the first English mode that is. Nil: none is.
     static var englishTarget: Mode? {
         let last = UserDefaults.standard.string(forKey: lastEnglishKey).flatMap(mode(sourceID:))

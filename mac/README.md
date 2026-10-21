@@ -97,11 +97,10 @@ install, as for any new mode). It types JIS QWERTY with JIS symbols on any keybo
 Japanese Romaji mode without its conversions, and holding a letter offers its accented variants
 (u → ü, spec §3.6.3).
 
-Switching stays inside JIS Korean: 英数 selects JIS English, **F18** toggles between them (the input menu's **Switch Key (JIS English ↔ Korean)** picks F13–F19
-or none, or any key code with `defaults write me.sjun.inputmethod.JISKorean SwitchKey -int <code>`),
-and **Shift+X** in JIS English goes back to Korean (on by default; turn it off in the input menu to
-type capital X with Shift again). F10 or Shift+Z capitalizes the word just typed, so x then Shift+Z
-is X; F9 makes it full width (spec §3.6.4). かな is left to macOS, which selects Japanese.
+Switching stays inside JIS Korean: 英数 always goes to English and **F18** always goes back to Korean
+(the input menu's **Korean Key (Back to Korean)** picks F13–F19 or none, or any key code with
+`defaults write me.sjun.inputmethod.JISKorean KoreanKey -int <code>`). Every other key types as on
+ABC, Shift+Z, Shift+X, F9 and F10 included. かな is left to macOS, which selects Japanese.
 `tools/add-english-mode.sh` adds the mode to the built bundle's Info.plist; the checked-in
 Info.plist has the Korean modes only.
 
@@ -109,14 +108,15 @@ Recommended for a JIS keyboard with Japanese also installed (spec §8.2.1):
 
 | From | To | Key |
 |---|---|---|
-| JIS English | Korean | Shift+X, or F18 (remap a key to F18, e.g. with Karabiner) |
+| JIS English | Korean | F18 (remap a key to F18, e.g. with Karabiner), or Ctrl+Space |
 | any | English (JIS English) | 英数 (JIS Romaji) |
 | any | Japanese (Kana) | かな (JIS Kana), handled by macOS |
 | Japanese | Korean | out of scope here: the Japanese input method owns its keys (Ctrl+Space or the input menu work) |
 
-Still to check on a real install: that macOS sends 英数 to the input method rather than switching
-to ABC itself, that System Settings lists the mode under English, and whether macOS counts
-it as ASCII-capable so ABC can be removed (spec §8.2.1).
+Apple's ABC can't be removed from the input sources: macOS always keeps one plain keyboard layout
+for password fields, and input method modes don't count (spec §8.2.1). Still to check on a real
+install: that macOS sends 英数 to the input method rather than switching to ABC itself, and that
+System Settings lists the mode under English.
 
 ## Files
 
