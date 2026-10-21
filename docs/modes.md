@@ -19,11 +19,15 @@ modes, and 31–99 are for custom layouts, any free one. It also takes a **mode 
 (`SPLIT_ORTHO_LAYOUTDESIGNERNAME`, spec §3.6.1). Its first word is its namespace:
 
 - **`A_`** is Mirae Research's, for official modes only (ids 0–14).
-- **`B_` and `C_`** are for modes contributed to this repository. They follow everything on this
-  page as an official mode does: the full key and stock tables, the tests below, the spec section,
-  the layout drawing and a badge, review, and a majority of the contributors in favour before
-  merging (ids 15–30). (What separates `B_` from `C_` is
-  still open: spec §9.)
+- **`B_` and `C_`** are for modes contributed to this repository (ids 15–30). `B_` varies Mode B
+  on US ANSI boards: minor adjustments such as Korean ANSI or a modified laptop keyboard. `C_`
+  varies Mode C on ISO boards, mainly for ISO locales other than the UK. They follow everything on
+  this page as an official mode does: the full key and stock tables, the tests below, the spec
+  section, the layout drawing and a badge, review, and a majority of the contributors in favour
+  before merging.
+
+No mode forbids any keyboard, but support covers only the board a mode is for: a `B_` variant that
+doesn't work on an ISO board isn't an issue this repository will fix.
 - **Any other prefix** (`COMPANYNAME_QWERTZ`, `COMPANYNAME_CUSTOMLAYOUTNAME`) is yours, for a fork or
   your own build, on any free id from 31 to 99: keep the naming rules and "What every mode keeps" below; the rest is up to you.
   Pick a prefix no one else is likely to use, such as your company's or your own name.

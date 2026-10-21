@@ -211,12 +211,17 @@ A mode name's first word is its **namespace**:
 | Namespace | Whose | Rules |
 |---|---|---|
 | `A_` | Mirae Research's official modes only (ids 0–14) | Shipped and maintained here. |
-| `B_`, `C_` | Outside contributions accepted into this repository (ids 15–30) | The stricter guidelines in `docs/modes.md`: review, tests and docs as for an official mode, and a majority of the contributors in favour. **[decide]** What separates `B_` from `C_`. |
+| `B_` | Contributed variants of Mode B, for US ANSI boards (ids 15–30) | The stricter guidelines in `docs/modes.md`: review, tests and docs as for an official mode, and a majority of the contributors in favour. Minor adjustments on an ANSI board, such as Korean ANSI or a modified laptop keyboard. |
+| `C_` | Contributed variants of Mode C, for ISO boards (ids 15–30) | The same guidelines. Other ISO locales than C's UK. |
 | Anything else (`COMPANYNAME_QWERTZ`, `COMPANYNAME_CUSTOMLAYOUTNAME`) | Whoever makes it, in a fork or their own build (ids 31–99) | Only the naming rules and §3.6's "what every mode keeps"; not reviewed here. Use a prefix of your own, such as your company or your name. |
 
 **The first three modes keep their one-letter names**, `A`, `B` and `C` (ids 0, 1, 2), as released:
 tools and the public API already use them. A one-letter name has no `_`, so it's in no namespace,
 and no new mode gets one.
+
+**Scope.** Mode B is US ANSI and Mode C is UK ISO; their variants (`B_`, `C_`) stay on that board
+type. No mode forbids any keyboard, but support covers only the board a mode is for: a `B_` variant
+that doesn't work on an ISO board, for example, isn't an issue this repository will fix.
 
 | Id | Mode name | Display name | Badge text | Status |
 |---|---|---|---|---|
@@ -525,9 +530,8 @@ Raised by this spec:
     cancel the segment instead?
 11. ~~**Non-JIS hardware.**~~ Settled: Mode B (§3.6) for US ANSI. It keeps Mode A's number row
     and brackets and leaves every other key as US ANSI has it.
-12. **`B_` and `C_` namespaces (§3.6.1).** Both are for outside contributions accepted here. What
-    makes a mode `B_` rather than `C_` (for example: `B_` follows an official mode's pattern on
-    another keyboard, `C_` is a new layout of its own)?
+12. ~~**`B_` and `C_` namespaces.**~~ Settled (§3.6.1): `B_` varies Mode B on US ANSI boards,
+    `C_` varies Mode C on ISO boards; each is supported on its board type only.
 13. **JIS English on other platforms (§3.6.2).** Windows keeps 한/영 (§8.4). Should Windows, the
     web playground and Minecraft offer `A_QWERTY` too, or is it macOS only?
 
