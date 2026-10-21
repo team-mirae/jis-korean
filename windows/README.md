@@ -44,7 +44,7 @@ Windows for any TIP).
 | | |
 |---|---|
 | Modes A, B, C (spec §3.6) | Right-click the 한글 / ABC indicator in the taskbar → Mode A (JIS), Mode B (US ANSI) or Mode C (UK ISO). One setting for every app: the mode follows the keyboard, not the app. Mode A is the default. In Mode C the menu also has **Dedicated Symbol Keys** (on by default): off, [ ] and the ISO extra key type their UK ISO characters. |
-| 한/영 | Switches JIS Korean off (ABC: every key goes to the app untouched, as Windows' US layout types it) and on again, as the Microsoft IME does. It commits what's unconfirmed first. The state is one for the whole session, every app, and isn't stored: after a restart it's 한글. A click on the indicator does the same. On a US ANSI keyboard, Windows' Korean layout sends 한/영 from Right Alt. |
+| 한/영 | Switches JIS Korean off (ABC: every key goes to the app untouched, as Windows' US layout types it) and on again, as the Microsoft IME does. It commits what's unconfirmed first. The state is one for the whole session, every app, and isn't stored: after a restart it's 한글. A click on the indicator does the same. On a US ANSI keyboard, Windows' Korean layout sends 한/영 from Right Alt. JIS and ISO keyboards have no 한/영 key, and JIS Korean deliberately doesn't pick one: map the key you want to 한/영 (`VK_HANGUL`) with your keyboard's software or a remapper such as PowerToys (spec §8.4). |
 | Predictions (spec §10) | The unconfirmed text shows the top reading (`hello` shows as hello). ↓ / Tab and ↑ move through the list under it, Space / Enter commit what's shown, a click picks a row. Off by default in terminals, remote desktop, password managers, File Explorer and launchers (spec §10.11.1). |
 | Hanja (F7) | The list under the text, numbered 1–9 per page (spec §7). |
 

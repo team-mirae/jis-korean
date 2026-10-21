@@ -638,8 +638,10 @@ Raised by this spec:
     and brackets and leaves every other key as US ANSI has it.
 12. ~~**`B_` and `C_` namespaces.**~~ Settled (§3.6.1): `B_` varies Mode B on US ANSI boards,
     `C_` varies Mode C on ISO boards; each is supported on its board type only.
-13. **JIS English on other platforms (§3.6.2).** Windows keeps 한/영 (§8.4). Should Windows, the
-    web playground and Minecraft offer `A_QWERTY` too, or is it macOS only?
+13. **JIS English on other platforms (§3.6.2).** Partly settled: **not on Windows.** JIS English
+    is a macOS workaround (switching English → Korean through Hammerspoon could switch back by
+    itself); Windows has 한/영 inside the one input method (§8.4) and doesn't need it. Still open:
+    should the web playground and Minecraft offer `A_QWERTY`, or is it macOS only?
 
 ---
 
@@ -1146,6 +1148,12 @@ what's unconfirmed first (§5.1, IME switch). The state is one for the whole ses
 app, and never stored: it starts on 한글 after a restart or a crash. The taskbar shows 한글 or ABC
 where the Microsoft IME shows 가 / A, and a click there switches too. On a US ANSI keyboard,
 Windows' Korean layout sends 한/영 from Right Alt.
+
+**JIS and ISO keyboards have no 한/영 key, and JIS Korean deliberately doesn't make one.** Which key
+should switch (Right Alt, 変換, 無変換, カタカナ, Caps Lock...) is the keyboard owner's choice, so it's
+configured outside JIS Korean, by mapping a key to 한/영 (`VK_HANGUL`) with the keyboard's own
+software, Windows' Korean keyboard type, or a remapper such as PowerToys. JIS Korean handles
+`VK_HANGUL` from wherever it comes. The indicator's click and menu work on every keyboard.
 
 It's an on/off switch, nothing more: the English typed in ABC never reaches the engine (no
 predictions, F9/F10, hanja or learning), and switching mid-word splits the word. The recommended
