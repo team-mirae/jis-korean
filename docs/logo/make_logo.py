@@ -111,6 +111,23 @@ def letters(text, x, y, w, h, gap):
     top, bottom = y + half, y + h - half
     mid = (top + bottom) / 2
     glyphs = []
+
+    def reach(p, q, ty):
+        """The point where the line p → q crosses y = ty: a diagonal extended past the band, so
+        trimming it gives a clean horizontal end."""
+        t = (ty - p[1]) / (q[1] - p[1])
+        return p[0] + (q[0] - p[0]) * t, ty
+
+    def foot(p, ty, edge):
+        """The point on y = ty for a diagonal from p whose outer edge (the side facing `edge`) meets
+        y = ty exactly at x = edge, so the letter ends flush with its box."""
+        xb = edge
+        for _ in range(8):
+            angle = math.atan2(abs(ty - p[1]), abs(xb - p[0]))
+            xb = edge - math.copysign(half / math.sin(angle), edge - p[0])
+        return xb, ty
+
+    above, below = y - 2, y + h + 2  # past the cap line and the baseline
     for i, ch in enumerate(text):
         lx = x + i * (lw + gap)
         left, right = lx + half, lx + lw - half
@@ -126,7 +143,9 @@ def letters(text, x, y, w, h, gap):
             t = (bar - top) / (bottom - top)
             # The bar ends half a stroke inside each leg's centreline, so its square ends stay
             # inside the legs instead of poking out past them.
-            d = (f"M{num(left)} {num(bottom)}L{num(cx)} {num(top)}L{num(right)} {num(bottom)}"
+            l = reach((cx, top), foot((cx, top), y + h, lx), below)
+            r_ = reach((cx, top), foot((cx, top), y + h, lx + lw), below)
+            d = (f"M{num(l[0])} {num(l[1])}L{num(cx)} {num(top)}L{num(r_[0])} {num(r_[1])}"
                  f"M{num(cx + (left - cx) * t + half)} {num(bar)}H{num(cx + (right - cx) * t - half)}")
         elif ch == "B":
             # Straight top, middle and bottom; the lower bowl wider.
@@ -155,8 +174,10 @@ def letters(text, x, y, w, h, gap):
             # The arm into the stem a little below the middle; the leg off the arm.
             join = mid + (bottom - top) * 0.08
             leg = (left + (right - left) * 0.38, join - (join - top) * 0.38)
-            d = (f"M{num(left)} {num(top)}V{num(bottom)}M{num(right)} {num(top)}L{num(left)} {num(join)}"
-                 f"M{num(leg[0])} {num(leg[1])}L{num(right)} {num(bottom)}")
+            arm = reach((left, join), foot((left, join), y, lx + lw), above)
+            toe = reach(leg, foot(leg, y + h, lx + lw), below)
+            d = (f"M{num(left)} {num(top)}V{num(bottom)}M{num(arm[0])} {num(arm[1])}L{num(left)} {num(join)}"
+                 f"M{num(leg[0])} {num(leg[1])}L{num(toe[0])} {num(toe[1])}")
         elif ch == "M":
             # Upright stems, and the middle point down on the baseline.
             d = f"M{num(left)} {num(bottom)}V{num(top)}L{num(cx)} {num(bottom)}L{num(right)} {num(top)}V{num(bottom)}"
@@ -177,16 +198,23 @@ def letters(text, x, y, w, h, gap):
             d = (f"M{num(left)} {num(top)}V{num(bottom - r)}A{num(rx)} {num(r)} 0 0 0 {num(right)} {num(bottom - r)}"
                  f"V{num(top)}")
         elif ch == "V":
-            d = f"M{num(left)} {num(top)}L{num(cx)} {num(bottom)}L{num(right)} {num(top)}"
+            l = reach((cx, bottom), foot((cx, bottom), y, lx), above)
+            r_ = reach((cx, bottom), foot((cx, bottom), y, lx + lw), above)
+            d = f"M{num(l[0])} {num(l[1])}L{num(cx)} {num(bottom)}L{num(r_[0])} {num(r_[1])}"
         elif ch == "Y":
             # The arms meet just above the middle.
             meet = mid - (bottom - top) * 0.04
-            d = (f"M{num(left)} {num(top)}L{num(cx)} {num(meet)}L{num(right)} {num(top)}"
+            l = reach((cx, meet), foot((cx, meet), y, lx), above)
+            r_ = reach((cx, meet), foot((cx, meet), y, lx + lw), above)
+            d = (f"M{num(l[0])} {num(l[1])}L{num(cx)} {num(meet)}L{num(r_[0])} {num(r_[1])}"
                  f"M{num(cx)} {num(meet)}V{num(bottom)}")
         elif ch == "Z":
             d = f"M{num(left)} {num(top)}H{num(right)}L{num(left)} {num(bottom)}H{num(right)}"
         else:
             raise ValueError(f"no glyph for {ch}")
+        # Every letter is trimmed to its box: one cap line, one baseline, one width.
+        cuts += [(lx - 12, y - 12, lw + 24, 12), (lx - 12, y + h, lw + 24, 12),
+                 (lx - 12, y, 12, h), (lx + lw, y, 12, h)]
         glyphs.append((d, cuts))
     return glyphs
 
