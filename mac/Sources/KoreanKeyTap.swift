@@ -23,7 +23,7 @@ enum KoreanKeyTap {
     /// checking until it is.
     static func start() {
         guard tap == nil else { return }
-        HardwareKeys.start()
+        if !asked { HardwareKeys.start() }
         let options = [kAXTrustedCheckOptionPrompt.takeUnretainedValue() as String: !asked] as CFDictionary
         asked = true
         guard AXIsProcessTrustedWithOptions(options) else {

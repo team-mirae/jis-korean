@@ -12,7 +12,7 @@ enum HardwareKeys {
 
     static func start() {
         guard manager == nil else { return }
-        if IOHIDCheckAccess(kIOHIDRequestTypeListenEvent) != kIOHIDAccessTypeGranted {
+        if !waiting && IOHIDCheckAccess(kIOHIDRequestTypeListenEvent) != kIOHIDAccessTypeGranted {
             _ = IOHIDRequestAccess(kIOHIDRequestTypeListenEvent)
         }
         let manager = IOHIDManagerCreate(kCFAllocatorDefault, IOOptionBits(kIOHIDOptionsTypeNone))
@@ -29,9 +29,21 @@ enum HardwareKeys {
         }, nil)
         IOHIDManagerScheduleWithRunLoop(manager, CFRunLoopGetMain(), CFRunLoopMode.defaultMode.rawValue)
         let status = IOHIDManagerOpen(manager, IOOptionBits(kIOHIDOptionsTypeNone))
-        DiagnosticLog.note("hardware keys: \(status == kIOReturnSuccess ? "on" : "couldn't open (\(status)); Input Monitoring?")")
+        guard status == kIOReturnSuccess else {
+            // Not allowed yet (Input Monitoring): try again until it is, without a restart.
+            IOHIDManagerUnscheduleFromRunLoop(manager, CFRunLoopGetMain(), CFRunLoopMode.defaultMode.rawValue)
+            if !waiting {
+                DiagnosticLog.note("hardware keys: waiting for Input Monitoring (\(status))")
+                waiting = true
+            }
+            DispatchQueue.main.asyncAfter(deadline: .now() + 3) { start() }
+            return
+        }
+        DiagnosticLog.note("hardware keys: on")
         self.manager = manager
     }
+
+    private static var waiting = false
 
     /// Whether カタカナ is held (for a key down), or was just let go (for its key up: the release
     /// may be seen first).
