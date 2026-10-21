@@ -246,11 +246,20 @@ Modes A, B and C do; the **id range** says who maintains it:
 tools and the public API already use them. A one-letter name has no `_`, so it's in no namespace,
 and no new mode gets one.
 
-**`CJ_` on a JIS board.** A JIS board has two keys ISO lacks, ¥ (`IntlYen`) and ろ (`IntlRo`), and
-lacks two ISO keys: the extra key left of Z (`IntlBackslash`) and the key left of 1 (`Backquote`,
-半角/全角 on a JIS board). A `CJ_` mode binds **ろ to the ISO extra key's characters** and **¥ to
-those of the key left of 1**, so every character of the ISO layout is reachable on JIS. The European
-layouts are `CJ_` modes: their people mostly have ISO boards, and JIS users can use them too.
+**How a `CJ_` mode is designed.** The European layouts are `CJ_` modes: their people mostly have
+ISO boards, and JIS users can use them too. Every `CJ_` mode follows three rules:
+
+1. **Build it for ISO.** The layout is the ISO one, as its people know it.
+2. **Map the JIS keys.** A JIS board has two keys ISO lacks, ¥ (`IntlYen`) and ろ (`IntlRo`), and
+   lacks two ISO keys: the extra key left of Z (`IntlBackslash`) and the key left of 1
+   (`Backquote`, 半角/全角 on a JIS board). The mode gives ¥ and ろ a mapping; any mapping is
+   allowed, and the mode's section says which. The default, used by `CJ_QWERTY`: **ろ types the
+   ISO extra key's characters and ¥ those of the key left of 1**, so every character of the layout
+   is reachable on JIS.
+3. **Shift+Z is F10 and Shift+X goes back to Korean,** as in JIS English (§3.6.4, §8.2.1), by key
+   position (`KeyZ`, `KeyX`). If the layout already needs Shift+Z or Shift+X for something else,
+   the author routes F10 or going back to Korean to another sensible key, and the mode's section
+   says which.
 
 **Scope.** `A_` modes are for JIS boards, `B_` for US ANSI, and `C_` and `CJ_` for ISO (`CJ_` on
 JIS too). No mode forbids any
