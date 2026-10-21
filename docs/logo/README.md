@@ -93,7 +93,7 @@ filled paths, the disc and the letters. Every letter is trimmed to its box, so a
 height: diagonals are aimed so their outer edge lands on the box edge and cut flat there, as in
 Helvetica (A's apex, V's and M's points, K's and Y's arms). Every letter is `LETTER_WIDTH` ×
 `LETTER_HEIGHT` (23 × 32), `LETTER_GAP` (4) apart (two-letter codes are scaled up by
-`TWO_LETTER_SCALE`, 1.25, stroke included: 29 × 40), aligned to the lower right corner `EDGE` in
+`TWO_LETTER_SCALE`, 1.4, stroke included: 32.2 × 44.8), aligned to the lower right corner `EDGE` in
 (`letter_box()`). `letters()` draws A B C D G H K M Q S U V Y Z so far. At 16 px the text is at the limit of rule 7: the disc and a row of letters, not each letter, are what read there.
 
 ### The cut-outs (masks)

@@ -93,7 +93,7 @@ LETTER_HEIGHT = 32
 LETTER_GAP = 4
 
 
-TWO_LETTER_SCALE = 1.25  # two-letter codes (US, GB, QZ, …) have the room to be bigger
+TWO_LETTER_SCALE = 1.4  # two-letter codes (US, GB, QZ, …) have the room to be bigger
 
 
 def letter_box(text):
