@@ -13,10 +13,21 @@ fourth specified (JIS English, spec §3.6.2) and five more reserved:
 
 ## Naming a new mode
 
-A new mode takes a free id in its range, from 0 to 99 (spec §3.6.1; ids needn't be in order):
-0–14 are Mirae Research's (9–14 held for future official modes), 15–30 are for contributed official
-modes, and 31–99 are for custom layouts, any free one. It also takes a **mode name** in upper-case snake case
-(`SPLIT_ORTHO_LAYOUTDESIGNERNAME`, spec §3.6.1). Its first word is its namespace:
+A new mode takes a free id in its range (spec §3.6.1). Ids needn't be given in order, and nothing
+may assume they run from 0 without gaps:
+
+| Ids | For |
+|---|---|
+| 0–14 | Mirae Research's official modes (`A_`). 0–8 are taken or reserved; 9–14 are held for future official modes. |
+| 15–30 | Contributed official modes (`B_`, `C_`), each accepted by a majority of the contributors. |
+| 31–99 | Custom layouts (any other prefix): any free id. Nothing coordinates them, so two forks can pick the same one. |
+| 10000–11000 | Development and preview builds: a temporary id while a mode is being made, with any well-formed mode name. When the mode is done it moves to a permanent id in its range (0–30 for an official mode) and the temporary id is dropped. Release builds never save one in settings. |
+
+Every other id is invalid for now. A mode in progress here, or a contribution under review, uses a
+preview id until it's accepted, so a fork never ships an official-looking id that may still change.
+
+It also takes a **mode name** in upper-case snake case (`SPLIT_ORTHO_LAYOUTDESIGNERNAME`, spec
+§3.6.1). Its first word is its namespace:
 
 - **`A_`** is Mirae Research's, for official modes only (ids 0–14).
 - **`B_` and `C_`** are for modes contributed to this repository (ids 15–30). `B_` varies Mode B
@@ -25,12 +36,13 @@ modes, and 31–99 are for custom layouts, any free one. It also takes a **mode 
   this page as an official mode does: the full key and stock tables, the tests below, the spec
   section, the layout drawing and a badge, review, and a majority of the contributors in favour
   before merging.
+- **Any other prefix** (`COMPANYNAME_QWERTZ`, `COMPANYNAME_CUSTOMLAYOUTNAME`) is yours, for a fork or
+  your own build, on any free id from 31 to 99: keep the naming rules and "What every mode keeps"
+  below; the rest is up to you. Pick a prefix no one else is likely to use, such as your company's
+  or your own name.
 
 No mode forbids any keyboard, but support covers only the board a mode is for: a `B_` variant that
 doesn't work on an ISO board isn't an issue this repository will fix.
-- **Any other prefix** (`COMPANYNAME_QWERTZ`, `COMPANYNAME_CUSTOMLAYOUTNAME`) is yours, for a fork or
-  your own build, on any free id from 31 to 99: keep the naming rules and "What every mode keeps" below; the rest is up to you.
-  Pick a prefix no one else is likely to use, such as your company's or your own name.
 
 Mode names and ids are never renamed or reused once released. `A`, `B` and `C` keep their
 one-letter names; no new mode gets one.
