@@ -47,6 +47,9 @@ let sharedPredictor: OpaquePointer? = {
 
 DiagnosticLog.note("launched from \(Bundle.main.bundlePath)")
 PublicAPI.start()
+#if ENGLISH
+KoreanKeyTap.start()
+#endif
 let server = IMKServer(name: connectionName, bundleIdentifier: Bundle.main.bundleIdentifier)
 _ = server
 NSApplication.shared.run()

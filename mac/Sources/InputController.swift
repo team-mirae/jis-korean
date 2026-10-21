@@ -65,38 +65,11 @@ final class JKInputController: IMKInputController {
     }
 
     override func recognizedEvents(_ sender: Any!) -> Int {
-        // Modifier changes too: Caps Lock is one, and in the English modes it switches to Korean.
-        Int(NSEvent.EventTypeMask.keyDown.rawValue | NSEvent.EventTypeMask.flagsChanged.rawValue)
+        Int(NSEvent.EventTypeMask.keyDown.rawValue)
     }
 
     override func handle(_ event: NSEvent!, client sender: Any!) -> Bool {
-        guard let event, let client = sender as? IMKTextInput else { return false }
-        if event.type == .flagsChanged {
-            #if ENGLISH
-            // Plain Caps Lock is JIS Korean's (spec §8.2.1): the lock goes back to what it was, and
-            // in an English mode it goes to the last Korean mode. With Shift, Option, Ctrl or Cmd
-            // held it's left alone: a real Caps Lock.
-            if Int(event.keyCode) == kVK_CapsLock {
-                let on = event.modifierFlags.contains(.capsLock)
-                if CapsLock.isEcho(on) {
-                    return true  // JIS Korean's own change of the lock, not a press
-                }
-                let plain = event.modifierFlags.intersection([.shift, .option, .control, .command]).isEmpty
-                DiagnosticLog.note("Caps Lock\(plain ? "" : " with a modifier") in \(client.bundleIdentifier() ?? "?")")
-                guard plain else { return false }
-                // macOS has toggled the lock already: toggle it back.
-                CapsLock.set(!on)
-                if !InputModes.current.korean, InputModes.isEnabled(InputModes.lastKorean) {
-                    flush(client)
-                    applyMode(InputModes.lastKorean, client: client)
-                    selectLater(InputModes.lastKorean)
-                }
-                return true
-            }
-            #endif
-            return false
-        }
-        guard event.type == .keyDown else { return false }
+        guard let event, event.type == .keyDown, let client = sender as? IMKTextInput else { return false }
         if engineKey(event.keyCode) == UInt32(JK_KEY_OTHER) {
             // Keys JIS Korean doesn't map, with the app: shows which keys an app passes on at all
             // (iTerm keeps F1–F19 to itself) and what code a remapped key arrives as.
@@ -308,6 +281,21 @@ final class JKInputController: IMKInputController {
             selectLater(target)
         }
         return true
+    }
+
+    /// The Korean Key caught by the key tap (KoreanKeyTap, spec §8.2.1), in the field this
+    /// controller types into: from an English mode to the last Korean mode, in place; in a Korean
+    /// mode that mode again, so macOS shows it under the caret.
+    func koreanKeyFromTap() {
+        guard let client = client() as IMKTextInput? else { return }
+        if InputModes.current.korean {
+            selectLater(InputModes.current)
+            return
+        }
+        guard InputModes.isEnabled(InputModes.lastKorean) else { return }
+        flush(client)
+        applyMode(InputModes.lastKorean, client: client)
+        selectLater(InputModes.lastKorean)
     }
 
     /// Selects `mode`'s input source once the key being handled is done: selecting it from inside

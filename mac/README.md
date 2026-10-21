@@ -97,12 +97,15 @@ install, as for any new mode). It types JIS QWERTY with JIS symbols on any keybo
 Japanese Romaji mode without its conversions, and holding a letter offers its accented variants
 (u → ü, spec §3.6.3).
 
-Switching stays inside JIS Korean: 英数 always goes to English and **F18** always goes back to Korean
-(the input menu's **Korean Key (Back to Korean)** picks F13–F19 or none, or any key code with
-`defaults write me.sjun.inputmethod.JISKorean KoreanKey -int <code>`), and so does **Caps Lock** in
-an English mode, which works in iTerm too (F18 doesn't: iTerm keeps F-keys). Plain Caps Lock leaves the
-lock as it was (JIS Korean toggles it back); Shift+Caps Lock or Option+Caps Lock is a real
-Caps Lock. Every other key types as on ABC, Shift+Z, Shift+X, F9 and F10 included. かな is left to macOS, which selects Japanese.
+Switching stays inside JIS Korean: 英数 always goes to English; **カタカナ** (the Windows JIS key
+right of the space bar) and **F18** always go to Korean, from any app or input source. JIS Korean
+asks for **Input Monitoring** (macOS turns カタカナ into かな, so it reads the keyboard itself) and
+**Accessibility** (to catch the keys before apps such as iTerm, which keeps F-keys). The input
+menu's **Korean Key (Back to Korean)** picks F13–F19 or none, or any key code with
+`defaults write me.sjun.inputmethod.JISKorean KoreanKey -int <code>`. Every other key types as on
+ABC, Shift+Z, Shift+X, F9, F10 and Caps Lock included. かな is left to macOS, which selects Japanese.
+Each build is signed anew, so after a reinstall both permissions need turning off and on again in
+System Settings → Privacy & Security.
 `tools/add-english-mode.sh` adds the mode to the built bundle's Info.plist; the checked-in
 Info.plist has the Korean modes only.
 
@@ -110,10 +113,10 @@ Recommended for a JIS keyboard with Japanese also installed (spec §8.2.1):
 
 | From | To | Key |
 |---|---|---|
-| JIS English | Korean | Caps Lock, or F18 (remap a key to F18, e.g. with Karabiner; iTerm keeps F-keys), or Ctrl+Space |
+| any | Korean | カタカナ (Windows JIS keyboards), or F18 (remap a key to F18, e.g. with Karabiner) |
 | any | English (JIS English) | 英数 (JIS Romaji) |
 | any | Japanese (Kana) | かな (JIS Kana), handled by macOS |
-| Japanese | Korean | out of scope here: the Japanese input method owns its keys (Ctrl+Space or the input menu work) |
+| Japanese | Korean | カタカナ or F18 work here too |
 
 Apple's ABC can't be removed from the input sources: macOS always keeps one plain keyboard layout
 for password fields, and input method modes don't count (spec §8.2.1). Still to check on a real
