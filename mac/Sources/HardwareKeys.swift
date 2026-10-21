@@ -30,7 +30,9 @@ enum HardwareKeys {
         }, nil)
         IOHIDManagerScheduleWithRunLoop(manager, CFRunLoopGetMain(), CFRunLoopMode.defaultMode.rawValue)
         let status = IOHIDManagerOpen(manager, IOOptionBits(kIOHIDOptionsTypeNone))
-        guard status == kIOReturnSuccess else {
+        // Exclusive access: a keyboard another program holds (Karabiner-Elements seizes the ones it
+        // remaps) didn't open, but the others did. Only "not permitted" means waiting.
+        guard status == kIOReturnSuccess || status == kIOReturnExclusiveAccess else {
             // Not allowed yet (Input Monitoring): try again until it is, without a restart.
             IOHIDManagerUnscheduleFromRunLoop(manager, CFRunLoopGetMain(), CFRunLoopMode.defaultMode.rawValue)
             let access = IOHIDCheckAccess(kIOHIDRequestTypeListenEvent)
@@ -43,7 +45,7 @@ enum HardwareKeys {
             DispatchQueue.main.asyncAfter(deadline: .now() + 3) { start() }
             return
         }
-        DiagnosticLog.note("hardware keys: on")
+        DiagnosticLog.note("hardware keys: on\(status == kIOReturnSuccess ? "" : " (some keyboards are held by another program)")")
         self.manager = manager
     }
 
