@@ -7,7 +7,11 @@
 use jis_korean::{Key, Layout, Mode, output_in};
 
 fn main() {
-    let mode = Mode::from_id(std::env::args().nth(1).and_then(|id| id.parse().ok()).unwrap_or(0));
+    let id = std::env::args().nth(1).and_then(|id| id.parse().ok()).unwrap_or(0);
+    let Some(mode) = Mode::from_id(id) else {
+        eprintln!("no mode {id} in this build");
+        std::process::exit(1);
+    };
     for (id, &key) in Key::ALL.iter().enumerate() {
         let legend = |shift: bool| {
             if key == Key::KeyZ && shift {

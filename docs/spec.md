@@ -189,7 +189,7 @@ Examples (Mode B): `Shift+[` → 「; `Shift+2` → 2, read in English as @; `F8
 
 Every mode has three identifiers:
 
-- **Id:** a number from 0 to 99, in the ranges below. Ids are saved in settings and passed over the
+- **Id:** a number in the ranges below (0–99, and 10000–11000 for previews). Ids are saved in settings and passed over the
   C ABI (`jk_set_mode`), so an id is never renumbered or reused, even when its mode is removed.
 - **Mode name:** what tools, settings and the public API (§8.2) use. Upper-case snake case: words of
   `A`–`Z` and `0`–`9` joined by `_`, starting with a letter (`A_QWERTY`,
@@ -203,8 +203,25 @@ Ids are in ranges; they don't have to be given in order:
 | 0–14 | Mirae Research's official modes. 0–8 are taken or reserved (below); 9–14 are held for future official designations. |
 | 15–30 | Official modes contributed from outside, each accepted by a majority of the contributors. |
 | 31–99 | Custom layouts: any free id, chosen by whoever makes the layout. Nothing coordinates them, so two forks can pick the same one. |
+| 10000–11000 | Development and preview builds: a temporary id for a mode still being made. When it's done it gets a permanent id in its range (0–30 for an official mode), and the temporary one is dropped. Never saved by a release build's settings. |
 
-The range may grow past 99 later; until then nothing outside 0–99 is a valid id.
+Every other id is invalid for now (0–99 may grow later). Every platform can hold ids up to
+2,147,483,647 (Minecraft's Java `int` is the narrowest), so the ranges have room to grow.
+
+**Ids are looked up, never counted.** Ids have gaps (3, then 9 or 31), and a build has only the
+modes it was built with (JIS English needs `ENGLISH=1`; reserved ids have no mode yet). So the
+engine keeps an explicit table of the modes it has, each with its id, and nothing assumes ids run
+from 0 without gaps:
+
+- **Listing:** `jk_mode_count` says how many modes this build has, and `jk_mode_id_at(index)` gives
+  each one's id, in the table's order (`Mode::ALL` in Rust). The index is only a position in that
+  list, never an id.
+- **An unknown id is refused, not replaced.** `jk_set_mode` returns 1 and switches, or returns 0 and
+  keeps the current mode for an id this build doesn't have. `jk_legend_in` gives no legend (0), and
+  the name and mode-name calls give an empty string. A shell that loads a saved id this build
+  doesn't have (say, JIS English after a build without it) falls back to Mode A itself, visibly.
+- **Names:** `jk_mode_name_ptr`/`_len` give the display name, `jk_mode_code_ptr`/`_len` the mode name
+  (`A`, `A_QWERTY`).
 
 A mode name's first word is its **namespace**:
 

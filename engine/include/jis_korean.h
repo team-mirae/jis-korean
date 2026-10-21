@@ -105,16 +105,23 @@ void jk_flush(JkEngine *engine);
 /* The IME was switched back to: leaves any F8 escape. */
 void jk_activate(JkEngine *engine);
 void jk_set_enter_commits(JkEngine *engine, uint32_t on);
-/* The mode, by id (spec §3.6): 0 = Mode A (JIS, the default), 1 = Mode B (US ANSI),
- * 2 = Mode C (UK ISO). */
-void jk_set_mode(JkEngine *engine, uint32_t mode);
+/* The mode, by id (spec §3.6.1): 0 = Mode A (JIS, the default), 1 = Mode B (US ANSI),
+ * 2 = Mode C (UK ISO). Returns 1 if it switched, 0 for an id this build doesn't have (the mode
+ * stays as it was). */
+uint32_t jk_set_mode(JkEngine *engine, uint32_t mode);
 /* Dedicated symbol keys (spec §3.6), on (1) by default. Off (0), Mode C's [ ] and ISO extra key
  * type their UK ISO characters ([ { ] } \ |). Modes without optional symbol keys ignore it. */
 void jk_set_dedicated_symbols(JkEngine *engine, uint32_t on);
+/* How many modes this build has. Ids have gaps: list them with jk_mode_id_at, never 0..count. */
 uint32_t jk_mode_count(void);
-/* A mode's name (static UTF-8), for settings menus. */
+/* The id of the index-th mode (0 to count - 1, menu order), or UINT32_MAX past the end. */
+uint32_t jk_mode_id_at(uint32_t index);
+/* A mode's display name (static UTF-8), for settings menus. Empty for an unknown id. */
 const uint8_t *jk_mode_name_ptr(uint32_t mode);
 size_t jk_mode_name_len(uint32_t mode);
+/* A mode's mode name ("A", "A_QWERTY"; spec §3.6.1). Empty for an unknown id. */
+const uint8_t *jk_mode_code_ptr(uint32_t mode);
+size_t jk_mode_code_len(uint32_t mode);
 uint32_t jk_is_escaped(JkEngine *engine);
 
 const uint8_t *jk_commit_ptr(JkEngine *engine);
@@ -127,7 +134,7 @@ const uint8_t *jk_key_code_ptr(uint32_t key);
 size_t jk_key_code_len(uint32_t key);
 /* The character a key types (Unicode scalar), or 0 if none. For drawing key legends. */
 uint32_t jk_legend(uint32_t key, uint32_t shift, uint32_t escaped);
-/* The same in a given mode, by id. */
+/* The same in a given mode, by id; 0 for an unknown id. */
 uint32_t jk_legend_in(uint32_t key, uint32_t shift, uint32_t escaped, uint32_t mode);
 
 /* Resolving keys and text (spec §8.3), on a copy of this engine: its mode and, with predictions

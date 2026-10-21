@@ -83,8 +83,9 @@ All of it lives in `engine/src/layout.rs`, on the `Mode` enum:
 
 | Part | Where | Rule |
 |---|---|---|
-| Variant | `enum Mode`, `Mode::ALL` | Name it after its mode name in Rust's style (`A_QWERTY` → `AQwerty`). Add it to `ALL` in id order. |
-| Id | `Mode::id` | A free number in the mode's range (0–99, spec §3.6.1). Ids are saved in settings and passed over the C ABI (`jk_set_mode`), so never renumber or reuse one. |
+| Variant | `enum Mode`, `Mode::ALL`, `Mode::from_id` | Name it after its mode name in Rust's style (`A_QWERTY` → `AQwerty`), with its id as the discriminant (`AQwerty = 3`). Add it to `ALL` in menu order and to `from_id`'s match. |
+| Mode name | `Mode::code` | Its mode name, `A_QWERTY` (spec §3.6.1). |
+| Id | the discriminant | A free number in the mode's range (spec §3.6.1). Ids are saved in settings and passed over the C ABI (`jk_set_mode`), so never renumber or reuse one. |
 | Name | `Mode::name` | What a settings menu shows, e.g. "JIS Korean for UK ISO". Unique. |
 | Key table | `Mode::korean` → `<keyboard>_korean(key)` | What each non-letter key types: `(unshifted, shifted)`, each `Out::Jamo` (goes into the automaton) or `Out::Char` (goes in as-is). Return `None` for keys the mode leaves out: they commit and pass through to the app. |
 | Stock table | `Mode::stock` → `stock_<keyboard>(key)` | The characters the keyboard's own layout prints on those keys. It drives the F8 escape, the English reading and the standard 2-set prediction, so a mode never suggests a symbol from another keyboard. It must cover every key the key table maps to a `Char`. |
@@ -100,7 +101,10 @@ matching id. `tests/header.rs` fails until the two agree.
 
 `cargo test` in `/engine` runs `tests/modes.rs` over every mode in `Mode::ALL`:
 
-- ids are unique, round-trip through `Mode::from_id`, and unknown ids fall back to Mode A;
+- ids, names and mode names are unique, ids round-trip through `Mode::from_id`, and unknown ids
+  are refused (`None`), not replaced;
+- each mode name is upper-case snake case, with its id in its namespace's range (spec §3.6.1);
+- over the C ABI, `jk_mode_id_at` lists the modes and `jk_set_mode` refuses an unknown id;
 - names are unique and non-empty;
 - the letter keys type standard 2-set, in the mode's layout and in its F8 escape;
 - the stock table has a character for every key the key table maps to a character;
@@ -121,7 +125,9 @@ stock symbols differ from an existing mode's.
 
 The engine API is the same for every mode: a shell calls `jk_set_mode(engine, id)` (Rust:
 `Engine::set_mode`) and draws legends with `jk_legend_in(key, shift, escaped, mode)`.
-`jk_mode_count` and `jk_mode_name_ptr`/`_len` list the modes and their names.
+`jk_mode_count` and `jk_mode_id_at(index)` list the modes (ids have gaps: never loop over ids
+0..count), `jk_mode_name_ptr`/`_len` give the display name and `jk_mode_code_ptr`/`_len` the mode
+name. `jk_set_mode` returns 0, keeping the current mode, for an id the build doesn't have.
 
 ### macOS: one input source per mode
 

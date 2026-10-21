@@ -90,11 +90,17 @@ pub extern "C" fn jk_set_enter_commits(handle: *mut JkEngine, on: u32) {
     with(handle, (), |h| h.engine.set_enter_commits(on != 0))
 }
 
-/// The mode, by id (spec §3.6): 0 = Mode A (JIS), 1 = Mode B (US ANSI), 2 = Mode C (UK ISO).
-/// Unknown ids: Mode A.
+/// The mode, by id (spec §3.6.1): 0 = Mode A (JIS), 1 = Mode B (US ANSI), 2 = Mode C (UK ISO).
+/// Returns 1 if it switched, or 0 for an id this build doesn't have, keeping the current mode.
 #[unsafe(no_mangle)]
-pub extern "C" fn jk_set_mode(handle: *mut JkEngine, mode: u32) {
-    with(handle, (), |h| h.engine.set_mode(Mode::from_id(mode)))
+pub extern "C" fn jk_set_mode(handle: *mut JkEngine, mode: u32) -> u32 {
+    with(handle, 0, |h| match Mode::from_id(mode) {
+        Some(mode) => {
+            h.engine.set_mode(mode);
+            1
+        }
+        None => 0,
+    })
 }
 
 /// Setting: Dedicated symbol keys (spec §3.6), on (1) by default. Off (0), Mode C's [ ] and ISO
@@ -104,21 +110,43 @@ pub extern "C" fn jk_set_dedicated_symbols(handle: *mut JkEngine, on: u32) {
     with(handle, (), |h| h.engine.set_dedicated_symbols(on != 0))
 }
 
-/// How many modes there are; their ids are 0 to count − 1.
+/// How many modes this build has. Ids have gaps: list them with [`jk_mode_id_at`].
 #[unsafe(no_mangle)]
 pub extern "C" fn jk_mode_count() -> u32 {
     Mode::ALL.len() as u32
 }
 
-/// A mode's name (static UTF-8), for settings menus.
+/// The id of this build's `index`th mode (0 to count − 1, in menu order), or `u32::MAX` past the
+/// end. The index is a position in the list, never an id.
+#[unsafe(no_mangle)]
+pub extern "C" fn jk_mode_id_at(index: u32) -> u32 {
+    Mode::ALL.get(index as usize).map_or(u32::MAX, |m| m.id())
+}
+
+fn mode_text(mode: u32, text: fn(Mode) -> &'static str) -> &'static str {
+    Mode::from_id(mode).map_or("", text)
+}
+
+/// A mode's display name (static UTF-8), for settings menus. Empty for an unknown id.
 #[unsafe(no_mangle)]
 pub extern "C" fn jk_mode_name_ptr(mode: u32) -> *const u8 {
-    Mode::from_id(mode).name().as_ptr()
+    mode_text(mode, Mode::name).as_ptr()
 }
 
 #[unsafe(no_mangle)]
 pub extern "C" fn jk_mode_name_len(mode: u32) -> usize {
-    Mode::from_id(mode).name().len()
+    mode_text(mode, Mode::name).len()
+}
+
+/// A mode's mode name (static UTF-8, `A`, `A_QWERTY`; spec §3.6.1). Empty for an unknown id.
+#[unsafe(no_mangle)]
+pub extern "C" fn jk_mode_code_ptr(mode: u32) -> *const u8 {
+    mode_text(mode, Mode::code).as_ptr()
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn jk_mode_code_len(mode: u32) -> usize {
+    mode_text(mode, Mode::code).len()
 }
 
 #[unsafe(no_mangle)]
@@ -174,7 +202,8 @@ pub extern "C" fn jk_legend(key: u32, shift: u32, escaped: u32) -> u32 {
 #[unsafe(no_mangle)]
 pub extern "C" fn jk_legend_in(key: u32, shift: u32, escaped: u32, mode: u32) -> u32 {
     let layout = if escaped != 0 { Layout::Escaped } else { Layout::JisKorean };
-    output_in(Mode::from_id(mode), layout, Key::from_id(key), shift != 0).map_or(0, |o| o.char() as u32)
+    let Some(mode) = Mode::from_id(mode) else { return 0 };
+    output_in(mode, layout, Key::from_id(key), shift != 0).map_or(0, |o| o.char() as u32)
 }
 
 // --- Resolving keys and text (spec §8.3), on a copy of this engine: its mode and predictions

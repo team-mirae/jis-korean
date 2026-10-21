@@ -18,9 +18,10 @@ interface Exports {
   jk_key_code_len(key: number): number;
   jk_legend(key: number, shift: number, escaped: number): number;
   jk_legend_in(key: number, shift: number, escaped: number, mode: number): number;
-  jk_set_mode(h: number, mode: number): void;
+  jk_set_mode(h: number, mode: number): number;
   jk_set_dedicated_symbols(h: number, on: number): void;
   jk_mode_count(): number;
+  jk_mode_id_at(index: number): number;
   jk_mode_name_ptr(mode: number): number;
   jk_mode_name_len(mode: number): number;
   jk_resolve_key_input(h: number, p: number, pl: number): number;
@@ -379,16 +380,17 @@ export class Engine {
   /** The modes (spec §3.6): id and name. Mode A (0) is the default. */
   modes(): { id: number; name: string }[] {
     const { x } = this;
-    return Array.from({ length: x.jk_mode_count() }, (_, id) => ({
-      id,
-      name: this.text(x.jk_mode_name_ptr(id), x.jk_mode_name_len(id)),
-    }));
+    // Ids have gaps (spec §3.6.1): list them by position, never 0..count.
+    return Array.from({ length: x.jk_mode_count() }, (_, index) => {
+      const id = x.jk_mode_id_at(index);
+      return { id, name: this.text(x.jk_mode_name_ptr(id), x.jk_mode_name_len(id)) };
+    });
   }
 
   /** Switches the mode: 0 = Mode A (JIS), 1 = Mode B (US ANSI), 2 = Mode C (UK ISO). */
   setMode(id: number): void {
-    this.mode = id;
-    this.x.jk_set_mode(this.handle, id);
+    // An id this build doesn't have is refused and the mode stays as it was.
+    if (this.x.jk_set_mode(this.handle, id)) this.mode = id;
   }
 
   /**

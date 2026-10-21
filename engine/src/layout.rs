@@ -30,43 +30,62 @@ pub enum Layout {
 /// A mode: one keyboard's key map (spec §3.6). Every mode shares the letter keys, which always
 /// type standard 2-set (the core principle); a mode only says what the other keys type.
 ///
+/// Each variant carries its id as its discriminant (spec §3.6.1). Ids have gaps and a build has
+/// only some modes, so nothing may assume they run from 0: look them up with [`Mode::from_id`] and
+/// list them with [`Mode::ALL`].
+///
 /// To add a mode (docs/modes.md has the full contract):
-/// 1. Add a variant here and to [`Mode::ALL`], with the next unused [`Mode::id`].
-/// 2. Give it a [`Mode::name`] and its two tables in [`Mode::korean`] and [`Mode::stock`], each in
+/// 1. Add a variant here with its id (a free one in its range, spec §3.6.1), and add it to
+///    [`Mode::ALL`] and [`Mode::from_id`].
+/// 2. Give it a [`Mode::code`], a [`Mode::name`] and its two tables in [`Mode::korean`] and [`Mode::stock`], each in
 ///    a function of its own (`<keyboard>_korean`, `stock_<keyboard>`) below.
 /// 3. Run `cargo test`: `tests/modes.rs` checks every mode against the contract.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
+#[repr(u32)]
 pub enum Mode {
     /// Mode A, the original layout, built for JIS keyboards.
     #[default]
-    A,
+    A = 0,
     /// Mode B, for US ANSI keyboards (HHKB US, MacBook US): Mode A's number row and brackets,
     /// and every other key as US ANSI types it.
-    B,
+    B = 1,
     /// Mode C, for UK ISO keyboards: Mode B's pattern on UK symbols, plus the ISO extra key
     /// between left Shift and Z. Its symbol keys are optional ([`Mode::optional_keys`]).
-    C,
+    C = 2,
 }
 
 impl Mode {
-    /// Every mode, in id order.
+    /// Every mode this build has, in the order menus list them. Not indexed by id.
     pub const ALL: &'static [Mode] = &[Mode::A, Mode::B, Mode::C];
 
-    /// The stable id over the C ABI and in saved settings. Never reuse or renumber one.
+    /// The stable id over the C ABI and in saved settings (spec §3.6.1). Never reuse or renumber
+    /// one.
     pub fn id(self) -> u32 {
-        match self {
-            Mode::A => 0,
-            Mode::B => 1,
-            Mode::C => 2,
+        self as u32
+    }
+
+    /// The mode with this id, or `None` for an id this build doesn't have (reserved, a mode left
+    /// out of the build, or no mode at all). Callers decide what to fall back to.
+    pub fn from_id(id: u32) -> Option<Mode> {
+        match id {
+            0 => Some(Mode::A),
+            1 => Some(Mode::B),
+            2 => Some(Mode::C),
+            _ => None,
         }
     }
 
-    /// The mode with this id. Unknown ids get the default, Mode A.
-    pub fn from_id(id: u32) -> Mode {
-        Mode::ALL.iter().copied().find(|m| m.id() == id).unwrap_or_default()
+    /// The mode name (spec §3.6.1): what tools, settings and the public API use. Upper-case snake
+    /// case; the first three keep their one-letter names.
+    pub fn code(self) -> &'static str {
+        match self {
+            Mode::A => "A",
+            Mode::B => "B",
+            Mode::C => "C",
+        }
     }
 
-    /// The name shells show (a settings menu, the playground).
+    /// The display name shells show (a settings menu, the playground).
     pub fn name(self) -> &'static str {
         match self {
             Mode::A => "JIS Korean Original Layout",
