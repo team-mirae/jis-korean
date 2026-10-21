@@ -94,6 +94,8 @@ pub struct Mods {
     pub ctrl: bool,
     pub alt: bool,
     pub meta: bool,
+    /// An auto-repeat of a held key. Only JIS English reads it (spec §3.6.3).
+    pub repeat: bool,
 }
 
 impl Mods {
@@ -101,9 +103,11 @@ impl Mods {
     pub const CTRL: u32 = 2;
     pub const ALT: u32 = 4;
     pub const META: u32 = 8;
+    /// The key is held and this event is the keyboard's auto-repeat (press and hold, spec §3.6.3).
+    pub const REPEAT: u32 = 16;
 
-    pub const NONE: Mods = Mods { shift: false, ctrl: false, alt: false, meta: false };
-    pub const SHIFTED: Mods = Mods { shift: true, ctrl: false, alt: false, meta: false };
+    pub const NONE: Mods = Mods { shift: false, ctrl: false, alt: false, meta: false, repeat: false };
+    pub const SHIFTED: Mods = Mods { shift: true, ctrl: false, alt: false, meta: false, repeat: false };
 
     pub fn from_bits(bits: u32) -> Mods {
         Mods {
@@ -111,6 +115,7 @@ impl Mods {
             ctrl: bits & Self::CTRL != 0,
             alt: bits & Self::ALT != 0,
             meta: bits & Self::META != 0,
+            repeat: bits & Self::REPEAT != 0,
         }
     }
 

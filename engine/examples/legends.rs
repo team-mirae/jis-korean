@@ -14,7 +14,7 @@ fn main() {
     };
     for (id, &key) in Key::ALL.iter().enumerate() {
         let legend = |shift: bool| {
-            if key == Key::KeyZ && shift {
+            if key == Key::KeyZ && shift && mode.is_korean() {
                 // Shift+Z is F10 (spec §6), not a character.
                 return "F10".to_string();
             }

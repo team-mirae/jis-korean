@@ -7,6 +7,8 @@ mod engine;
 pub mod ffi;
 mod hangul;
 mod hanja;
+#[cfg(feature = "english")]
+mod hold;
 mod key;
 mod layout;
 pub mod plan;

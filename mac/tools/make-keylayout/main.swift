@@ -4,20 +4,23 @@
 // id). Every other layer, and every key the engine doesn't label, is ABC's on the mode's keyboard
 // (JIS, ANSI or ISO), read from this Mac: Cmd and Ctrl shortcuts and Option characters stay exactly as
 // they are.
-// Usage: make-keylayout <legends.tsv> <out.keylayout> <name> <JIS|ANSI|ISO> <id>   (built by the Makefile
-// with KeyMap.swift and the engine header; name and id must be unique among the bundle's layouts)
+// Usage: make-keylayout <legends.tsv> <out.keylayout> <name> <JIS|ANSI|ISO> <id> [caps]   (built by the
+// Makefile with KeyMap.swift and the engine header; name and id must be unique among the bundle's
+// layouts). `caps`: Caps Lock types the letters upper-case, for an English mode (JIS English); the
+// Korean modes leave it out, so Caps Lock changes nothing there.
 
 import Carbon
 import Foundation
 
 let arguments = CommandLine.arguments
-guard arguments.count == 6, let tsv = try? String(contentsOfFile: arguments[1], encoding: .utf8),
+guard [6, 7].contains(arguments.count), arguments.count == 6 || arguments[6] == "caps", let tsv = try? String(contentsOfFile: arguments[1], encoding: .utf8),
       ["JIS", "ANSI", "ISO"].contains(arguments[4]), let layoutID = Int(arguments[5])
 else {
-    FileHandle.standardError.write("usage: make-keylayout <legends.tsv> <out.keylayout> <name> <JIS|ANSI|ISO> <id>\n".data(using: .utf8)!)
+    FileHandle.standardError.write("usage: make-keylayout <legends.tsv> <out.keylayout> <name> <JIS|ANSI|ISO> <id> [caps]\n".data(using: .utf8)!)
     exit(2)
 }
 let (name, board) = (arguments[3], arguments[4])
+let caps = arguments.count == 7
 
 // key id → (unshifted, shifted)
 var legends: [UInt32: (String, String)] = [:]
@@ -57,8 +60,15 @@ func escaped(_ s: String) -> String {
     }.joined()
 }
 
-// Layers in modifierMap order: plain, Shift, Option, Shift+Option, Cmd, Ctrl.
-let layers = [0, shiftKey, optionKey, shiftKey | optionKey, cmdKey, controlKey]
+// Layers in modifierMap order: plain, Shift, Option, Shift+Option, Cmd, Ctrl, and with `caps`, Caps Lock
+// (the plain layer with its letters upper-case).
+var layers = [0, shiftKey, optionKey, shiftKey | optionKey, cmdKey, controlKey]
+if caps {
+    layers.append(alphaLock)
+}
+// The plain layer's select: with `caps` it no longer takes Caps Lock, which has its own.
+let plain = caps ? "" : "caps?"
+let capsSelect = caps ? "\n    <keyMapSelect mapIndex=\"6\"><modifier keys=\"caps\"/></keyMapSelect>" : ""
 var xml = """
 <?xml version="1.1" encoding="UTF-8"?>
 <!DOCTYPE keyboard SYSTEM "file://localhost/System/Library/DTDs/KeyboardLayout.dtd">
@@ -68,12 +78,12 @@ var xml = """
     <layout first="0" last="255" mapSet="\(board)" modifiers="Modifiers"/>
   </layouts>
   <modifierMap id="Modifiers" defaultIndex="0">
-    <keyMapSelect mapIndex="0"><modifier keys="caps?"/></keyMapSelect>
+    <keyMapSelect mapIndex="0"><modifier keys="\(plain)"/></keyMapSelect>
     <keyMapSelect mapIndex="1"><modifier keys="anyShift caps?"/></keyMapSelect>
     <keyMapSelect mapIndex="2"><modifier keys="anyOption caps?"/></keyMapSelect>
     <keyMapSelect mapIndex="3"><modifier keys="anyShift anyOption caps?"/></keyMapSelect>
     <keyMapSelect mapIndex="4"><modifier keys="command anyShift? anyOption? caps? anyControl?"/></keyMapSelect>
-    <keyMapSelect mapIndex="5"><modifier keys="anyControl anyShift? anyOption? caps?"/></keyMapSelect>
+    <keyMapSelect mapIndex="5"><modifier keys="anyControl anyShift? anyOption? caps?"/></keyMapSelect>\(capsSelect)
   </modifierMap>
   <keyMapSet id="\(board)">
 
@@ -82,8 +92,11 @@ for (index, modifiers) in layers.enumerated() {
     xml += "    <keyMap index=\"\(index)\">\n"
     for code in 0..<128 {
         var out = abcOutput(code, modifiers)
-        if index < 2, let id = (board == "ISO" ? isoKeyMap : keyMap)[code], let legend = legends[id] {
-            out = index == 0 ? legend.0 : legend.1
+        if index < 2 || index == 6, let id = (board == "ISO" ? isoKeyMap : keyMap)[code], let legend = legends[id] {
+            out = index == 1 ? legend.1 : legend.0
+            if index == 6, out.count == 1, out.first!.isASCII, out.first!.isLetter {
+                out = out.uppercased()
+            }
         }
         if !out.isEmpty {
             xml += "      <key code=\"\(code)\" output=\"\(escaped(out))\"/>\n"

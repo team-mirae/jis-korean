@@ -4,6 +4,11 @@ import InputMethodKit
 private let enterCommitsDefault = "EnterCommits"
 /// Dedicated symbol keys (spec §3.6): Mode C's [ ] and ISO extra key. On by default.
 private let symbolKeysDefault = "DedicatedSymbolKeys"
+#if ENGLISH
+/// The Switch Key (spec §8.2.1): a virtual key code that toggles between JIS English and the last
+/// Korean mode. Unset: none.
+private let switchKeyDefault = "SwitchKey"
+#endif
 #if PREDICT
 private let predictionsDefault = "Predictions"
 /// Learning from the user's choices (spec §10.11): opt-in, stays on this Mac.
@@ -20,6 +25,9 @@ final class JKInputController: IMKInputController {
     /// This controller's engine. The public API resolves keys on a copy of it (spec §8.3).
     let engine = jk_new()
     private var hasMarkedText = false
+    /// Characters before the insertion point the next marked text replaces (`jk_take_back`): the
+    /// letter JIS English's press and hold takes back into its list (spec §3.6.3).
+    private var takeBack = 0
     /// The controller JIS Korean was last activated in: the focused app's, while JIS Korean is the
     /// input source. The public API answers for it.
     private(set) static weak var focused: JKInputController?
@@ -57,6 +65,11 @@ final class JKInputController: IMKInputController {
 
     override func handle(_ event: NSEvent!, client sender: Any!) -> Bool {
         guard let event, event.type == .keyDown, let client = sender as? IMKTextInput else { return false }
+        #if ENGLISH
+        if let handled = handleSwitchKey(event, client) {
+            return handled
+        }
+        #endif
         #if PREDICT
         if let handled = handleList(event, client) {
             return handled
@@ -71,7 +84,9 @@ final class JKInputController: IMKInputController {
         }
         chosen = nil
         #endif
-        let consumed = jk_key(engine, engineKey(event.keyCode), modifiers(event.modifierFlags))
+        // The auto-repeat of a held key: JIS English's press and hold reads it (spec §3.6.3).
+        let repeating = event.isARepeat ? UInt32(JK_MOD_REPEAT) : 0
+        let consumed = jk_key(engine, engineKey(event.keyCode), modifiers(event.modifierFlags) | repeating)
         apply(to: client)
         #if PREDICT
         saveLearned()
@@ -186,12 +201,68 @@ final class JKInputController: IMKInputController {
             symbols.state = UserDefaults.standard.bool(forKey: symbolKeysDefault) ? .on : .off
             menu.addItem(symbols)
         }
+        #if ENGLISH
+        // The Switch Key (spec §8.2.1); any other key code can be set with
+        // `defaults write me.sjun.inputmethod.JISKorean SwitchKey -int <code>`.
+        let switching = NSMenuItem(title: "Switch Key (JIS English ↔ Korean)", action: nil, keyEquivalent: "")
+        let keys = NSMenu()
+        let current = UserDefaults.standard.object(forKey: switchKeyDefault) as? Int ?? -1
+        for (title, code) in [("None", -1), ("F13", kVK_F13), ("F14", kVK_F14), ("F15", kVK_F15), ("F16", kVK_F16),
+                              ("F17", kVK_F17), ("F18", kVK_F18), ("F19", kVK_F19)] {
+            let key = NSMenuItem(title: title, action: #selector(setSwitchKey(_:)), keyEquivalent: "")
+            key.tag = code
+            key.state = code == current ? .on : .off
+            keys.addItem(key)
+        }
+        switching.submenu = keys
+        menu.addItem(switching)
+        #endif
         // The public API's one setting (spec §8.2): reading the mode is always open, changing it isn't.
         let allow = NSMenuItem(title: "Let Other Apps Change the Mode", action: #selector(toggleAllowModeChange(_:)), keyEquivalent: "")
         allow.state = PublicAPI.allowed ? .on : .off
         menu.addItem(allow)
         return menu
     }
+
+    #if ENGLISH
+    @objc func setSwitchKey(_ sender: Any?) {
+        guard let code = (sender as? NSMenuItem)?.tag else { return }
+        if code < 0 {
+            UserDefaults.standard.removeObject(forKey: switchKeyDefault)
+        } else {
+            UserDefaults.standard.set(code, forKey: switchKeyDefault)
+        }
+    }
+
+    /// 英数, かな and the Switch Key (spec §8.2.1): switch between JIS English and the last Korean
+    /// mode, inside this input method. Nil: not a switch key here, or the mode to switch to isn't
+    /// added in System Settings (then the key goes on as usual, and macOS may act on it).
+    private func handleSwitchKey(_ event: NSEvent, _ client: IMKTextInput) -> Bool? {
+        guard let english = InputModes.english.first,
+              modifiers(event.modifierFlags) & UInt32(JK_MOD_CTRL | JK_MOD_ALT | JK_MOD_META) == 0
+        else { return nil }
+        let code = Int(event.keyCode)
+        let inEnglish = !InputModes.current.korean
+        let target: InputModes.Mode
+        if code == UserDefaults.standard.object(forKey: switchKeyDefault) as? Int {
+            target = inEnglish ? InputModes.lastKorean : english
+        } else if code == kVK_JIS_Kana && inEnglish {
+            target = InputModes.lastKorean
+        } else if code == kVK_JIS_Eisu {
+            // Already English: nothing to do, and ABC isn't wanted.
+            if inEnglish { return true }
+            target = english
+        } else {
+            return nil
+        }
+        guard InputModes.isEnabled(target) else { return nil }
+        if !event.isARepeat {
+            flush(client)
+            InputModes.select(target)
+        }
+        return true
+    }
+    #endif
 
     @objc func toggleAllowModeChange(_ sender: Any?) {
         UserDefaults.standard.set(!PublicAPI.allowed, forKey: PublicAPI.allowKey)
@@ -359,6 +430,7 @@ final class JKInputController: IMKInputController {
             client.insertText(commit, replacementRange: NSRange(location: NSNotFound, length: NSNotFound))
             hasMarkedText = false
         }
+        takeBack = jk_take_back(engine)
         #if PREDICT
         predictions = []
         let preedit = text(jk_preedit_ptr(engine), jk_preedit_len(engine))
@@ -394,7 +466,17 @@ final class JKInputController: IMKInputController {
                 .markedClauseSegment: 0,
             ])
             let caret = NSRange(location: preedit.utf16.count, length: 0)
-            client.setMarkedText(marked, selectionRange: caret, replacementRange: notFound)
+            // Taking back characters already typed: the marked text replaces them. They're single
+            // Latin letters (one UTF-16 unit each), so the count is the range's length.
+            var replacement = notFound
+            if takeBack > 0 {
+                let selection = client.selectedRange()
+                if selection.location != NSNotFound && selection.location >= takeBack {
+                    replacement = NSRange(location: selection.location - takeBack, length: takeBack)
+                }
+                takeBack = 0
+            }
+            client.setMarkedText(marked, selectionRange: caret, replacementRange: replacement)
             hasMarkedText = true
         } else if hasMarkedText {
             client.setMarkedText("", selectionRange: NSRange(location: 0, length: 0), replacementRange: notFound)

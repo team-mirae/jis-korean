@@ -12,20 +12,58 @@ enum InputModes {
     struct Mode {
         /// The engine's mode id (`jk_set_mode`), stable across releases.
         let id: UInt32
-        /// "A", "B", …: what the spec and the public API call it.
+        /// The mode name (spec §3.6.1), "A", "B", "A_QWERTY": what the spec and the public API call it.
         let letter: String
         /// The input source ID (Info.plist ComponentInputModeDict). Never rename one: users' tools
         /// select it by this ID.
         let sourceID: String
         /// The Keyboard Viewer layout bundled for it (spec §8.1).
         let keyboardViewerLayout: String
+        /// Whether it types Korean. JIS English doesn't (spec §3.6.2).
+        var korean = true
     }
 
     static let all = [
         Mode(id: 0, letter: "A", sourceID: "me.sjun.inputmethod.JISKorean.2Set", keyboardViewerLayout: "JISKorean"),
         Mode(id: 1, letter: "B", sourceID: "me.sjun.inputmethod.JISKorean.2SetANSI", keyboardViewerLayout: "JISKoreanANSI"),
         Mode(id: 2, letter: "C", sourceID: "me.sjun.inputmethod.JISKorean.2SetISO", keyboardViewerLayout: "JISKoreanISO"),
+    ] + english
+
+    #if ENGLISH
+    /// JIS English (spec §3.6.2): the English input mode, built with `make ENGLISH=1`.
+    static let english = [
+        Mode(id: 3, letter: "A_QWERTY", sourceID: "me.sjun.inputmethod.JISKorean.A_QWERTY",
+             keyboardViewerLayout: "JISEnglish", korean: false),
     ]
+    #else
+    static let english: [Mode] = []
+    #endif
+
+    /// The Korean mode used last, which かな and the Switch Key go back to from JIS English (spec
+    /// §8.2.1).
+    static var lastKorean: Mode {
+        UserDefaults.standard.string(forKey: lastKoreanKey).flatMap(mode(sourceID:)).flatMap { $0.korean ? $0 : nil }
+            ?? defaultMode
+    }
+
+    private static let lastKoreanKey = "LastKoreanMode"
+
+    /// Selects a mode's input source, as the input menu would: `noErr`, `paramErr` if it isn't added
+    /// in System Settings, or macOS's own error.
+    @discardableResult
+    static func select(_ mode: Mode) -> OSStatus {
+        let query = [kTISPropertyInputSourceID as String: mode.sourceID] as CFDictionary
+        guard let source = (TISCreateInputSourceList(query, false)?.takeRetainedValue() as? [TISInputSource])?.first else {
+            return OSStatus(paramErr)
+        }
+        return TISSelectInputSource(source)
+    }
+
+    /// Whether a mode's input source is added in System Settings.
+    static func isEnabled(_ mode: Mode) -> Bool {
+        let query = [kTISPropertyInputSourceID as String: mode.sourceID] as CFDictionary
+        return (TISCreateInputSourceList(query, false)?.takeRetainedValue() as? [TISInputSource])?.isEmpty == false
+    }
 
     static let defaultMode = all[0]
 
@@ -58,6 +96,9 @@ enum InputModes {
     static func becameCurrent(_ mode: Mode) {
         let changed = mode.sourceID != current.sourceID || UserDefaults.standard.string(forKey: PublicAPI.currentModeKey) != mode.letter
         current = mode
+        if mode.korean {
+            UserDefaults.standard.set(mode.sourceID, forKey: lastKoreanKey)
+        }
         if changed {
             PublicAPI.publish(mode)
         }
@@ -138,13 +179,12 @@ enum PublicAPI {
             return refuse("Other apps may not change the mode: turn on “Let Other Apps Change the Mode” in the JIS Korean input menu.", requested)
         }
         guard let requested, let mode = InputModes.mode(named: requested) else {
-            return refuse("Unknown mode. Use A, B, an engine mode id, or an input source ID.", requested)
+            return refuse("Unknown mode. Use a mode name (A, B, C), an engine mode id, or an input source ID.", requested)
         }
-        let query = [kTISPropertyInputSourceID as String: mode.sourceID] as CFDictionary
-        guard let source = (TISCreateInputSourceList(query, false)?.takeRetainedValue() as? [TISInputSource])?.first else {
+        guard InputModes.isEnabled(mode) else {
             return refuse("\(InputModes.name(mode)) isn't added in System Settings → Keyboard → Input Sources.", requested)
         }
-        let status = TISSelectInputSource(source)
+        let status = InputModes.select(mode)
         guard status == noErr else { return refuse("Selecting the input source failed (\(status)).", requested) }
         InputModes.becameCurrent(mode)
         // Answer even when nothing changed, so the caller always hears back.

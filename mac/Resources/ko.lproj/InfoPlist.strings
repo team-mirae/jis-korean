@@ -1,4 +1,6 @@
-/* Input mode names (Info.plist ComponentInputModeDict): Modes A, B and C (spec §3.6). */
+/* Input mode names (Info.plist ComponentInputModeDict): Modes A, B and C, and JIS English
+   (A_QWERTY, built with ENGLISH=1; spec §3.6). */
 "me.sjun.inputmethod.JISKorean.2Set" = "JIS Korean";
 "me.sjun.inputmethod.JISKorean.2SetANSI" = "JIS Korean for US ANSI";
 "me.sjun.inputmethod.JISKorean.2SetISO" = "JIS Korean for UK ISO";
+"me.sjun.inputmethod.JISKorean.A_QWERTY" = "JIS English";

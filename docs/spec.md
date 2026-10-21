@@ -265,15 +265,56 @@ symbols, on any keyboard (Shift+2 is `"`, the key right of P is `@`, `IntlYen` i
 `\`). It's the Mac's ABC for JIS Korean users: an English input source in the same input method as
 the Korean modes, so switching between them never leaves JIS Korean (§8.2.1).
 
-It isn't a 2-set mode (nor are ids 4–8): none of §3.1–3.5 or §4 onward applies. The engine consumes no
-key in it (every key goes to the app, typed by the mode's keyboard layout, §8.1), composes nothing,
-and offers no predictions, hanja or F6–F10. The core principle (§1) is about the Korean modes and
+It isn't a 2-set mode (nor are ids 4–8): none of §3.1–3.5 or §4 onward applies. It behaves like
+the Japanese input method's Romaji mode without its Japanese conversions: the engine consumes no key
+(every key goes to the app, typed by the mode's keyboard layout, §8.1), composes nothing, and offers
+no predictions, hanja or F6–F10; Shift+Z is Z. Caps Lock types capitals. The one thing it adds is
+press and hold (§3.6.3). Switching in commits whatever a Korean mode left unconfirmed. The core principle (§1) is about the Korean modes and
 is unaffected. The engine still names the layout: its key table is the JIS stock table (Mode A's
 stock keyboard), which the macOS keyboard layout is generated from, so the symbols can't drift from
 Mode A's F8 escape.
 
-It's **optional**: built only on request (`make ENGLISH=1` on macOS), so a default build has the
-Korean modes only. Its id and name are reserved either way.
+It's **optional**: built only on request (the engine's `english` feature; `make ENGLISH=1` on macOS),
+so a default build has the Korean modes only. Its id and name are reserved either way.
+
+#### 3.6.3 Press and hold (JIS English)
+
+Holding a letter key offers its accented and other variants, as macOS does for its English layouts
+(which it does only for plain keyboard layouts, never inside an input method, so JIS English has its
+own). The letter is typed as usual; its first auto-repeat (`JK_MOD_REPEAT`) opens the list instead
+of repeating it. The letter already typed is taken back into the preedit (`take_back`: 1), and the
+list shows its variants, none selected:
+
+| Letter | Variants (1, 2, …) | With Shift |
+|---|---|---|
+| a | à á â ä æ ã å ā | À Á Â Ä Æ Ã Å Ā |
+| c | ç ć č | Ç Ć Č |
+| e | è é ê ë ē ė ę | È É Ê Ë Ē Ė Ę |
+| i | î ï í ī į ì | Î Ï Í Ī Į Ì |
+| l | ł | Ł |
+| n | ñ ń | Ñ Ń |
+| o | ô ö ò ó œ ø ō õ | Ô Ö Ò Ó Œ Ø Ō Õ |
+| s | ß ś š | Ś Š |
+| u | û ü ù ú ū | Û Ü Ù Ú Ū |
+| y | ÿ | Ÿ |
+| z | ž ź ż | Ž Ź Ż |
+
+While the list is open:
+
+- **1–9** pick that variant. A digit past the list keeps the letter and is typed after it.
+- **The arrows** choose (the preedit shows the choice); from none, → and ↓ go to the first, ← and ↑
+  to the last, wrapping. **Enter** commits the choice; with none chosen it keeps the letter and
+  goes on to the app.
+- **Esc** keeps the letter. **Backspace** removes it.
+- **The held key's own repeats** do nothing more.
+- **Any other key** (Space, a letter, a shortcut) keeps what shows, the choice or the letter, and
+  goes on to the app.
+
+Other keys repeat as usual: a key without variants, a repeat whose key or Shift differs from the
+press before it, and anything with Ctrl, Option or Cmd. The Korean modes ignore `JK_MOD_REPEAT`.
+
+Examples (key codes; `…` is the key's auto-repeat): `KeyU KeyU… Digit2` → ü; `S-KeyU S-KeyU… Digit2`
+→ Ü; `KeyE KeyE… ArrowLeft Enter` → ę; `KeyA KeyA… KeyB` → ab; `KeyO KeyO… Backspace` → nothing.
 
 Examples: `KeyG KeyK KeyS` → `gks`; `S-Digit2` → `"`; `BracketLeft` → `@`; `IntlYen` → `¥`.
 
@@ -935,7 +976,10 @@ idea is an input mode, JIS English (`A_QWERTY`, §3.6.2), instead of a hidden on
 - **Switching back.** In JIS English, JIS Korean is still the selected input method, so it still
   sees every key. かな selects the last Korean mode used. A setting, **Switch Key**, adds one more key
   that toggles between JIS English and the last Korean mode, in both directions: any key the shell
-  can see, such as F18 sent from another key by Karabiner. Default: none. The switch key is
+  can see, such as F18 sent from another key by Karabiner. Default: none. The input menu offers F13
+  to F19 (Switch Key (JIS English ↔ Korean)); any other key code is set with `defaults write
+  me.sjun.inputmethod.JISKorean SwitchKey -int <code>`. 英数, かな and the Switch Key only act when
+  the mode they'd select is added in System Settings; otherwise they go on as usual. The switch key is
   consumed (it never reaches the app); 英数 and かな reach JIS Korean only if macOS passes them on,
   and are left to macOS when it doesn't. Switching commits what's unconfirmed first (§5.1).
 - These keys are the shell's, like Ctrl+Space: they select input modes and never reach the engine.

@@ -93,6 +93,7 @@ enum {
     JK_MOD_CTRL = 2,
     JK_MOD_ALT = 4,  /* Alt / Option */
     JK_MOD_META = 8, /* Cmd / Win */
+    JK_MOD_REPEAT = 16, /* the key's auto-repeat while held (JIS English's press and hold) */
 };
 
 JkEngine *jk_new(void);
@@ -128,6 +129,10 @@ const uint8_t *jk_commit_ptr(JkEngine *engine);
 size_t jk_commit_len(JkEngine *engine);
 const uint8_t *jk_preedit_ptr(JkEngine *engine);
 size_t jk_preedit_len(JkEngine *engine);
+/* How many characters just before the insertion point the preedit takes back: remove them from the
+ * document and show the preedit in their place (1 when JIS English opens a press-and-hold list on
+ * the letter just typed; otherwise 0). */
+size_t jk_take_back(JkEngine *engine);
 
 uint32_t jk_key_count(void);
 const uint8_t *jk_key_code_ptr(uint32_t key);
@@ -159,7 +164,8 @@ void jk_dict_free(JkDict *dict);
 void jk_set_dictionary(JkEngine *engine, const JkDict *dict);
 
 /* The open candidate list on the last result. Count 0 = no list. Show a page of
- * jk_candidate_page_size() around the selected one; keys 1-9 pick on that page. */
+ * jk_candidate_page_size() around the selected one; keys 1-9 pick on that page. A selected index
+ * equal to the count means none is selected (JIS English's press-and-hold list, spec §3.6.3). */
 size_t jk_candidate_count(JkEngine *engine);
 size_t jk_candidate_selected(JkEngine *engine);
 size_t jk_candidate_page_size(void);

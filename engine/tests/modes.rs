@@ -19,7 +19,9 @@ fn ids_are_unique_and_round_trip() {
         );
         assert!(!mode.name().is_empty());
     }
-    for id in [3, 9, 31, 99, 10_000, u32::MAX] {
+    #[cfg(not(feature = "english"))]
+    assert_eq!(Mode::from_id(3), None, "JIS English is built only with the english feature");
+    for id in [4, 9, 31, 99, 10_000, u32::MAX] {
         assert_eq!(Mode::from_id(id), None, "id {id} has no mode in this build: it's refused, not replaced");
     }
     assert_eq!(Mode::default(), Mode::A);
@@ -58,7 +60,7 @@ fn mode_c_is_the_iso_mode() {
 
 #[test]
 fn every_mode_keeps_standard_two_set_on_the_letter_keys() {
-    for &mode in Mode::ALL {
+    for &mode in Mode::ALL.iter().filter(|m| m.is_korean()) {
         for layout in [Layout::JisKorean, Layout::Escaped] {
             for key in letter_keys() {
                 for shift in [false, true] {
@@ -71,7 +73,7 @@ fn every_mode_keeps_standard_two_set_on_the_letter_keys() {
 
 #[test]
 fn every_mode_keeps_standard_two_set_with_its_symbol_keys_off() {
-    for &mode in Mode::ALL {
+    for &mode in Mode::ALL.iter().filter(|m| m.is_korean()) {
         for key in letter_keys() {
             for shift in [false, true] {
                 assert_eq!(output_with(mode, false, Layout::JisKorean, key, shift), output_in(Mode::A, Layout::JisKorean, key, shift), "{mode:?} {key:?}");
@@ -82,7 +84,7 @@ fn every_mode_keeps_standard_two_set_with_its_symbol_keys_off() {
 
 #[test]
 fn optional_keys_type_stock_when_off_and_nothing_else_changes() {
-    for &mode in Mode::ALL {
+    for &mode in Mode::ALL.iter().filter(|m| m.is_korean()) {
         for &key in Key::ALL {
             for shift in [false, true] {
                 let off = output_with(mode, false, Layout::JisKorean, key, shift);
@@ -278,11 +280,11 @@ fn c_abi_lists_modes_by_position_and_refuses_unknown_ids() {
     assert_eq!((jk_mode_name_len(9_999), jk_mode_code_len(9_999)), (0, 0));
     let id = |key: Key| Key::ALL.iter().position(|&k| k == key).unwrap() as u32;
     assert_ne!(jk_legend_in(id(Key::Digit1), 0, 0, 1), 0);
-    assert_eq!(jk_legend_in(id(Key::Digit1), 0, 0, 3), 0);
+    assert_eq!(jk_legend_in(id(Key::Digit1), 0, 0, 4), 0);
 
     let engine = jk_new();
     assert_eq!(jk_set_mode(engine, 1), 1);
-    assert_eq!(jk_set_mode(engine, 3), 0, "no mode 3 in this build");
+    assert_eq!(jk_set_mode(engine, 4), 0, "no mode 4 in this build");
     // Still Mode B: Shift+[ is 「 there.
     jk_key(engine, id(Key::BracketLeft), Mods::SHIFT);
     assert_eq!(unsafe { std::slice::from_raw_parts(jk_preedit_ptr(engine), jk_preedit_len(engine)) }, "「".as_bytes());

@@ -52,11 +52,20 @@ pub enum Mode {
     /// Mode C, for UK ISO keyboards: Mode B's pattern on UK symbols, plus the ISO extra key
     /// between left Shift and Z. Its symbol keys are optional ([`Mode::optional_keys`]).
     C = 2,
+    /// `A_QWERTY`, JIS English (spec §3.6.2): not 2-set. Standard JIS QWERTY with JIS symbols on
+    /// any keyboard; every key goes to the app, and holding a letter offers its accented variants
+    /// (spec §3.6.3). Built with the `english` feature.
+    #[cfg(feature = "english")]
+    AQwerty = 3,
 }
 
 impl Mode {
     /// Every mode this build has, in the order menus list them. Not indexed by id.
+    #[cfg(not(feature = "english"))]
     pub const ALL: &'static [Mode] = &[Mode::A, Mode::B, Mode::C];
+    /// Every mode this build has, in the order menus list them. Not indexed by id.
+    #[cfg(feature = "english")]
+    pub const ALL: &'static [Mode] = &[Mode::A, Mode::B, Mode::C, Mode::AQwerty];
 
     /// The stable id over the C ABI and in saved settings (spec §3.6.1). Never reuse or renumber
     /// one.
@@ -71,6 +80,8 @@ impl Mode {
             0 => Some(Mode::A),
             1 => Some(Mode::B),
             2 => Some(Mode::C),
+            #[cfg(feature = "english")]
+            3 => Some(Mode::AQwerty),
             _ => None,
         }
     }
@@ -82,6 +93,18 @@ impl Mode {
             Mode::A => "A",
             Mode::B => "B",
             Mode::C => "C",
+            #[cfg(feature = "english")]
+            Mode::AQwerty => "A_QWERTY",
+        }
+    }
+
+    /// Whether the mode types Korean (2-set). Everything about Korean, the core principle included,
+    /// is about these modes; JIS English isn't one (spec §3.6.2).
+    pub fn is_korean(self) -> bool {
+        match self {
+            Mode::A | Mode::B | Mode::C => true,
+            #[cfg(feature = "english")]
+            Mode::AQwerty => false,
         }
     }
 
@@ -91,6 +114,8 @@ impl Mode {
             Mode::A => "JIS Korean Original Layout",
             Mode::B => "JIS Korean for US ANSI",
             Mode::C => "JIS Korean for UK ISO",
+            #[cfg(feature = "english")]
+            Mode::AQwerty => "JIS English",
         }
     }
 
@@ -100,6 +125,8 @@ impl Mode {
     pub fn optional_keys(self) -> &'static [Key] {
         match self {
             Mode::A | Mode::B => &[],
+            #[cfg(feature = "english")]
+            Mode::AQwerty => &[],
             Mode::C => &[Key::BracketLeft, Key::BracketRight, Key::IntlBackslash],
         }
     }
@@ -114,6 +141,9 @@ impl Mode {
             Mode::A => jis_korean(key),
             Mode::B => ansi_korean(key),
             Mode::C => iso_korean(key),
+            // Not Korean: the JIS symbols as they are.
+            #[cfg(feature = "english")]
+            Mode::AQwerty => self.stock(key).map(|(base, shifted)| (Out::Char(base), Out::Char(shifted))),
         }
     }
 
@@ -125,6 +155,8 @@ impl Mode {
             Mode::A => stock_jis(key),
             Mode::B => stock_us(key),
             Mode::C => stock_uk(key),
+            #[cfg(feature = "english")]
+            Mode::AQwerty => stock_jis(key),
         }
     }
 }
@@ -142,7 +174,12 @@ pub fn output_in(mode: Mode, layout: Layout, key: Key, shift: bool) -> Option<Ou
 /// What `key` types in `layout` in `mode`, with the Dedicated symbol keys setting `symbols`
 /// (spec §3.6; only modes with [`Mode::optional_keys`] read it).
 pub fn output_with(mode: Mode, symbols: bool, layout: Layout, key: Key, shift: bool) -> Option<Out> {
-    if let Some((base, shifted)) = two_set(key) {
+    if !mode.is_korean() {
+        // JIS English: the Latin letters, upper-case with Shift.
+        if let Some(letter) = key.letter() {
+            return Some(Out::Char(if shift { letter.to_ascii_uppercase() } else { letter }));
+        }
+    } else if let Some((base, shifted)) = two_set(key) {
         return Some(Out::Jamo(if shift { shifted } else { base }));
     }
     let (base, shifted) = match layout {

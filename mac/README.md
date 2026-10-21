@@ -9,7 +9,8 @@ Built without Xcode: the Command Line Tools are enough.
 ```sh
 make                 # build/full/JISKorean.app, universal (arm64 + x86_64), with predictions
 make PREDICT=0       # build/lite/JISKorean.app: the predictive layer stripped out entirely
-make install         # copy to ~/Library/Input Methods, register it, restart it (PREDICT=0 works too)
+make ENGLISH=1       # build/full-english/JISKorean.app: adds JIS English (works with PREDICT=0 too)
+make install         # copy to ~/Library/Input Methods, register it, restart it (PREDICT=0 and ENGLISH=1 work too)
 make uninstall
 make dist            # build/<variant>/JISKorean-<version>[-lite].zip
 ```
@@ -85,6 +86,24 @@ with that app's mode and predictions:
 As notifications: post `me.sjun.inputmethod.JISKorean.ResolveKeyCodeInput` (`keyCode`, optional
 `context`) or `…ResolveKeyCodeFromOutput` (`text`, `minKeypressCount`, `maxKeypressCount`) with a
 `requestID`; the answer comes as the same name + `Result`, with the same `requestID`.
+
+## JIS English (spec §3.6.2, §8.2.1)
+
+`make ENGLISH=1` adds **JIS English** (mode `A_QWERTY`): an English input mode of JIS Korean, listed
+under English in System Settings → Keyboard → Input Sources (log out and back in after the first
+install, as for any new mode). It types JIS QWERTY with JIS symbols on any keyboard, like the
+Japanese Romaji mode without its conversions, and holding a letter offers its accented variants
+(u → ü, spec §3.6.3).
+
+Switching stays inside JIS Korean: 英数 selects JIS English, かな goes back to the last Korean mode,
+and the input menu's **Switch Key (JIS English ↔ Korean)** adds a toggle key (F13–F19, or any key
+code with `defaults write me.sjun.inputmethod.JISKorean SwitchKey -int <code>`), for example F18
+sent by Karabiner. `tools/add-english-mode.sh` adds the mode to the built bundle's Info.plist; the
+checked-in Info.plist has the Korean modes only.
+
+Still to check on a real install: that macOS sends 英数 and かな to the input method rather than
+switching to ABC itself, that System Settings lists the mode under English, and whether macOS counts
+it as ASCII-capable so ABC can be removed (spec §8.2.1).
 
 ## Files
 

@@ -210,7 +210,8 @@ fn the_pangram_covers_every_jamo() {
 
 #[test]
 fn the_pangram_types_conventionally_in_every_mode() {
-    for &mode in Mode::ALL {
+    // Every Korean mode: JIS English (spec §3.6.2) types English, not 2-set.
+    for &mode in Mode::ALL.iter().filter(|m| m.is_korean()) {
         for symbols in [true, false] {
             for style in [Style::Conventional, Style::ShiftHeldOnConsonants, Style::DedicatedKeys] {
                 let presses = text_presses(PANGRAM, mode, symbols, style);
@@ -222,7 +223,8 @@ fn the_pangram_types_conventionally_in_every_mode() {
 
 #[test]
 fn every_syllable_types_conventionally_in_every_mode() {
-    for &mode in Mode::ALL {
+    // Every Korean mode: JIS English (spec §3.6.2) types English, not 2-set.
+    for &mode in Mode::ALL.iter().filter(|m| m.is_korean()) {
         for symbols in [true, false] {
             for syllable in every_syllable() {
                 for style in [Style::Conventional, Style::ShiftHeldOnConsonants, Style::DedicatedKeys] {

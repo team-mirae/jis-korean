@@ -1,6 +1,8 @@
 # Builds JISKorean.app (universal arm64 + x86_64) without Xcode: Command Line Tools are enough.
 #   make                 build build/full/JISKorean.app (with the predictive layer)
 #   make PREDICT=0       build build/lite/JISKorean.app: the predictive layer stripped out entirely
+#   make ENGLISH=1       also JIS English (mode A_QWERTY, spec §3.6.2), an English input mode:
+#                        build/full-english/JISKorean.app (combines with PREDICT=0: lite-english)
 #   make install         copy it to ~/Library/Input Methods, register it, and restart it
 #   make dist            build/<variant>/JISKorean-<version>[-lite].zip for a release
 
@@ -16,6 +18,15 @@ else
   CARGO_FEATURES := --no-default-features
   SWIFT_DEFINES  :=
   DIST_SUFFIX    := -lite
+endif
+
+# 1: add JIS English (engine `english` feature, spec §3.6.2). 0: the Korean modes only.
+ENGLISH    ?= 0
+ifeq ($(ENGLISH),1)
+  VARIANT        := $(VARIANT)-english
+  CARGO_FEATURES += --features english
+  SWIFT_DEFINES  += -D ENGLISH
+  DIST_SUFFIX    := $(DIST_SUFFIX)-english
 endif
 
 ENGINE     := ../engine
@@ -67,6 +78,9 @@ $(BUILD)/JISKorean: $(BUILD)/arm64/JISKorean $(BUILD)/x86_64/JISKorean
 #     committed as 16 px and 32 px PNGs; each pair becomes one .tiff
 
 ICONS := $(BUILD)/taegeuk.tiff $(BUILD)/mode-a.tiff $(BUILD)/mode-b.tiff $(BUILD)/mode-iso.tiff
+ifeq ($(ENGLISH),1)
+  ICONS += $(BUILD)/mode-a-qwerty.tiff
+endif
 
 $(BUILD)/%.tiff: Resources/icons/%.png Resources/icons/%@2x.png
 	@mkdir -p $(BUILD)
@@ -78,7 +92,7 @@ $(BUILD)/%.tiff: Resources/icons/%.png Resources/icons/%@2x.png
 
 $(BUILD)/legends-%.tsv: $(wildcard $(ENGINE)/src/*.rs) $(ENGINE)/examples/legends.rs
 	@mkdir -p $(BUILD)
-	$(CARGO) run -q --manifest-path $(ENGINE)/Cargo.toml --example legends --target-dir $(TARGET_DIR) -- $* > $@
+	$(CARGO) run -q --manifest-path $(ENGINE)/Cargo.toml $(CARGO_FEATURES) --example legends --target-dir $(TARGET_DIR) -- $* > $@
 
 $(BUILD)/make-keylayout: tools/make-keylayout/main.swift Sources/KeyMap.swift $(HEADER)
 	@mkdir -p $(BUILD)
@@ -93,7 +107,14 @@ $(BUILD)/JISKoreanANSI.keylayout: $(BUILD)/make-keylayout $(BUILD)/legends-1.tsv
 $(BUILD)/JISKoreanISO.keylayout: $(BUILD)/make-keylayout $(BUILD)/legends-2.tsv
 	$(BUILD)/make-keylayout $(BUILD)/legends-2.tsv $@ JISKoreanISO ISO -23458
 
+# JIS English: JIS symbols on any keyboard, and Caps Lock types capitals.
+$(BUILD)/JISEnglish.keylayout: $(BUILD)/make-keylayout $(BUILD)/legends-3.tsv
+	$(BUILD)/make-keylayout $(BUILD)/legends-3.tsv $@ JISEnglish JIS -23459 caps
+
 KEYLAYOUTS := $(BUILD)/JISKorean.keylayout $(BUILD)/JISKoreanANSI.keylayout $(BUILD)/JISKoreanISO.keylayout
+ifeq ($(ENGLISH),1)
+  KEYLAYOUTS += $(BUILD)/JISEnglish.keylayout
+endif
 
 # An earlier build installed the layout as its own bundle here; install removes it.
 LAYOUTS_TO    := $(HOME)/Library/Keyboard Layouts
@@ -114,6 +135,11 @@ $(APP): $(BUILD)/JISKorean $(ICONS) Info.plist $(DICT)/hanja.tsv $(KEYLAYOUTS) \
 	cp $(ICONS) $@/Contents/Resources/
 	cp $(DICT)/hanja.tsv $(DICT)/LICENSE-libhangul-hanja.txt $(DICT)/LICENSE-unicode.txt $@/Contents/Resources/
 	cp $(KEYLAYOUTS) Resources/JISKoreanKeyboardLayouts-Info.plist $@/Contents/Resources/
+ifeq ($(ENGLISH),1)
+	@# JIS English (spec §3.6.2, §8.2.1): an English input mode of this input method, Roman script,
+	@# so System Settings lists it under English and 英数 can select it.
+	sh tools/add-english-mode.sh $@/Contents
+endif
 	cp -R Resources/en.lproj Resources/ko.lproj $@/Contents/Resources/
 ifeq ($(PREDICT),1)
 	mkdir -p $@/Contents/Resources/predict
@@ -135,7 +161,8 @@ install: $(APP)
 	rm -rf "$(LAYOUTS_TO)/JISKorean.bundle"
 	@# Only the installed copy may be known to LaunchServices: input methods are launched by bundle
 	@# id, and a build copy (or a deleted one) can be picked instead, so the input method never starts.
-	@for app in build/JISKorean.app build/full/JISKorean.app build/lite/JISKorean.app; do \
+	@for app in build/JISKorean.app build/full/JISKorean.app build/lite/JISKorean.app \
+		build/full-english/JISKorean.app build/lite-english/JISKorean.app; do \
 		$(LSREGISTER) -u "$(CURDIR)/$$app" 2>/dev/null || true; done
 	$(LSREGISTER) -f "$(INSTALL_TO)/JISKorean.app"
 	swift tools/register.swift "$(INSTALL_TO)/JISKorean.app"

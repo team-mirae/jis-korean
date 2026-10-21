@@ -81,7 +81,7 @@ swapped case needs one ISO user or one ISO keyboard to confirm.
 ## What every mode keeps
 
 These are shared by every Korean mode (JIS English, `A_QWERTY`, types English and keeps none of
-them), and a mode can't change them:
+them; it's built with the engine's `english` feature and tested in `tests/english.rs`), and a mode can't change them:
 
 - **Standard 2-set on the 26 letter keys**, Shift layer included (the core principle, spec §1).
 - **Shift+Z is F10**, and **F6–F10** work as spec §6 says.

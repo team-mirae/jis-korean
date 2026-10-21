@@ -75,6 +75,10 @@ pub struct Output {
     pub candidates: Option<Candidates>,
     /// The same keystrokes read as English on stock JIS (see [`Engine::english`]).
     pub english: String,
+    /// How many characters just before the insertion point the preedit takes back: they're removed
+    /// from the document and shown as the preedit instead. 1 when JIS English opens a press-and-hold
+    /// list on the letter already typed (spec §3.6.3); otherwise 0.
+    pub take_back: usize,
 }
 
 #[derive(Clone)]
@@ -89,6 +93,12 @@ pub struct Engine {
     symbols: bool,
     enter_commits: bool,
     dictionary: Option<Arc<Dictionary>>,
+    /// JIS English's press-and-hold list, while one is open (spec §3.6.3).
+    #[cfg(feature = "english")]
+    held: Option<crate::hold::Held>,
+    /// The letter key JIS English typed last (key, Shift), whose auto-repeat opens the list.
+    #[cfg(feature = "english")]
+    last_letter: Option<(Key, bool)>,
     /// The predictive layer; `None` is the deterministic lite engine.
     #[cfg(feature = "predict")]
     predictor: Option<Arc<Predictor>>,
@@ -138,6 +148,10 @@ impl Engine {
             symbols: true,
             enter_commits: false,
             dictionary: None,
+            #[cfg(feature = "english")]
+            held: None,
+            #[cfg(feature = "english")]
+            last_letter: None,
             #[cfg(feature = "predict")]
             predictor: None,
             #[cfg(feature = "predict")]
@@ -252,6 +266,11 @@ impl Engine {
     pub fn key(&mut self, key: Key, mods: Mods) -> Output {
         if key == Key::Modifier {
             return self.unchanged(false);
+        }
+        // JIS English (spec §3.6.2): nothing Korean applies; keys go to the app.
+        #[cfg(feature = "english")]
+        if !self.mode.is_korean() {
+            return self.english_key(key, mods);
         }
         // Backspace right after accepting a top prediction: a weak sign it was wrong.
         #[cfg(feature = "predict")]
@@ -681,20 +700,96 @@ impl Engine {
         self.accepted = (index == 0 && self.learning).then(|| learn::scenario(chosen.kind));
         self.previous = Some(Language::of(chosen.kind));
         self.take_segment();
-        Output { commit: chosen.text, preedit: String::new(), consumed: true, candidates: None, english: String::new() }
+        Output { commit: chosen.text, consumed: true, ..Output::default() }
     }
 
     fn take_segment(&mut self) -> String {
+        // JIS English stages nothing but a press-and-hold letter: what it shows is what commits.
+        #[cfg(feature = "english")]
+        if let Some(held) = self.held.take() {
+            return held.shown().to_string();
+        }
         self.conversion = None;
         self.hanja = None;
         compose(&std::mem::take(&mut self.segment))
+    }
+
+    /// A key in JIS English (spec §3.6.2, §3.6.3): every key goes to the app, except while a held
+    /// letter's list is open, and the auto-repeat that opens it.
+    #[cfg(feature = "english")]
+    fn english_key(&mut self, key: Key, mods: Mods) -> Output {
+        // Whatever a Korean mode left unconfirmed commits before the key, as on any switch.
+        let mut commit = if self.held.is_none() { self.take_segment() } else { String::new() };
+        self.layout = Layout::JisKorean;
+        if let Some(held) = self.held.as_mut() {
+            let count = held.variants.len();
+            let pick = key.digit().and_then(|d| d.to_digit(10)).filter(|&d| (1..=count as u32).contains(&d));
+            let mut handled = !mods.is_shortcut();
+            if mods.repeat && key == held.key {
+                // Still held: nothing more.
+            } else if !handled {
+            } else if let Some(d) = pick {
+                held.selected = Some(d as usize - 1);
+                return self.commit(String::new(), true);
+            } else {
+                match key {
+                    Key::ArrowRight | Key::ArrowDown => held.selected = Some(held.selected.map_or(0, |i| (i + 1) % count)),
+                    Key::ArrowLeft | Key::ArrowUp => {
+                        held.selected = Some(held.selected.map_or(count - 1, |i| (i + count - 1) % count))
+                    }
+                    Key::Enter if held.selected.is_some() => return self.commit(String::new(), true),
+                    Key::Escape => {
+                        held.selected = None;
+                        return self.commit(String::new(), true);
+                    }
+                    Key::Backspace => {
+                        // The letter goes too, as Backspace would have taken it.
+                        self.held = None;
+                        self.last_letter = None;
+                        return Output { consumed: true, ..Output::default() };
+                    }
+                    _ => handled = false,
+                }
+            }
+            if handled {
+                return self.held_output();
+            }
+            // Any other key keeps what's shown, then goes to the app.
+            commit = self.take_segment();
+        }
+        if !mods.is_shortcut()
+            && mods.repeat
+            && self.last_letter == Some((key, mods.shift))
+            && let (Some(variants), Some(letter)) = (crate::hold::variants(key, mods.shift), key.letter())
+        {
+            let letter = if mods.shift { letter.to_ascii_uppercase() } else { letter };
+            self.held = Some(crate::hold::Held { key, letter, variants, selected: None });
+            self.last_letter = None;
+            return Output { take_back: 1, ..self.held_output() };
+        }
+        self.last_letter = (!mods.is_shortcut() && !mods.repeat && key.letter().is_some()).then_some((key, mods.shift));
+        Output { commit, consumed: false, ..Output::default() }
+    }
+
+    /// The open press-and-hold list: the shown character as the preedit, the variants as the list
+    /// (none selected is `selected` = the count).
+    #[cfg(feature = "english")]
+    fn held_output(&self) -> Output {
+        let Some(held) = &self.held else { return Output { consumed: true, ..Output::default() } };
+        let items = held.variants.iter().map(|v| Candidate { hanja: v.to_string(), comment: String::new() }).collect();
+        Output {
+            preedit: held.shown().to_string(),
+            consumed: true,
+            candidates: Some(Candidates { items, selected: held.selected.unwrap_or(held.variants.len()) }),
+            ..Output::default()
+        }
     }
 
     /// Commits the segment followed by `suffix`.
     fn commit(&mut self, suffix: String, consumed: bool) -> Output {
         let mut commit = self.take_segment();
         commit.push_str(&suffix);
-        Output { commit, preedit: String::new(), consumed, candidates: None, english: String::new() }
+        Output { commit, consumed, ..Output::default() }
     }
 
     fn unchanged(&self, consumed: bool) -> Output {
@@ -702,7 +797,7 @@ impl Engine {
             .hanja
             .as_ref()
             .map(|list| Candidates { items: list.candidates.clone(), selected: list.selected });
-        Output { commit: String::new(), preedit: self.preedit(), consumed, candidates, english: self.english() }
+        Output { preedit: self.preedit(), consumed, candidates, english: self.english(), ..Output::default() }
     }
 }
 

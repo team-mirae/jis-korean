@@ -10,6 +10,9 @@ description = "Core engine of JIS Korean, a Korean 2-set input method for JIS ke
 # The predictive layer (src/predict.rs, spec §10). Off: the deterministic lite engine only.
 default = ["predict"]
 predict = []
+# JIS English, mode A_QWERTY (spec §3.6.2): an English mode with press-and-hold variants. Optional,
+# built on request (the macOS shell's `make ENGLISH=1`).
+english = []
 
 [lib]
 name = "jis_korean"
