@@ -17,15 +17,23 @@ import InputMethodKit
 /// Korean mode (from Japanese or ABC, say). Keys with Ctrl, Option or Cmd held go through untouched.
 enum KoreanKeyTap {
     private static var tap: CFMachPort?
-    private static var asked = false
+    private static var started = false
+    /// Set once JIS Korean has asked for the permissions: it doesn't ask again on its own (the input
+    /// menu's "Allow カタカナ and F18 Everywhere…" asks again).
+    static let askedKey = "AskedForKeyPermissions"
 
-    /// Starts the tap if Accessibility is granted; asks for it (once per launch) if not, and keeps
-    /// checking until it is.
-    static func start() {
+    /// Starts the tap once Accessibility is granted, checking every few seconds until it is. Asks
+    /// for the permissions the first time only, or when `ask` (from the input menu).
+    static func start(ask: Bool = false) {
+        let defaults = UserDefaults.standard
+        let prompt = ask || !defaults.bool(forKey: askedKey)
+        if prompt { defaults.set(true, forKey: askedKey) }
+        if !started || ask {
+            started = true
+            HardwareKeys.start(ask: prompt)
+        }
         guard tap == nil else { return }
-        if !asked { HardwareKeys.start() }
-        let options = [kAXTrustedCheckOptionPrompt.takeUnretainedValue() as String: !asked] as CFDictionary
-        asked = true
+        let options = [kAXTrustedCheckOptionPrompt.takeUnretainedValue() as String: prompt] as CFDictionary
         guard AXIsProcessTrustedWithOptions(options) else {
             DispatchQueue.main.asyncAfter(deadline: .now() + 3) { start() }
             return

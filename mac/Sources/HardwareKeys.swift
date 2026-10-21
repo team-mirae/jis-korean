@@ -1,3 +1,4 @@
+import ApplicationServices
 import Foundation
 import IOKit.hid
 
@@ -10,9 +11,9 @@ enum HardwareKeys {
     fileprivate static var katakanaDown = false
     fileprivate static var katakanaReleased = Date.distantPast
 
-    static func start() {
+    static func start(ask: Bool = false) {
         guard manager == nil else { return }
-        if !waiting && IOHIDCheckAccess(kIOHIDRequestTypeListenEvent) != kIOHIDAccessTypeGranted {
+        if ask && IOHIDCheckAccess(kIOHIDRequestTypeListenEvent) != kIOHIDAccessTypeGranted {
             _ = IOHIDRequestAccess(kIOHIDRequestTypeListenEvent)
         }
         let manager = IOHIDManagerCreate(kCFAllocatorDefault, IOOptionBits(kIOHIDOptionsTypeNone))
@@ -32,10 +33,13 @@ enum HardwareKeys {
         guard status == kIOReturnSuccess else {
             // Not allowed yet (Input Monitoring): try again until it is, without a restart.
             IOHIDManagerUnscheduleFromRunLoop(manager, CFRunLoopGetMain(), CFRunLoopMode.defaultMode.rawValue)
-            if !waiting {
-                DiagnosticLog.note("hardware keys: waiting for Input Monitoring (\(status))")
-                waiting = true
+            let access = IOHIDCheckAccess(kIOHIDRequestTypeListenEvent)
+            let state = "open \(status), Input Monitoring \(access.rawValue) (0 granted, 1 denied, 2 unknown), Accessibility \(AXIsProcessTrusted())"
+            if state != lastState {
+                DiagnosticLog.note("hardware keys: waiting: \(state)")
+                lastState = state
             }
+            waiting = true
             DispatchQueue.main.asyncAfter(deadline: .now() + 3) { start() }
             return
         }
@@ -44,6 +48,7 @@ enum HardwareKeys {
     }
 
     private static var waiting = false
+    private static var lastState = ""
 
     /// Whether カタカナ is held (for a key down), or was just let go (for its key up: the release
     /// may be seen first).

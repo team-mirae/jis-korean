@@ -39,6 +39,13 @@ MIN_MACOS  := 13.0
 SOURCES    := $(wildcard Sources/*.swift)
 CARGO      := $(shell command -v cargo || echo $(HOME)/.cargo/bin/cargo)
 
+# Code signing: your Apple Development certificate if the keychain has one (sign in to Xcode → Settings
+# → Accounts, then Manage Certificates), else ad hoc. Permissions macOS grants (Input Monitoring and
+# Accessibility, for the system-wide カタカナ / F18 keys) follow the signature: with a certificate
+# they survive rebuilds; ad hoc, every build is a new app to macOS and has to be granted again.
+# Override with `make SIGN_IDENTITY="..."`.
+SIGN_IDENTITY ?= $(or $(shell security find-identity -v -p codesigning 2>/dev/null | sed -n 's/.*"\(Apple Development: [^"]*\)".*/\1/p' | head -1),-)
+
 LSREGISTER := /System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister
 
 export MACOSX_DEPLOYMENT_TARGET := $(MIN_MACOS)
@@ -153,7 +160,7 @@ ifeq ($(PREDICT),1)
 	mkdir -p $@/Contents/Resources/predict
 	cp $(PREDICT_FILES) $@/Contents/Resources/predict/
 endif
-	codesign --force --sign - $@
+	codesign --force --sign "$(SIGN_IDENTITY)" $@
 
 install: $(APP)
 	@killall JISKorean 2>/dev/null || true

@@ -1,5 +1,6 @@
 import Cocoa
 import InputMethodKit
+import IOKit.hid
 
 private let enterCommitsDefault = "EnterCommits"
 /// Dedicated symbol keys (spec §3.6): Mode C's [ ] and ISO extra key. On by default.
@@ -229,6 +230,10 @@ final class JKInputController: IMKInputController {
         }
         switching.submenu = keys
         menu.addItem(switching)
+        // カタカナ and the Korean Key everywhere (iTerm, other input sources) need two permissions.
+        if !AXIsProcessTrusted() || IOHIDCheckAccess(kIOHIDRequestTypeListenEvent) != kIOHIDAccessTypeGranted {
+            menu.addItem(NSMenuItem(title: "Allow カタカナ and F18 Everywhere…", action: #selector(askForKeyPermissions(_:)), keyEquivalent: ""))
+        }
         #endif
         // The public API's one setting (spec §8.2): reading the mode is always open, changing it isn't.
         let allow = NSMenuItem(title: "Let Other Apps Change the Mode", action: #selector(toggleAllowModeChange(_:)), keyEquivalent: "")
@@ -238,6 +243,10 @@ final class JKInputController: IMKInputController {
     }
 
     #if ENGLISH
+    @objc func askForKeyPermissions(_ sender: Any?) {
+        KoreanKeyTap.start(ask: true)
+    }
+
     @objc func setSwitchKey(_ sender: Any?) {
         guard let code = (sender as? NSMenuItem)?.tag else { return }
         UserDefaults.standard.set(code, forKey: switchKeyDefault)
