@@ -73,16 +73,19 @@ final class JKInputController: IMKInputController {
         guard let event, let client = sender as? IMKTextInput else { return false }
         if event.type == .flagsChanged {
             #if ENGLISH
-            // Plain Caps Lock is JIS Korean's (spec §8.2.1): the lock is turned straight back off,
-            // and in an English mode it goes to the last Korean mode. With Shift, Option, Ctrl or
-            // Cmd held it's left alone: a real Caps Lock.
+            // Plain Caps Lock is JIS Korean's (spec §8.2.1): the lock goes back to what it was, and
+            // in an English mode it goes to the last Korean mode. With Shift, Option, Ctrl or Cmd
+            // held it's left alone: a real Caps Lock.
             if Int(event.keyCode) == kVK_CapsLock {
+                let on = event.modifierFlags.contains(.capsLock)
+                if CapsLock.isEcho(on) {
+                    return true  // JIS Korean's own change of the lock, not a press
+                }
                 let plain = event.modifierFlags.intersection([.shift, .option, .control, .command]).isEmpty
                 DiagnosticLog.note("Caps Lock\(plain ? "" : " with a modifier") in \(client.bundleIdentifier() ?? "?")")
                 guard plain else { return false }
-                if event.modifierFlags.contains(.capsLock) {
-                    CapsLock.turnOff()
-                }
+                // macOS has toggled the lock already: toggle it back.
+                CapsLock.set(!on)
                 if !InputModes.current.korean, InputModes.isEnabled(InputModes.lastKorean) {
                     flush(client)
                     applyMode(InputModes.lastKorean, client: client)

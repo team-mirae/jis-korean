@@ -1023,9 +1023,9 @@ that go back to Korean go to the Korean mode used last.
   Korean)); any other key code is set with `defaults write me.sjun.inputmethod.JISKorean KoreanKey
   -int <code>` (-1 for none).
 - **Plain Caps Lock** is JIS Korean's: in an English mode it goes to the last Korean mode, like the
-  Korean Key; in a Korean mode it does nothing. Either way it doesn't act as Caps Lock: macOS
-  toggles the lock before the input method hears of it, so JIS Korean turns the lock straight back
-  off. Caps Lock reaches the input method as a modifier change, which apps that keep function keys
+  Korean Key; in a Korean mode it does nothing. Either way it leaves the lock as it was, on or off:
+  macOS toggles the lock before the input method hears of it, so JIS Korean toggles it back (and
+  ignores the echo of its own change). Caps Lock reaches the input method as a modifier change, which apps that keep function keys
   to themselves (iTerm keeps F1–F19, so F18 never arrives there) still pass on.
 - **Caps Lock with Shift, Option, Ctrl or Cmd** is left alone: a real Caps Lock, and in the English
   modes capitals (and capital press-and-hold variants) while it's on.
