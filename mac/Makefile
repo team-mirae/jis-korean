@@ -79,7 +79,7 @@ $(BUILD)/JISKorean: $(BUILD)/arm64/JISKorean $(BUILD)/x86_64/JISKorean
 
 ICONS := $(BUILD)/taegeuk.tiff $(BUILD)/mode-a.tiff $(BUILD)/mode-b.tiff $(BUILD)/mode-iso.tiff
 ifeq ($(ENGLISH),1)
-  ICONS += $(BUILD)/mode-a-qwerty.tiff
+  ICONS += $(BUILD)/mode-a-qwerty.tiff $(BUILD)/mode-b-qwerty.tiff $(BUILD)/mode-c-qwerty.tiff
 endif
 
 $(BUILD)/%.tiff: Resources/icons/%.png Resources/icons/%@2x.png
@@ -107,13 +107,20 @@ $(BUILD)/JISKoreanANSI.keylayout: $(BUILD)/make-keylayout $(BUILD)/legends-1.tsv
 $(BUILD)/JISKoreanISO.keylayout: $(BUILD)/make-keylayout $(BUILD)/legends-2.tsv
 	$(BUILD)/make-keylayout $(BUILD)/legends-2.tsv $@ JISKoreanISO ISO -23458
 
-# JIS English: JIS symbols on any keyboard, and Caps Lock types capitals.
+# The English modes: their symbols on any keyboard, and Caps Lock types capitals. JIS English (3), US
+# English (9) and UK English (10).
 $(BUILD)/JISEnglish.keylayout: $(BUILD)/make-keylayout $(BUILD)/legends-3.tsv
 	$(BUILD)/make-keylayout $(BUILD)/legends-3.tsv $@ JISEnglish JIS -23459 caps
 
+$(BUILD)/USEnglish.keylayout: $(BUILD)/make-keylayout $(BUILD)/legends-9.tsv
+	$(BUILD)/make-keylayout $(BUILD)/legends-9.tsv $@ USEnglish ANSI -23460 caps
+
+$(BUILD)/UKEnglish.keylayout: $(BUILD)/make-keylayout $(BUILD)/legends-10.tsv
+	$(BUILD)/make-keylayout $(BUILD)/legends-10.tsv $@ UKEnglish ISO -23461 caps
+
 KEYLAYOUTS := $(BUILD)/JISKorean.keylayout $(BUILD)/JISKoreanANSI.keylayout $(BUILD)/JISKoreanISO.keylayout
 ifeq ($(ENGLISH),1)
-  KEYLAYOUTS += $(BUILD)/JISEnglish.keylayout
+  KEYLAYOUTS += $(BUILD)/JISEnglish.keylayout $(BUILD)/USEnglish.keylayout $(BUILD)/UKEnglish.keylayout
 endif
 
 # An earlier build installed the layout as its own bundle here; install removes it.

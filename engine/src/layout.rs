@@ -57,6 +57,12 @@ pub enum Mode {
     /// (spec §3.6.3). Built with the `english` feature.
     #[cfg(feature = "english")]
     AQwerty = 3,
+    /// `B_QWERTY`: JIS English's US ANSI sibling, US symbols (spec §3.6.2). `english` feature.
+    #[cfg(feature = "english")]
+    BQwerty = 9,
+    /// `C_QWERTY`: JIS English's UK ISO sibling, UK symbols (spec §3.6.2). `english` feature.
+    #[cfg(feature = "english")]
+    CQwerty = 10,
 }
 
 impl Mode {
@@ -65,7 +71,7 @@ impl Mode {
     pub const ALL: &'static [Mode] = &[Mode::A, Mode::B, Mode::C];
     /// Every mode this build has, in the order menus list them. Not indexed by id.
     #[cfg(feature = "english")]
-    pub const ALL: &'static [Mode] = &[Mode::A, Mode::B, Mode::C, Mode::AQwerty];
+    pub const ALL: &'static [Mode] = &[Mode::A, Mode::B, Mode::C, Mode::AQwerty, Mode::BQwerty, Mode::CQwerty];
 
     /// The stable id over the C ABI and in saved settings (spec §3.6.1). Never reuse or renumber
     /// one.
@@ -82,6 +88,10 @@ impl Mode {
             2 => Some(Mode::C),
             #[cfg(feature = "english")]
             3 => Some(Mode::AQwerty),
+            #[cfg(feature = "english")]
+            9 => Some(Mode::BQwerty),
+            #[cfg(feature = "english")]
+            10 => Some(Mode::CQwerty),
             _ => None,
         }
     }
@@ -95,6 +105,10 @@ impl Mode {
             Mode::C => "C",
             #[cfg(feature = "english")]
             Mode::AQwerty => "A_QWERTY",
+            #[cfg(feature = "english")]
+            Mode::BQwerty => "B_QWERTY",
+            #[cfg(feature = "english")]
+            Mode::CQwerty => "C_QWERTY",
         }
     }
 
@@ -104,7 +118,7 @@ impl Mode {
         match self {
             Mode::A | Mode::B | Mode::C => true,
             #[cfg(feature = "english")]
-            Mode::AQwerty => false,
+            Mode::AQwerty | Mode::BQwerty | Mode::CQwerty => false,
         }
     }
 
@@ -116,6 +130,10 @@ impl Mode {
             Mode::C => "JIS Korean for UK ISO",
             #[cfg(feature = "english")]
             Mode::AQwerty => "JIS English",
+            #[cfg(feature = "english")]
+            Mode::BQwerty => "US English",
+            #[cfg(feature = "english")]
+            Mode::CQwerty => "UK English",
         }
     }
 
@@ -126,7 +144,7 @@ impl Mode {
         match self {
             Mode::A | Mode::B => &[],
             #[cfg(feature = "english")]
-            Mode::AQwerty => &[],
+            Mode::AQwerty | Mode::BQwerty | Mode::CQwerty => &[],
             Mode::C => &[Key::BracketLeft, Key::BracketRight, Key::IntlBackslash],
         }
     }
@@ -143,7 +161,9 @@ impl Mode {
             Mode::C => iso_korean(key),
             // Not Korean: the JIS symbols as they are.
             #[cfg(feature = "english")]
-            Mode::AQwerty => self.stock(key).map(|(base, shifted)| (Out::Char(base), Out::Char(shifted))),
+            Mode::AQwerty | Mode::BQwerty | Mode::CQwerty => {
+                self.stock(key).map(|(base, shifted)| (Out::Char(base), Out::Char(shifted)))
+            }
         }
     }
 
@@ -157,6 +177,10 @@ impl Mode {
             Mode::C => stock_uk(key),
             #[cfg(feature = "english")]
             Mode::AQwerty => stock_jis(key),
+            #[cfg(feature = "english")]
+            Mode::BQwerty => stock_us(key),
+            #[cfg(feature = "english")]
+            Mode::CQwerty => stock_uk(key),
         }
     }
 }

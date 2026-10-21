@@ -285,3 +285,46 @@ fn f10_after_a_press_and_hold_takes_the_letter_too() {
     let out = engine.key(key("F10"), Mods::NONE);
     assert_eq!((out.commit.as_str(), out.take_back, out.preedit.as_str()), ("u", 3, "ABU"));
 }
+
+/// `B_QWERTY` (9) and `C_QWERTY` (10): JIS English on US ANSI and UK ISO symbols (spec §3.6.2).
+#[test]
+fn us_and_uk_english_are_modes_9_and_10() {
+    for (id, code, name) in [(9, "B_QWERTY", "US English"), (10, "C_QWERTY", "UK English")] {
+        let mode = Mode::from_id(id).unwrap();
+        assert_eq!((mode.code(), mode.name(), mode.is_korean()), (code, name, false));
+    }
+}
+
+#[test]
+fn us_and_uk_english_type_their_own_symbols() {
+    let typed = |id: u32, code: &str, shift: bool| {
+        output_in(Mode::from_id(id).unwrap(), Layout::JisKorean, key(code), shift).map(Out::char)
+    };
+    // US ANSI.
+    assert_eq!(typed(9, "KeyG", true), Some('G'));
+    assert_eq!(typed(9, "Digit2", true), Some('@'));
+    assert_eq!(typed(9, "BracketLeft", false), Some('['));
+    assert_eq!(typed(9, "Quote", true), Some('"'));
+    assert_eq!(typed(9, "Backquote", false), Some('`'));
+    // UK ISO.
+    assert_eq!(typed(10, "Digit2", true), Some('"'));
+    assert_eq!(typed(10, "Digit3", true), Some('£'));
+    assert_eq!(typed(10, "Quote", true), Some('@'));
+    assert_eq!(typed(10, "Backslash", false), Some('#'));
+    assert_eq!(typed(10, "IntlBackslash", false), Some('\\'));
+}
+
+#[test]
+fn us_and_uk_english_pass_keys_through_hold_and_convert() {
+    for id in [9, 10] {
+        let mut engine = Engine::new();
+        engine.set_mode(Mode::from_id(id).unwrap());
+        for code in ["KeyG", "Digit2", "BracketLeft", "Quote", "Space", "Enter"] {
+            assert!(!engine.key(key(code), Mods::SHIFTED).consumed, "mode {id}: {code}");
+        }
+        assert_eq!(hold(&mut engine, "KeyU", false).preedit, "u");
+        assert_eq!(engine.key(key("Digit2"), Mods::NONE).commit, "ü");
+        typed(&mut engine, &["KeyX"]);
+        assert_eq!(shift_z(&mut engine).preedit, "X");
+    }
+}

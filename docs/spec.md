@@ -223,22 +223,31 @@ from 0 without gaps:
 - **Names:** `jk_mode_name_ptr`/`_len` give the display name, `jk_mode_code_ptr`/`_len` the mode name
   (`A`, `A_QWERTY`).
 
-A mode name's first word is its **namespace**:
+A mode name's first word is its **namespace**, and says which keyboard family the mode is for, as
+Modes A, B and C do; the **id range** says who maintains it:
 
-| Namespace | Whose | Rules |
+| Namespace | Keyboard family | Ids |
 |---|---|---|
-| `A_` | Mirae Research's official modes only (ids 0–14) | Shipped and maintained here. |
-| `B_` | Contributed variants of Mode B, for US ANSI boards (ids 15–30) | The stricter guidelines in `docs/modes.md`: review, tests and docs as for an official mode, and a majority of the contributors in favour. Minor adjustments on an ANSI board, such as Korean ANSI or a modified laptop keyboard. |
-| `C_` | Contributed variants of Mode C, for ISO boards (ids 15–30) | The same guidelines. Other ISO locales than C's UK. |
-| Anything else (`COMPANYNAME_QWERTZ`, `COMPANYNAME_CUSTOMLAYOUTNAME`) | Whoever makes it, in a fork or their own build (ids 31–99) | Only the naming rules and §3.6's "what every mode keeps"; not reviewed here. Use a prefix of your own, such as your company or your name. |
+| `A_` | JIS (Mode A's) | 0–14 official, 15–30 contributed |
+| `B_` | US ANSI (Mode B's): also minor adjustments on an ANSI board, such as Korean ANSI or a modified laptop keyboard | 0–14 official, 15–30 contributed |
+| `C_` | ISO (Mode C's, UK): also other ISO locales | 0–14 official, 15–30 contributed |
+| Anything else (`COMPANYNAME_QWERTZ`, `COMPANYNAME_CUSTOMLAYOUTNAME`) | any | 31–99 |
+
+- **Official** (0–14): Mirae Research's, shipped and maintained here.
+- **Contributed** (15–30): accepted into this repository under the stricter guidelines in
+  `docs/modes.md`: review, tests and docs as for an official mode, and a majority of the
+  contributors in favour.
+- **Custom** (31–99, any other prefix): whoever makes it, in a fork or their own build. Only the
+  naming rules and §3.6's "what every mode keeps"; not reviewed here. Use a prefix of your own, such
+  as your company or your name.
 
 **The first three modes keep their one-letter names**, `A`, `B` and `C` (ids 0, 1, 2), as released:
 tools and the public API already use them. A one-letter name has no `_`, so it's in no namespace,
 and no new mode gets one.
 
-**Scope.** Mode B is US ANSI and Mode C is UK ISO; their variants (`B_`, `C_`) stay on that board
-type. No mode forbids any keyboard, but support covers only the board a mode is for: a `B_` variant
-that doesn't work on an ISO board, for example, isn't an issue this repository will fix.
+**Scope.** `A_` modes are for JIS boards, `B_` for US ANSI and `C_` for ISO. No mode forbids any
+keyboard, but support covers only the board family a mode is for: a `B_` mode that doesn't work on
+an ISO board, for example, isn't an issue this repository will fix.
 
 | Id | Mode name | Display name | Badge text | Status |
 |---|---|---|---|---|
@@ -251,14 +260,16 @@ that doesn't work on an ISO board, for example, isn't an issue this repository w
 | 6 | `A_AZERTY` | **[decide]** | AY | Reserved |
 | 7 | `A_DVORAK` | **[decide]** | DV | Reserved |
 | 8 | `A_COLEMAK` | **[decide]** | CMK | Reserved |
+| 9 | `B_QWERTY` | US English | US | Specified (§3.6.2) |
+| 10 | `C_QWERTY` | UK English | UK | Specified (§3.6.2) |
 
 A **reserved** mode has its id and name held for it, and nothing else yet: no key table, no build.
 Ids 4–8 are Mirae Research's English-layout modes in the family of JIS English (§3.6.2): each its
 layout's letters, with the symbols still to be decided per mode, and a badge of the taegeuk with its
-badge text over the lower right, as `ABC` on JIS English's. Ids 9–14 are held for Mirae Research's
+badge text over the lower right, as `ABC` on JIS English's. Ids 11–14 are held for Mirae Research's
 next official modes.
 
-#### 3.6.2 `A_QWERTY`: JIS English
+#### 3.6.2 `A_QWERTY`: JIS English, and `B_QWERTY` and `C_QWERTY`
 
 **JIS English** types English: the standard JIS QWERTY layout, with JIS English legends and JIS
 symbols, on any keyboard (Shift+2 is `"`, the key right of P is `@`, `IntlYen` is `¥`, `IntlRo` is
@@ -276,8 +287,14 @@ is unaffected. The engine still names the layout: its key table is the JIS stock
 stock keyboard), which the macOS keyboard layout is generated from, so the symbols can't drift from
 Mode A's F8 escape.
 
-It's **optional**: built only on request (the engine's `english` feature; `make ENGLISH=1` on macOS),
-so a default build has the Korean modes only. Its id and name are reserved either way.
+**US English** (`B_QWERTY`, id 9) and **UK English** (`C_QWERTY`, id 10) are the same mode on the
+other keyboard families: QWERTY with Mode B's stock symbols (US ANSI: Shift+2 is `@`) and Mode C's
+(UK ISO: Shift+2 is `"`, Shift+3 is `£`, the ISO extra key is `\`). Everything else here, press and
+hold (§3.6.3) and F9/F10 (§3.6.4) included, is the same for all three. Together they're the
+**English modes**.
+
+They're **optional**: built only on request (the engine's `english` feature; `make ENGLISH=1` on
+macOS), so a default build has the Korean modes only. Their ids and names are reserved either way.
 
 #### 3.6.3 Press and hold (JIS English)
 
@@ -952,6 +969,8 @@ Romaji:
 | B | `me.sjun.inputmethod.JISKorean.2SetANSI` | JIS Korean for US ANSI |
 | C | `me.sjun.inputmethod.JISKorean.2SetISO` | JIS Korean for UK ISO |
 | `A_QWERTY` | `me.sjun.inputmethod.JISKorean.A_QWERTY` | JIS English |
+| `B_QWERTY` | `me.sjun.inputmethod.JISKorean.B_QWERTY` | US English |
+| `C_QWERTY` | `me.sjun.inputmethod.JISKorean.C_QWERTY` | UK English |
 
 Modes after C take their mode name as the last part of the input source ID (§3.6.1).
 
@@ -984,7 +1003,10 @@ setting.
 ### 8.2.1 Switching between Korean and English (macOS)
 
 On Windows, 한/영 switches JIS Korean off and on inside one input method (§8.4). On macOS the same
-idea is an input mode, JIS English (`A_QWERTY`, §3.6.2), instead of a hidden on/off flag:
+idea is an input mode, JIS English (`A_QWERTY`, §3.6.2), instead of a hidden on/off flag. The same
+goes for US and UK English: where this section says JIS English, it means **the English mode used
+last** (or, if that one isn't added in System Settings, the first English mode that is), and keys
+that go back to Korean go to the Korean mode used last.
 
 - **Why a mode, not a flag.** A flag inside the controller would switch fastest, but macOS wouldn't
   know about it: the menu bar would keep the Korean icon, 英数 and Ctrl+Space would go to Apple's
@@ -994,7 +1016,8 @@ idea is an input mode, JIS English (`A_QWERTY`, §3.6.2), instead of a hidden on
   asynchronously, so a key pressed right after can land in the wrong one. Switching between modes of
   one input method stays in the same process and the same session with the app, which is how
   Japanese switches between Kana and Romaji.
-- **It's macOS's English input source.** It's declared with the Roman script, so 英数 selects it
+- **It's macOS's English input source.** It's declared with the Roman script (JIS English as the
+  script's primary mode, US and UK English beside it), so 英数 selects it
   (as with Japanese input methods' own Romaji modes), Ctrl+Space switches between it and the last
   Korean mode, and the menu bar shows its badge (`docs/logo/mode-a-qwerty.svg`). Unlike Windows'
   ABC it's **remembered**, like any input source, not reset to Korean.
@@ -1021,7 +1044,7 @@ same language, whatever is selected:
 | From | To | Key |
 |---|---|---|
 | JIS English | Korean (the last Korean mode) | Shift+X, or F18 (another key remapped to it, e.g. with Karabiner) |
-| any | English (JIS English) | 英数, the JIS Romaji key |
+| any | English (JIS English, or the English mode used last) | 英数, the JIS Romaji key |
 | any | Japanese (Kana) | かな, the JIS Kana key, handled by macOS |
 | Japanese | Korean | out of scope for this repository: the Japanese input method has the keys there. F18 doesn't reach JIS Korean while Japanese is selected; Ctrl+Space or the input menu do. |
 

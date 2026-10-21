@@ -30,10 +30,15 @@ enum InputModes {
     ] + english
 
     #if ENGLISH
-    /// JIS English (spec §3.6.2): the English input mode, built with `make ENGLISH=1`.
+    /// The English input modes (spec §3.6.2), built with `make ENGLISH=1`: JIS English, and its US
+    /// ANSI and UK ISO siblings.
     static let english = [
         Mode(id: 3, letter: "A_QWERTY", sourceID: "me.sjun.inputmethod.JISKorean.A_QWERTY",
              keyboardViewerLayout: "JISEnglish", korean: false),
+        Mode(id: 9, letter: "B_QWERTY", sourceID: "me.sjun.inputmethod.JISKorean.B_QWERTY",
+             keyboardViewerLayout: "USEnglish", korean: false),
+        Mode(id: 10, letter: "C_QWERTY", sourceID: "me.sjun.inputmethod.JISKorean.C_QWERTY",
+             keyboardViewerLayout: "UKEnglish", korean: false),
     ]
     #else
     static let english: [Mode] = []
@@ -47,6 +52,14 @@ enum InputModes {
     }
 
     private static let lastKoreanKey = "LastKoreanMode"
+    private static let lastEnglishKey = "LastEnglishMode"
+
+    /// The English mode 英数 and the Switch Key go to (spec §8.2.1): the one used last if it's added
+    /// in System Settings, else the first English mode that is. Nil: none is.
+    static var englishTarget: Mode? {
+        let last = UserDefaults.standard.string(forKey: lastEnglishKey).flatMap(mode(sourceID:))
+        return ([last].compactMap { $0 } + english).first { !$0.korean && isEnabled($0) }
+    }
 
     /// Selects a mode's input source, as the input menu would: `noErr`, `paramErr` if it isn't added
     /// in System Settings, or macOS's own error.
@@ -96,9 +109,7 @@ enum InputModes {
     static func becameCurrent(_ mode: Mode) {
         let changed = mode.sourceID != current.sourceID || UserDefaults.standard.string(forKey: PublicAPI.currentModeKey) != mode.letter
         current = mode
-        if mode.korean {
-            UserDefaults.standard.set(mode.sourceID, forKey: lastKoreanKey)
-        }
+        UserDefaults.standard.set(mode.sourceID, forKey: mode.korean ? lastKoreanKey : lastEnglishKey)
         if changed {
             PublicAPI.publish(mode)
         }

@@ -11,7 +11,7 @@ The taegeuk follows the flag's construction: the dividing diameter on the flag's
 an S of two half-radius arcs. Key proportions are real keyboard units.
 
 Usage: python3 -I make_logo.py   (writes taegeuk.svg, mode-a.svg, mode-b.svg, mode-iso.svg and
-mode-a-qwerty.svg here)
+mode-a-qwerty.svg, mode-b-qwerty.svg and mode-c-qwerty.svg here)
 """
 
 import math
@@ -86,34 +86,60 @@ def badge(title, disc, keys, hollow=()):
 LETTER = 6  # the stroke of a drawn letter
 
 
-def letters_abc(x, y, w, h, gap):
-    """A, B and C as stroked centrelines, in a box (x, y, w, h) of outer edges, letters gap apart."""
-    lw = (w - 2 * gap) / 3
+def letters(text, x, y, w, h, gap):
+    """Letters (A B C K S U) as stroked centrelines, in a box (x, y, w, h) of outer edges, gap apart."""
+    n = len(text)
+    lw = (w - (n - 1) * gap) / n
     half = LETTER / 2
     top, bottom = y + half, y + h - half
     mid = (top + bottom) / 2
-    # A: two legs to the apex, and the crossbar a little below the middle.
-    ax = x
-    left, right, apex = ax + half, ax + lw - half, ax + lw / 2
-    bar = top + (bottom - top) * 0.62
-    t = (bar - top) / (bottom - top)
-    a = (f"M{num(left)} {num(bottom)}L{num(apex)} {num(top)}L{num(right)} {num(bottom)}"
-         f"M{num(apex + (left - apex) * t)} {num(bar)}H{num(apex + (right - apex) * t)}")
-    # B: the stem and two bowls, the lower one wider.
-    bx = x + lw + gap
-    stem = bx + half
-    r1, r2 = (mid - top) / 2, (bottom - mid) / 2
-    upper, lower = bx + lw - half - r1 - 2, bx + lw - half - r2
-    b = (f"M{num(stem)} {num(bottom)}V{num(top)}H{num(upper)}A{num(r1)} {num(r1)} 0 0 1 {num(upper)} {num(mid)}"
-         f"H{num(stem)}M{num(upper)} {num(mid)}H{num(lower)}A{num(r2)} {num(r2)} 0 0 1 {num(lower)} {num(bottom)}"
-         f"H{num(stem)}")
-    # C: an ellipse open on the right.
-    cx = x + 2 * (lw + gap)
-    rx, ry = lw / 2 - half, (bottom - top) / 2
-    ox, oy = cx + lw / 2, mid
-    ex, ey = rx * 0.72, ry * 0.69  # the open ends, about 45 degrees from the right
-    c = (f"M{num(ox + ex)} {num(oy - ey)}A{num(rx)} {num(ry)} 0 1 0 {num(ox + ex)} {num(oy + ey)}")
-    return [a, b, c]
+    paths = []
+    for i, ch in enumerate(text):
+        lx = x + i * (lw + gap)
+        left, right = lx + half, lx + lw - half
+        if ch == "A":
+            # Two legs to the apex, and the crossbar a little below the middle.
+            apex = lx + lw / 2
+            bar = top + (bottom - top) * 0.62
+            t = (bar - top) / (bottom - top)
+            paths.append(f"M{num(left)} {num(bottom)}L{num(apex)} {num(top)}L{num(right)} {num(bottom)}"
+                         f"M{num(apex + (left - apex) * t)} {num(bar)}H{num(apex + (right - apex) * t)}")
+        elif ch == "B":
+            # The stem and two bowls, the lower one wider.
+            r1, r2 = (mid - top) / 2, (bottom - mid) / 2
+            upper, lower = right - r1 - 2, right - r2
+            paths.append(f"M{num(left)} {num(bottom)}V{num(top)}H{num(upper)}A{num(r1)} {num(r1)} 0 0 1 {num(upper)} {num(mid)}"
+                         f"H{num(left)}M{num(upper)} {num(mid)}H{num(lower)}A{num(r2)} {num(r2)} 0 0 1 {num(lower)} {num(bottom)}"
+                         f"H{num(left)}")
+        elif ch == "C":
+            # An ellipse open on the right.
+            rx, ry = lw / 2 - half, (bottom - top) / 2
+            ox, oy = lx + lw / 2, mid
+            ex, ey = rx * 0.72, ry * 0.69  # the open ends, about 45 degrees from the right
+            paths.append(f"M{num(ox + ex)} {num(oy - ey)}A{num(rx)} {num(ry)} 0 1 0 {num(ox + ex)} {num(oy + ey)}")
+        elif ch == "U":
+            # Two stems joined by a half ellipse at the bottom.
+            rx = (right - left) / 2
+            ry = min(rx * 1.2, (bottom - top) / 2)
+            paths.append(f"M{num(left)} {num(top)}V{num(bottom - ry)}A{num(rx)} {num(ry)} 0 0 0 {num(right)} {num(bottom - ry)}"
+                         f"V{num(top)}")
+        elif ch == "K":
+            # The stem, and two arms from a point on it a little below the middle.
+            join = mid + (bottom - top) * 0.06
+            paths.append(f"M{num(left)} {num(top)}V{num(bottom)}M{num(right)} {num(top)}L{num(left)} {num(join)}"
+                         f"M{num(left + (right - left) * 0.3)} {num(join - (join - top) * 0.3)}L{num(right)} {num(bottom)}")
+        elif ch == "S":
+            # Two bowls: the upper one open at the lower left, the lower one at the upper right.
+            rx = (right - left) / 2
+            ry1, ry2 = (mid - top) / 2, (bottom - mid) / 2
+            cx = lx + lw / 2
+            start = (cx + rx * 0.82, top + ry1 - ry1 * 0.57)
+            end = (cx - rx * 0.82, bottom - ry2 + ry2 * 0.57)
+            paths.append(f"M{num(start[0])} {num(start[1])}A{num(rx)} {num(ry1)} 0 1 0 {num(cx)} {num(mid)}"
+                         f"A{num(rx)} {num(ry2)} 0 1 1 {num(end[0])} {num(end[1])}")
+        else:
+            raise ValueError(f"no glyph for {ch}")
+    return paths
 
 
 def lettered(title, disc, letters):
@@ -164,7 +190,13 @@ def main():
 
     # A_QWERTY, JIS English: the taegeuk with ABC over its lower right.
     (out / "mode-a-qwerty.svg").write_text(
-        lettered("JIS English (A_QWERTY)", (41, 41, 39), letters_abc(24, 60, 74, 38, 4)))
+        lettered("JIS English (A_QWERTY)", (41, 41, 39), letters("ABC", 24, 60, 74, 38, 4)))
+
+    # B_QWERTY and C_QWERTY, US and UK English: the same badge, with their country.
+    (out / "mode-b-qwerty.svg").write_text(
+        lettered("US English (B_QWERTY)", (41, 41, 39), letters("US", 46, 60, 52, 38, 5)))
+    (out / "mode-c-qwerty.svg").write_text(
+        lettered("UK English (C_QWERTY)", (41, 41, 39), letters("UK", 46, 60, 52, 38, 5)))
 
 
 if __name__ == "__main__":

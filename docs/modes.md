@@ -10,6 +10,8 @@ fourth specified (JIS English, spec §3.6.2) and five more reserved:
 | 2 | `C` | JIS Korean for UK ISO | ISO (UK) |
 | 3 | `A_QWERTY` | JIS English | any (JIS symbols) |
 | 4–8 | `A_QWERTZ`, `A_SWISS_QZ`, `A_AZERTY`, `A_DVORAK`, `A_COLEMAK` | reserved | |
+| 9 | `B_QWERTY` | US English | any (US ANSI symbols) |
+| 10 | `C_QWERTY` | UK English | any (UK ISO symbols) |
 
 ## Naming a new mode
 
@@ -18,8 +20,8 @@ may assume they run from 0 without gaps:
 
 | Ids | For |
 |---|---|
-| 0–14 | Mirae Research's official modes (`A_`). 0–8 are taken or reserved; 9–14 are held for future official modes. |
-| 15–30 | Contributed official modes (`B_`, `C_`), each accepted by a majority of the contributors. |
+| 0–14 | Mirae Research's official modes (`A_`, `B_`, `C_`). 0–10 are taken or reserved; 11–14 are held for future official modes. |
+| 15–30 | Contributed modes (`A_`, `B_`, `C_`), each accepted by a majority of the contributors. |
 | 31–99 | Custom layouts (any other prefix): any free id. Nothing coordinates them, so two forks can pick the same one. |
 | 10000–11000 | Development and preview builds: a temporary id while a mode is being made, with any well-formed mode name. When the mode is done it moves to a permanent id in its range (0–30 for an official mode) and the temporary id is dropped. Release builds never save one in settings. |
 
@@ -27,21 +29,20 @@ Every other id is invalid for now. A mode in progress here, or a contribution un
 preview id until it's accepted, so a fork never ships an official-looking id that may still change.
 
 It also takes a **mode name** in upper-case snake case (`SPLIT_ORTHO_LAYOUTDESIGNERNAME`, spec
-§3.6.1). Its first word is its namespace:
+§3.6.1). Its first word is its namespace, the keyboard family it's for, as Modes A, B and C are:
 
-- **`A_`** is Mirae Research's, for official modes only (ids 0–14).
-- **`B_` and `C_`** are for modes contributed to this repository (ids 15–30). `B_` varies Mode B
-  on US ANSI boards: minor adjustments such as Korean ANSI or a modified laptop keyboard. `C_`
-  varies Mode C on ISO boards, mainly for ISO locales other than the UK. They follow everything on
-  this page as an official mode does: the full key and stock tables, the tests below, the spec
-  section, the layout drawing and a badge, review, and a majority of the contributors in favour
-  before merging.
+- **`A_`** JIS, **`B_`** US ANSI (also minor adjustments on an ANSI board, such as Korean ANSI or a
+  modified laptop keyboard), **`C_`** ISO (also ISO locales other than the UK). On ids 0–14 they're
+  Mirae Research's official modes; on 15–30, modes contributed to this repository, which follow
+  everything on this page as an official mode does: the full key and stock tables, the tests
+  below, the spec section, the layout drawing and a badge, review, and a majority of the
+  contributors in favour before merging.
 - **Any other prefix** (`COMPANYNAME_QWERTZ`, `COMPANYNAME_CUSTOMLAYOUTNAME`) is yours, for a fork or
   your own build, on any free id from 31 to 99: keep the naming rules and "What every mode keeps"
   below; the rest is up to you. Pick a prefix no one else is likely to use, such as your company's
   or your own name.
 
-No mode forbids any keyboard, but support covers only the board a mode is for: a `B_` variant that
+No mode forbids any keyboard, but support covers only the family a mode is for: a `B_` mode that
 doesn't work on an ISO board isn't an issue this repository will fix.
 
 Mode names and ids are never renamed or reused once released. `A`, `B` and `C` keep their

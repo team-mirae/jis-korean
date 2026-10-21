@@ -253,26 +253,26 @@ final class JKInputController: IMKInputController {
     /// to macOS, which selects Japanese.
     private func handleSwitchKey(_ event: NSEvent, _ client: IMKTextInput) -> Bool? {
         let mods = modifiers(event.modifierFlags)
-        guard let english = InputModes.english.first, mods & UInt32(JK_MOD_CTRL | JK_MOD_ALT | JK_MOD_META) == 0
+        guard !InputModes.english.isEmpty, mods & UInt32(JK_MOD_CTRL | JK_MOD_ALT | JK_MOD_META) == 0
         else { return nil }
         registerSwitchDefaults()
         let defaults = UserDefaults.standard
         let code = Int(event.keyCode)
         let inEnglish = !InputModes.current.korean
-        let target: InputModes.Mode
+        let target: InputModes.Mode?
         if code == defaults.integer(forKey: switchKeyDefault) {
-            target = inEnglish ? InputModes.lastKorean : english
+            target = inEnglish ? InputModes.lastKorean : InputModes.englishTarget
         } else if inEnglish && code == kVK_ANSI_X && mods & UInt32(JK_MOD_SHIFT) != 0 && defaults.bool(forKey: shiftXDefault) {
             // Only in JIS English: in the Korean modes Shift+X is ㅌ (the core principle).
             target = InputModes.lastKorean
         } else if code == kVK_JIS_Eisu {
             // Already English: nothing to do, and ABC isn't wanted.
             if inEnglish { return true }
-            target = english
+            target = InputModes.englishTarget
         } else {
             return nil
         }
-        guard InputModes.isEnabled(target) else { return nil }
+        guard let target, InputModes.isEnabled(target) else { return nil }
         if !event.isARepeat {
             flush(client)
             InputModes.select(target)
