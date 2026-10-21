@@ -1053,6 +1053,15 @@ that go back to Korean go to the Korean mode used last.
   permission) and catches the key with a system-wide key tap (Accessibility permission): a かな
   event while カタカナ is held is swallowed and goes to Korean; a real かな key still goes to
   Japanese. The other Windows keys are lost the same way (変換 and 無変換 become 英数).
+- **Which keyboards.** Only keyboards macOS has configured as JIS (Keyboard Setup Assistant's type
+  for each keyboard, `/Library/Preferences/com.apple.keyboardtype`) are read; カタカナ means nothing
+  on the others. **Karabiner-Elements** holds the keyboards it remaps exclusively, so they can't be
+  read directly, but it sends their keys out through its virtual keyboard, which reports itself as
+  an Apple keyboard (vendor 1452, product 593); with that configured as JIS, JIS Korean reads
+  カタカナ there instead. So カタカナ works with Karabiner on or off for the keyboard, as long as no
+  Karabiner rule remaps `japanese_pc_katakana`. (Tested with an HHKB Hybrid Type-S JIS and an HHKB
+  Studio, with Karabiner on and off.) A keyboard configured as JIS later counts once JIS Korean
+  restarts.
 - **Caught system-wide.** The Korean Key and カタカナ are caught by that tap before any app sees
   them, so they work in apps that keep keys to themselves (iTerm keeps F1–F19) and from other input
   sources. Until both permissions are granted, the Korean Key works only in apps that pass it on,

@@ -104,8 +104,15 @@ asks for **Input Monitoring** (macOS turns カタカナ into かな, so it reads
 menu's **Korean Key (Back to Korean)** picks F13–F19 or none, or any key code with
 `defaults write me.sjun.inputmethod.JISKorean KoreanKey -int <code>`. Every other key types as on
 ABC, Shift+Z, Shift+X, F9, F10 and Caps Lock included. かな is left to macOS, which selects Japanese.
-Each build is signed anew, so after a reinstall both permissions need turning off and on again in
-System Settings → Privacy & Security.
+JIS Korean reads カタカナ only from keyboards macOS has configured as JIS. With
+**Karabiner-Elements**, a keyboard Karabiner remaps is held by Karabiner, and its keys come out of
+Karabiner's virtual keyboard (it reports itself as an Apple keyboard, vendor 1452, product 593):
+keep that configured as JIS and don't remap `japanese_pc_katakana`, and カタカナ works with
+Karabiner on or off (tested with an HHKB Hybrid Type-S JIS and an HHKB Studio).
+
+The permissions follow the build's signature: signed with an Apple Development certificate (the
+Makefile picks one from the keychain), they survive rebuilds; ad hoc, every build has to be granted
+again in System Settings → Privacy & Security.
 `tools/add-english-mode.sh` adds the mode to the built bundle's Info.plist; the checked-in
 Info.plist has the Korean modes only.
 
