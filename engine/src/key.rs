@@ -94,7 +94,7 @@ pub struct Mods {
     pub ctrl: bool,
     pub alt: bool,
     pub meta: bool,
-    /// An auto-repeat of a held key. Only JIS English reads it (spec §3.6.3).
+    /// An auto-repeat of a held key. Only the English modes' variants list reads it (spec §3.6.3).
     pub repeat: bool,
     /// Caps Lock on. Only the English modes read it (spec §3.6.3).
     pub caps: bool,
@@ -105,9 +105,9 @@ impl Mods {
     pub const CTRL: u32 = 2;
     pub const ALT: u32 = 4;
     pub const META: u32 = 8;
-    /// The key is held and this event is the keyboard's auto-repeat (press and hold, spec §3.6.3).
+    /// The key is held and this event is the keyboard's auto-repeat (spec §3.6.3).
     pub const REPEAT: u32 = 16;
-    /// Caps Lock is on. Only the English modes read it: a held letter's variants are capitals then
+    /// Caps Lock is on. Only the English modes read it: a letter's variants are capitals then
     /// (spec §3.6.3).
     pub const CAPS: u32 = 32;
 

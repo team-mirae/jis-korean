@@ -1,14 +1,14 @@
-//! JIS English's press and hold (spec §3.6.3): holding a letter key offers its accented and other
-//! variants, as macOS does for English keyboard layouts.
+//! The English modes' variants (spec §3.6.3): ⌥ + a letter offers its accented and other variants,
+//! macOS's press-and-hold set, without typing the letter first.
 
 use crate::key::Key;
 
-/// A letter held down, with its list open.
+/// A letter whose variants list is open.
 #[derive(Clone, Debug)]
 pub struct Held {
-    /// The key held.
+    /// The key pressed with ⌥.
     pub key: Key,
-    /// The letter as typed, taken back into the preedit.
+    /// The letter, shown until a variant is chosen.
     pub letter: char,
     pub variants: &'static [char],
     /// The variant chosen with the arrows, if any; the letter shows until one is.
@@ -22,22 +22,22 @@ impl Held {
     }
 }
 
-/// The variants of a letter key, in list order (numbered 1, 2, … in the list), or `None` for keys
-/// without any. macOS's English (US) press-and-hold set.
-pub fn variants(key: Key, shift: bool) -> Option<&'static [char]> {
-    use Key::*;
-    let (lower, upper): (&'static [char], &'static [char]) = match key {
-        KeyA => (&['à', 'á', 'â', 'ä', 'æ', 'ã', 'å', 'ā'], &['À', 'Á', 'Â', 'Ä', 'Æ', 'Ã', 'Å', 'Ā']),
-        KeyC => (&['ç', 'ć', 'č'], &['Ç', 'Ć', 'Č']),
-        KeyE => (&['è', 'é', 'ê', 'ë', 'ē', 'ė', 'ę'], &['È', 'É', 'Ê', 'Ë', 'Ē', 'Ė', 'Ę']),
-        KeyI => (&['î', 'ï', 'í', 'ī', 'į', 'ì'], &['Î', 'Ï', 'Í', 'Ī', 'Į', 'Ì']),
-        KeyL => (&['ł'], &['Ł']),
-        KeyN => (&['ñ', 'ń'], &['Ñ', 'Ń']),
-        KeyO => (&['ô', 'ö', 'ò', 'ó', 'œ', 'ø', 'ō', 'õ'], &['Ô', 'Ö', 'Ò', 'Ó', 'Œ', 'Ø', 'Ō', 'Õ']),
-        KeyS => (&['ß', 'ś', 'š'], &['Ś', 'Š']),
-        KeyU => (&['û', 'ü', 'ù', 'ú', 'ū'], &['Û', 'Ü', 'Ù', 'Ú', 'Ū']),
-        KeyY => (&['ÿ'], &['Ÿ']),
-        KeyZ => (&['ž', 'ź', 'ż'], &['Ž', 'Ź', 'Ż']),
+/// The variants of a letter (lower case, as typed in the mode, spec §3.6.4), in list order
+/// (numbered 1, 2, … in the list), or `None` for letters without any. macOS's English (US)
+/// press-and-hold set.
+pub fn variants(letter: char, shift: bool) -> Option<&'static [char]> {
+    let (lower, upper): (&'static [char], &'static [char]) = match letter {
+        'a' => (&['à', 'á', 'â', 'ä', 'æ', 'ã', 'å', 'ā'], &['À', 'Á', 'Â', 'Ä', 'Æ', 'Ã', 'Å', 'Ā']),
+        'c' => (&['ç', 'ć', 'č'], &['Ç', 'Ć', 'Č']),
+        'e' => (&['è', 'é', 'ê', 'ë', 'ē', 'ė', 'ę'], &['È', 'É', 'Ê', 'Ë', 'Ē', 'Ė', 'Ę']),
+        'i' => (&['î', 'ï', 'í', 'ī', 'į', 'ì'], &['Î', 'Ï', 'Í', 'Ī', 'Į', 'Ì']),
+        'l' => (&['ł'], &['Ł']),
+        'n' => (&['ñ', 'ń'], &['Ñ', 'Ń']),
+        'o' => (&['ô', 'ö', 'ò', 'ó', 'œ', 'ø', 'ō', 'õ'], &['Ô', 'Ö', 'Ò', 'Ó', 'Œ', 'Ø', 'Ō', 'Õ']),
+        's' => (&['ß', 'ś', 'š'], &['Ś', 'Š']),
+        'u' => (&['û', 'ü', 'ù', 'ú', 'ū'], &['Û', 'Ü', 'Ù', 'Ú', 'Ū']),
+        'y' => (&['ÿ'], &['Ÿ']),
+        'z' => (&['ž', 'ź', 'ż'], &['Ž', 'Ź', 'Ż']),
         _ => return None,
     };
     Some(if shift { upper } else { lower })

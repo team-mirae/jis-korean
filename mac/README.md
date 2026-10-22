@@ -92,12 +92,15 @@ As notifications: post `me.sjun.inputmethod.JISKorean.ResolveKeyCodeInput` (`key
 ## JIS English (spec §3.6.2, §8.2.1)
 
 `make ENGLISH=1` adds the English modes: **JIS English** (`A_QWERTY`), and **US English**
-(`B_QWERTY`) and **UK English** (`CJ_QWERTY`) with US ANSI and UK ISO symbols, which work the same way.
+(`B_QWERTY`) and **UK English** (`CJ_QWERTY`) with US ANSI and UK ISO symbols, and **JIS Dvorak**
+(`A_DVORAK`) and **JIS Colemak** (`A_COLEMAK`) with Dvorak's and Colemak's letters and JIS symbols
+(spec §3.6.4: ⌘ and ⌥ shortcuts stay on QWERTY), which all work the same way.
 Below, JIS English stands for the English mode used last. JIS English is an English input mode of JIS Korean, listed
 under English in System Settings → Keyboard → Input Sources (log out and back in after the first
 install, as for any new mode). It types JIS QWERTY with JIS symbols on any keyboard, like the
-Japanese Romaji mode without its conversions, and holding a letter offers its accented variants
-(u → ü, spec §3.6.3).
+Japanese Romaji mode without its conversions, and ⌥ + a letter offers its accented variants in a
+row (⌥U then 2 → ü; 1–9 and 0 pick, Esc cancels; spec §3.6.3). There's no press and hold: holding a
+key repeats it. In terminals ⌥ goes to the app untouched.
 
 Switching stays inside JIS Korean: 英数 always goes to English; **カタカナ** (the Windows JIS key
 right of the space bar) and **F18** always go to Korean, from any app or input source. JIS Korean

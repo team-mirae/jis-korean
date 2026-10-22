@@ -1,7 +1,7 @@
 # Modes: the contract for adding one
 
-A **mode** is one keyboard's key map (spec §3.6). JIS Korean ships three Korean modes, has a
-fourth specified (JIS English, spec §3.6.2) and five more reserved:
+A **mode** is one keyboard's key map (spec §3.6). JIS Korean ships three Korean modes, has five
+English modes specified (spec §3.6.2, §3.6.4) and three more reserved:
 
 | Id | Mode name | Display name | Keyboard |
 |---|---|---|---|
@@ -9,7 +9,9 @@ fourth specified (JIS English, spec §3.6.2) and five more reserved:
 | 1 | `B` | JIS Korean for US ANSI | US ANSI (HHKB US, MacBook US) |
 | 2 | `C` | JIS Korean for UK ISO | ISO (UK) |
 | 3 | `A_QWERTY` | JIS English | any (JIS symbols) |
-| 4–8 | `CJ_QWERTZ`, `CJ_SWISS_QZ`, `CJ_AZERTY`, `A_DVORAK`, `A_COLEMAK` | reserved | |
+| 4–6 | `CJ_QWERTZ`, `CJ_SWISS_QZ`, `CJ_AZERTY` | reserved | |
+| 7 | `A_DVORAK` | JIS Dvorak | any (JIS symbols, Dvorak letters) |
+| 8 | `A_COLEMAK` | JIS Colemak | any (JIS symbols, Colemak letters) |
 | 9 | `B_QWERTY` | US English | any (US ANSI symbols) |
 | 10 | `CJ_QWERTY` | UK English | any (UK ISO symbols) |
 

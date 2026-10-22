@@ -1,6 +1,7 @@
 #!/bin/sh
 # Adds the English modes (spec §3.6.2, §8.2.1) to a built bundle's Info.plist and Keyboard Viewer
-# layout list: JIS English (A_QWERTY), US English (B_QWERTY) and UK English (CJ_QWERTY). Run by
+# layout list: JIS English (A_QWERTY), US English (B_QWERTY), UK English (CJ_QWERTY), JIS Dvorak
+# (A_DVORAK) and JIS Colemak (A_COLEMAK). Run by
 # `make ENGLISH=1`; the checked-in Info.plist has the Korean modes only.
 # Usage: add-english-mode.sh <JISKorean.app/Contents>
 set -eu
@@ -33,4 +34,6 @@ add() {
 add A_QWERTY mode-a-qwerty JISEnglish true
 add B_QWERTY mode-b-qwerty USEnglish false
 add CJ_QWERTY mode-cj-qwerty UKEnglish false
+add A_DVORAK mode-a-dvorak JISDvorak false
+add A_COLEMAK mode-a-colemak JISColemak false
 $pb -c "Add :tsInputMethodCharacterRepertoireKey: string Latn" "$plist"

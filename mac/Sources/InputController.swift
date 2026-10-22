@@ -31,9 +31,6 @@ final class JKInputController: IMKInputController {
     /// This controller's engine. The public API resolves keys on a copy of it (spec §8.3).
     let engine = jk_new()
     private var hasMarkedText = false
-    /// Characters before the insertion point the next marked text replaces (`jk_take_back`): the
-    /// letter JIS English's press and hold takes back into its list (spec §3.6.3).
-    private var takeBack = 0
     /// The controller JIS Korean was last activated in: the focused app's, while JIS Korean is the
     /// input source. The public API answers for it.
     private(set) static weak var focused: JKInputController?
@@ -97,8 +94,14 @@ final class JKInputController: IMKInputController {
             return handled
         }
         #endif
-        // The auto-repeat of a held key, and Caps Lock: JIS English's press and hold and F9/F10 read
-        // them (spec §3.6.3, §3.6.4); the Korean modes ignore them.
+        // In a terminal, ⌥ in an English mode goes to the app untouched: readline's ⌥C, ⌥U and ⌥L
+        // with Option as Meta, not letter variants (spec §3.6.3).
+        if !InputModes.current.korean && event.modifierFlags.contains(.option)
+            && KnownApps.isTerminal(client.bundleIdentifier()) {
+            return false
+        }
+        // The auto-repeat of a held key, and Caps Lock: the English modes' variants list reads
+        // them (spec §3.6.3); the Korean modes ignore them.
         var extra = event.isARepeat ? UInt32(JK_MOD_REPEAT) : 0
         if event.modifierFlags.contains(.capsLock) { extra |= UInt32(JK_MOD_CAPS) }
         let mods = modifiers(event.modifierFlags) | extra
@@ -536,7 +539,6 @@ final class JKInputController: IMKInputController {
             client.insertText(commit, replacementRange: NSRange(location: NSNotFound, length: NSNotFound))
             hasMarkedText = false
         }
-        takeBack = jk_take_back(engine)
         #if PREDICT
         predictions = []
         let preedit = text(jk_preedit_ptr(engine), jk_preedit_len(engine))
@@ -572,17 +574,7 @@ final class JKInputController: IMKInputController {
                 .markedClauseSegment: 0,
             ])
             let caret = NSRange(location: preedit.utf16.count, length: 0)
-            // Taking back characters already typed: the marked text replaces them. They're single
-            // Latin letters (one UTF-16 unit each), so the count is the range's length.
-            var replacement = notFound
-            if takeBack > 0 {
-                let selection = client.selectedRange()
-                if selection.location != NSNotFound && selection.location >= takeBack {
-                    replacement = NSRange(location: selection.location - takeBack, length: takeBack)
-                }
-                takeBack = 0
-            }
-            client.setMarkedText(marked, selectionRange: caret, replacementRange: replacement)
+            client.setMarkedText(marked, selectionRange: caret, replacementRange: notFound)
             hasMarkedText = true
         } else if hasMarkedText {
             client.setMarkedText("", selectionRange: NSRange(location: 0, length: 0), replacementRange: notFound)
@@ -610,7 +602,9 @@ final class JKInputController: IMKInputController {
             }
             let selected = jk_candidate_selected(engine)
             window.onPick = { [weak self] index in self?.pickHanja(index, from: selected, client) }
-            window.show(items, selected: selected, below: caret())
+            // An English mode's list is letter variants (spec §3.6.3): one row.
+            window.show(items, selected: selected < hanja ? selected : nil, below: caret(),
+                        horizontal: !InputModes.current.korean)
             return
         }
         #if PREDICT

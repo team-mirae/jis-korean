@@ -23,11 +23,7 @@ enum DefaultOffApps {
     private static let known: [String: Reason] = {
         var map: [String: Reason] = [:]
         let groups: [(String, [String])] = [
-            ("terminal", [
-                "com.apple.Terminal", "com.googlecode.iterm2", "dev.warp.Warp-Stable", "dev.warp.Warp",
-                "com.mitchellh.ghostty", "net.kovidgoyal.kitty", "org.alacritty", "io.alacritty",
-                "com.github.wez.wezterm", "co.zeit.hyper", "org.tabby", "com.raphaelamorim.rio",
-            ]),
+            ("terminal", KnownApps.terminals),
             ("file transfer / SSH", [
                 "com.panic.Transmit", "com.panic.transmit", "com.panic.Transmit5", "ch.sudo.cyberduck",
                 "org.filezilla-project.filezilla", "de.filezilla", "com.binarynights.ForkLift",

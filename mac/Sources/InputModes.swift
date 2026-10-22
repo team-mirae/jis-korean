@@ -30,8 +30,8 @@ enum InputModes {
     ] + english
 
     #if ENGLISH
-    /// The English input modes (spec §3.6.2), built with `make ENGLISH=1`: JIS English, and its US
-    /// ANSI and UK ISO siblings.
+    /// The English input modes (spec §3.6.2, §3.6.4), built with `make ENGLISH=1`: JIS English, its
+    /// US ANSI and UK ISO siblings, and JIS Dvorak and JIS Colemak.
     static let english = [
         Mode(id: 3, letter: "A_QWERTY", sourceID: "me.sjun.inputmethod.JISKorean.A_QWERTY",
              keyboardViewerLayout: "JISEnglish", korean: false),
@@ -39,6 +39,10 @@ enum InputModes {
              keyboardViewerLayout: "USEnglish", korean: false),
         Mode(id: 10, letter: "CJ_QWERTY", sourceID: "me.sjun.inputmethod.JISKorean.CJ_QWERTY",
              keyboardViewerLayout: "UKEnglish", korean: false),
+        Mode(id: 7, letter: "A_DVORAK", sourceID: "me.sjun.inputmethod.JISKorean.A_DVORAK",
+             keyboardViewerLayout: "JISDvorak", korean: false),
+        Mode(id: 8, letter: "A_COLEMAK", sourceID: "me.sjun.inputmethod.JISKorean.A_COLEMAK",
+             keyboardViewerLayout: "JISColemak", korean: false),
     ]
     #else
     static let english: [Mode] = []

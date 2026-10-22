@@ -1,7 +1,8 @@
 # Builds JISKorean.app (universal arm64 + x86_64) without Xcode: Command Line Tools are enough.
 #   make                 build build/full/JISKorean.app (with the predictive layer)
 #   make PREDICT=0       build build/lite/JISKorean.app: the predictive layer stripped out entirely
-#   make ENGLISH=1       also JIS English (mode A_QWERTY, spec §3.6.2), an English input mode:
+#   make ENGLISH=1       also the English input modes (JIS English, US and UK English, JIS Dvorak and
+#                        JIS Colemak; spec §3.6.2, §3.6.4):
 #                        build/full-english/JISKorean.app (combines with PREDICT=0: lite-english)
 #   make install         copy it to ~/Library/Input Methods, register it, and restart it
 #   make dist            build/<variant>/JISKorean-<version>[-lite].zip for a release
@@ -86,7 +87,8 @@ $(BUILD)/JISKorean: $(BUILD)/arm64/JISKorean $(BUILD)/x86_64/JISKorean
 
 ICONS := $(BUILD)/taegeuk.tiff $(BUILD)/mode-a.tiff $(BUILD)/mode-b.tiff $(BUILD)/mode-iso.tiff
 ifeq ($(ENGLISH),1)
-  ICONS += $(BUILD)/mode-a-qwerty.tiff $(BUILD)/mode-b-qwerty.tiff $(BUILD)/mode-cj-qwerty.tiff
+  ICONS += $(BUILD)/mode-a-qwerty.tiff $(BUILD)/mode-b-qwerty.tiff $(BUILD)/mode-cj-qwerty.tiff \
+           $(BUILD)/mode-a-dvorak.tiff $(BUILD)/mode-a-colemak.tiff
 endif
 
 $(BUILD)/%.tiff: Resources/icons/%.png Resources/icons/%@2x.png
@@ -116,7 +118,8 @@ $(BUILD)/JISKoreanISO.keylayout: $(BUILD)/make-keylayout $(BUILD)/legends-2.tsv
 
 # The English modes: their symbols on any keyboard, and capitals under Caps Lock (turned on with a
 # modifier: plain Caps Lock is JIS Korean's switch, spec §8.2.1). JIS English (3), US
-# English (9) and UK English (10).
+# English (9), UK English (10), JIS Dvorak (7) and JIS Colemak (8). make-keylayout takes ⌥, ⌘ and
+# Ctrl from ABC, so shortcuts stay on QWERTY in Dvorak and Colemak too (spec §3.6.4).
 $(BUILD)/JISEnglish.keylayout: $(BUILD)/make-keylayout $(BUILD)/legends-3.tsv
 	$(BUILD)/make-keylayout $(BUILD)/legends-3.tsv $@ JISEnglish JIS -23459 caps
 
@@ -126,9 +129,16 @@ $(BUILD)/USEnglish.keylayout: $(BUILD)/make-keylayout $(BUILD)/legends-9.tsv
 $(BUILD)/UKEnglish.keylayout: $(BUILD)/make-keylayout $(BUILD)/legends-10.tsv
 	$(BUILD)/make-keylayout $(BUILD)/legends-10.tsv $@ UKEnglish ISO -23461 caps
 
+$(BUILD)/JISDvorak.keylayout: $(BUILD)/make-keylayout $(BUILD)/legends-7.tsv
+	$(BUILD)/make-keylayout $(BUILD)/legends-7.tsv $@ JISDvorak JIS -23462 caps
+
+$(BUILD)/JISColemak.keylayout: $(BUILD)/make-keylayout $(BUILD)/legends-8.tsv
+	$(BUILD)/make-keylayout $(BUILD)/legends-8.tsv $@ JISColemak JIS -23463 caps
+
 KEYLAYOUTS := $(BUILD)/JISKorean.keylayout $(BUILD)/JISKoreanANSI.keylayout $(BUILD)/JISKoreanISO.keylayout
 ifeq ($(ENGLISH),1)
-  KEYLAYOUTS += $(BUILD)/JISEnglish.keylayout $(BUILD)/USEnglish.keylayout $(BUILD)/UKEnglish.keylayout
+  KEYLAYOUTS += $(BUILD)/JISEnglish.keylayout $(BUILD)/USEnglish.keylayout $(BUILD)/UKEnglish.keylayout \
+                $(BUILD)/JISDvorak.keylayout $(BUILD)/JISColemak.keylayout
 endif
 
 # An earlier build installed the layout as its own bundle here; install removes it.

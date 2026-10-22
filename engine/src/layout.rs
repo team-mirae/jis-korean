@@ -53,7 +53,7 @@ pub enum Mode {
     /// between left Shift and Z. Its symbol keys are optional ([`Mode::optional_keys`]).
     C = 2,
     /// `A_QWERTY`, JIS English (spec §3.6.2): not 2-set. Standard JIS QWERTY with JIS symbols on
-    /// any keyboard; every key goes to the app, and holding a letter offers its accented variants
+    /// any keyboard; every key goes to the app, and ⌥ + a letter offers its accented variants
     /// (spec §3.6.3). Built with the `english` feature.
     #[cfg(feature = "english")]
     AQwerty = 3,
@@ -64,6 +64,14 @@ pub enum Mode {
     /// ¥ and ろ type the ISO keys JIS lacks (spec §3.6.2). `english` feature.
     #[cfg(feature = "english")]
     CjQwerty = 10,
+    /// `A_DVORAK`, JIS Dvorak (spec §3.6.4): JIS English with Dvorak's letters. Every symbol keeps its
+    /// JIS key pair; the four a letter displaces go to Dvorak's punctuation slots. `english` feature.
+    #[cfg(feature = "english")]
+    ADvorak = 7,
+    /// `A_COLEMAK`, JIS Colemak (spec §3.6.4): JIS English with Colemak's letters; `; +` moves to P.
+    /// `english` feature.
+    #[cfg(feature = "english")]
+    AColemak = 8,
 }
 
 impl Mode {
@@ -72,7 +80,16 @@ impl Mode {
     pub const ALL: &'static [Mode] = &[Mode::A, Mode::B, Mode::C];
     /// Every mode this build has, in the order menus list them. Not indexed by id.
     #[cfg(feature = "english")]
-    pub const ALL: &'static [Mode] = &[Mode::A, Mode::B, Mode::C, Mode::AQwerty, Mode::BQwerty, Mode::CjQwerty];
+    pub const ALL: &'static [Mode] = &[
+        Mode::A,
+        Mode::B,
+        Mode::C,
+        Mode::AQwerty,
+        Mode::BQwerty,
+        Mode::CjQwerty,
+        Mode::ADvorak,
+        Mode::AColemak,
+    ];
 
     /// The stable id over the C ABI and in saved settings (spec §3.6.1). Never reuse or renumber
     /// one.
@@ -89,6 +106,10 @@ impl Mode {
             2 => Some(Mode::C),
             #[cfg(feature = "english")]
             3 => Some(Mode::AQwerty),
+            #[cfg(feature = "english")]
+            7 => Some(Mode::ADvorak),
+            #[cfg(feature = "english")]
+            8 => Some(Mode::AColemak),
             #[cfg(feature = "english")]
             9 => Some(Mode::BQwerty),
             #[cfg(feature = "english")]
@@ -110,6 +131,10 @@ impl Mode {
             Mode::BQwerty => "B_QWERTY",
             #[cfg(feature = "english")]
             Mode::CjQwerty => "CJ_QWERTY",
+            #[cfg(feature = "english")]
+            Mode::ADvorak => "A_DVORAK",
+            #[cfg(feature = "english")]
+            Mode::AColemak => "A_COLEMAK",
         }
     }
 
@@ -119,7 +144,7 @@ impl Mode {
         match self {
             Mode::A | Mode::B | Mode::C => true,
             #[cfg(feature = "english")]
-            Mode::AQwerty | Mode::BQwerty | Mode::CjQwerty => false,
+            Mode::AQwerty | Mode::BQwerty | Mode::CjQwerty | Mode::ADvorak | Mode::AColemak => false,
         }
     }
 
@@ -135,6 +160,10 @@ impl Mode {
             Mode::BQwerty => "US English",
             #[cfg(feature = "english")]
             Mode::CjQwerty => "UK English",
+            #[cfg(feature = "english")]
+            Mode::ADvorak => "JIS Dvorak",
+            #[cfg(feature = "english")]
+            Mode::AColemak => "JIS Colemak",
         }
     }
 
@@ -145,7 +174,7 @@ impl Mode {
         match self {
             Mode::A | Mode::B => &[],
             #[cfg(feature = "english")]
-            Mode::AQwerty | Mode::BQwerty | Mode::CjQwerty => &[],
+            Mode::AQwerty | Mode::BQwerty | Mode::CjQwerty | Mode::ADvorak | Mode::AColemak => &[],
             Mode::C => &[Key::BracketLeft, Key::BracketRight, Key::IntlBackslash],
         }
     }
@@ -162,7 +191,7 @@ impl Mode {
             Mode::C => iso_korean(key),
             // Not Korean: the JIS symbols as they are.
             #[cfg(feature = "english")]
-            Mode::AQwerty | Mode::BQwerty | Mode::CjQwerty => {
+            Mode::AQwerty | Mode::BQwerty | Mode::CjQwerty | Mode::ADvorak | Mode::AColemak => {
                 self.stock(key).map(|(base, shifted)| (Out::Char(base), Out::Char(shifted)))
             }
         }
@@ -182,7 +211,27 @@ impl Mode {
             Mode::BQwerty => stock_us(key),
             #[cfg(feature = "english")]
             Mode::CjQwerty => stock_uk_on_jis(key),
+            #[cfg(feature = "english")]
+            Mode::ADvorak | Mode::AColemak => stock_jis(self.qwerty_key(key)),
         }
+    }
+
+    /// The JIS English key whose characters `key` types in this mode: itself, except in JIS Dvorak
+    /// and JIS Colemak, which move keys around (spec §3.6.4). ⌘ and ⌥ still use `key` as it is.
+    pub fn qwerty_key(self, key: Key) -> Key {
+        match self {
+            #[cfg(feature = "english")]
+            Mode::ADvorak => dvorak(key),
+            #[cfg(feature = "english")]
+            Mode::AColemak => colemak(key),
+            _ => key,
+        }
+    }
+
+    /// The Latin letter `key` types in an English mode (lower case), or `None` for a key that types
+    /// something else there. Korean modes have none.
+    pub fn letter(self, key: Key) -> Option<char> {
+        if self.is_korean() { None } else { self.qwerty_key(key).letter() }
     }
 }
 
@@ -201,7 +250,7 @@ pub fn output_in(mode: Mode, layout: Layout, key: Key, shift: bool) -> Option<Ou
 pub fn output_with(mode: Mode, symbols: bool, layout: Layout, key: Key, shift: bool) -> Option<Out> {
     if !mode.is_korean() {
         // JIS English: the Latin letters, upper-case with Shift.
-        if let Some(letter) = key.letter() {
+        if let Some(letter) = mode.letter(key) {
             return Some(Out::Char(if shift { letter.to_ascii_uppercase() } else { letter }));
         }
     } else if let Some((base, shifted)) = two_set(key) {
@@ -313,6 +362,72 @@ fn iso_korean(key: Key) -> Option<(Out, Out)> {
         BracketRight => Some((C(']'), C('\u{300D}'))),
         IntlBackslash => Some((C('\u{00B7}'), C('\u{2014}'))),
         _ => stock_uk(key).map(|(base, shifted)| (C(base), C(shifted))),
+    }
+}
+
+/// JIS Dvorak's keys (spec §3.6.4): Dvorak's letters, each key typing the JIS English key named.
+/// The JIS symbol keys a letter displaces go where Dvorak has punctuation: `, <` to W, `. >` to E,
+/// `; +` to Z, and `/ ?` to Q (Dvorak's `' "`, which JIS has on Shift+7 and Shift+2).
+#[cfg(feature = "english")]
+fn dvorak(key: Key) -> Key {
+    use Key::*;
+    match key {
+        KeyQ => Slash,
+        KeyW => Comma,
+        KeyE => Period,
+        KeyR => KeyP,
+        KeyT => KeyY,
+        KeyY => KeyF,
+        KeyU => KeyG,
+        KeyI => KeyC,
+        KeyO => KeyR,
+        KeyP => KeyL,
+        KeyS => KeyO,
+        KeyD => KeyE,
+        KeyF => KeyU,
+        KeyG => KeyI,
+        KeyH => KeyD,
+        KeyJ => KeyH,
+        KeyK => KeyT,
+        KeyL => KeyN,
+        Semicolon => KeyS,
+        KeyZ => Semicolon,
+        KeyX => KeyQ,
+        KeyC => KeyJ,
+        KeyV => KeyK,
+        KeyB => KeyX,
+        KeyN => KeyB,
+        Comma => KeyW,
+        Period => KeyV,
+        Slash => KeyZ,
+        _ => key,
+    }
+}
+
+/// JIS Colemak's keys (spec §3.6.4): Colemak's letters, each key typing the JIS English key named.
+/// `; +`, displaced by o, goes to P, Colemak's semicolon.
+#[cfg(feature = "english")]
+fn colemak(key: Key) -> Key {
+    use Key::*;
+    match key {
+        KeyE => KeyF,
+        KeyR => KeyP,
+        KeyT => KeyG,
+        KeyY => KeyJ,
+        KeyU => KeyL,
+        KeyI => KeyU,
+        KeyO => KeyY,
+        KeyP => Semicolon,
+        KeyS => KeyR,
+        KeyD => KeyS,
+        KeyF => KeyT,
+        KeyG => KeyD,
+        KeyJ => KeyN,
+        KeyK => KeyE,
+        KeyL => KeyI,
+        Semicolon => KeyO,
+        KeyN => KeyK,
+        _ => key,
     }
 }
 
