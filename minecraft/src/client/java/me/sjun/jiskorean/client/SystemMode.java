@@ -10,7 +10,8 @@ import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
  * The layout mode the JIS Korean input method is in, so the mod types the way the OS input method
- * would: 0 for Mode A (JIS) and 1 for Mode B (US ANSI). On macOS it's read from the input method's
+ * would, by its engine id (spec §3.6.1): 0 Mode A (JIS), 1 Mode B (US ANSI), 2 Mode C (UK ISO), or an
+ * English mode's id, which the mod's engine refuses. On macOS it's read from the input method's
  * public API (spec §8.2): {@code defaults read me.sjun.inputmethod.JISKorean CurrentModeID}. On
  * Windows it's the input method's {@code Mode} setting (spec §8.4), read as JIS Korean reads it:
  * {@code HKCU\Software\JIS Korean}, else {@code HKLM\Software\JIS Korean}. Elsewhere, or if JIS
@@ -77,7 +78,7 @@ final class SystemMode {
 
 	/**
 	 * The mode in {@code reg query <key> /v Mode} output, a line such as
-	 * {@code "    Mode    REG_DWORD    0x1"}: the mode id as stored (0 A, 1 B, 2 C), as the macOS
+	 * {@code "    Mode    REG_DWORD    0x1"}: the engine mode id as stored, as the macOS
 	 * path passes {@code CurrentModeID} on; -1 if there's none.
 	 */
 	static int parseRegQuery(String out) {

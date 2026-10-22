@@ -28,7 +28,7 @@ public final class Staging {
 	}
 
 	private final WasmEngine engine;
-	/** The engine's layout mode: 0 Mode A (JIS), the engine's default; 1 Mode B (US ANSI). */
+	/** The engine's layout mode: the engine id (spec §3.6.1), 0 for Mode A (JIS), the engine's default. */
 	private int mode;
 	private final Ranker ranker;
 	private final Map<String, Language> overrides = new HashMap<>();
@@ -146,7 +146,7 @@ public final class Staging {
 
 	/** Drops the staging area without committing. */
 	/**
-	 * Switches the engine's layout mode (0 Mode A, JIS; 1 Mode B, US ANSI), dropping anything
+	 * Switches the engine's layout mode by its engine id (spec §3.6.1), dropping anything
 	 * staged. Does nothing if the mode is already set.
 	 */
 	public void setMode(int id) {

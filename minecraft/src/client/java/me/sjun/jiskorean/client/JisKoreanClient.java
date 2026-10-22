@@ -56,8 +56,8 @@ public final class JisKoreanClient implements ClientModInitializer {
 	}
 
 	/**
-	 * Types in this mode (0 Mode A, JIS; 1 Mode B, US ANSI) instead of following the input method,
-	 * or follows it again for -1. For tests.
+	 * Types in this mode, by its engine id (0 Mode A, 1 Mode B, 2 Mode C), instead of following the
+	 * input method, or follows it again for -1. For tests.
 	 */
 	public static void pinMode(int mode) {
 		pinnedMode = mode;

@@ -98,7 +98,7 @@ private:
     void ApplySettings();
     void Activated();  // settings, then a changed training file (spec §10.12)
     void EnsureData();  // the dictionary and predictor, before the first key
-    void SetMode(unsigned mode);  // by engine id (0 = Mode A, 1 = B, 2 = C); unknown ids: Mode A
+    void SetMode(unsigned mode);  // by engine id (spec §3.6.1); an id this build doesn't have: Mode A
 
 #ifdef JK_PREDICT
     // ↓ / Tab and ↑ move through the predictions, Escape leaves the list, Enter commits the

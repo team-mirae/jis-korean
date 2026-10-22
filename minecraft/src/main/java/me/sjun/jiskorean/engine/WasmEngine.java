@@ -105,8 +105,9 @@ public final class WasmEngine {
 	}
 
 	/**
-	 * Switches the layout mode by its stable id (spec §3.6): 0 is Mode A (JIS), 1 is Mode B (US
-	 * ANSI). Unknown ids are ignored by the engine.
+	 * Switches the layout mode by its stable id (spec §3.6.1): 0 Mode A (JIS), 1 Mode B (US
+	 * ANSI), 2 Mode C (UK ISO). An id the engine doesn't have (an English mode, which the mod's
+	 * engine isn't built with) is refused, and the mode stays as it was.
 	 */
 	public void setMode(int mode) {
 		setMode.apply(handle, mode);

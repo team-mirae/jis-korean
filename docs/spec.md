@@ -200,7 +200,7 @@ Ids are in ranges; they don't have to be given in order:
 
 | Ids | For |
 |---|---|
-| 0–14 | Mirae Research's official modes. 0–8 are taken or reserved (below); 9–14 are held for future official designations. |
+| 0–14 | Mirae Research's official modes. 0–10 are taken or reserved (below); 11–14 are held for future official designations. |
 | 15–30 | Official modes contributed from outside, each accepted by a majority of the contributors. |
 | 31–99 | Custom layouts: any free id, chosen by whoever makes the layout. Nothing coordinates them, so two forks can pick the same one. |
 | 10000–11000 | Development and preview builds: a temporary id for a mode still being made. When it's done it gets a permanent id in its range (0–30 for an official mode), and the temporary one is dropped. Never saved by a release build's settings. |
@@ -208,7 +208,7 @@ Ids are in ranges; they don't have to be given in order:
 Every other id is invalid for now (0–99 may grow later). Every platform can hold ids up to
 2,147,483,647 (Minecraft's Java `int` is the narrowest), so the ranges have room to grow.
 
-**Ids are looked up, never counted.** Ids have gaps (3, then 9 or 31), and a build has only the
+**Ids are looked up, never counted.** Ids have gaps (3, then 7, or 31), and a build has only the
 modes it was built with (JIS English needs `ENGLISH=1`; reserved ids have no mode yet). So the
 engine keeps an explicit table of the modes it has, each with its id, and nothing assumes ids run
 from 0 without gaps:

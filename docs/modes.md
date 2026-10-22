@@ -1,19 +1,20 @@
 # Modes: the contract for adding one
 
-A **mode** is one keyboard's key map (spec §3.6). JIS Korean ships three Korean modes, has five
-English modes specified (spec §3.6.2, §3.6.4) and three more reserved:
+A **mode** is one keyboard's key map (spec §3.6). JIS Korean has three Korean modes, five English
+modes (spec §3.6.2, §3.6.4) and three more reserved. The English modes are built only with the
+engine's `english` feature (`make ENGLISH=1` on macOS); every other build has Modes A, B and C.
 
-| Id | Mode name | Display name | Keyboard |
-|---|---|---|---|
-| 0 | `A` | JIS Korean Original Layout | JIS |
-| 1 | `B` | JIS Korean for US ANSI | US ANSI (HHKB US, MacBook US) |
-| 2 | `C` | JIS Korean for UK ISO | ISO (UK) |
-| 3 | `A_QWERTY` | JIS English | any (JIS symbols) |
-| 4–6 | `CJ_QWERTZ`, `CJ_SWISS_QZ`, `CJ_AZERTY` | reserved | |
-| 7 | `A_DVORAK` | JIS Dvorak | any (JIS symbols, Dvorak letters) |
-| 8 | `A_COLEMAK` | JIS Colemak | any (JIS symbols, Colemak letters) |
-| 9 | `B_QWERTY` | US English | any (US ANSI symbols) |
-| 10 | `CJ_QWERTY` | UK English | any (UK ISO symbols) |
+| Id | Mode name | Display name | Keyboard | Types |
+|---|---|---|---|---|
+| 0 | `A` | JIS Korean Original Layout | JIS | Korean |
+| 1 | `B` | JIS Korean for US ANSI | US ANSI (HHKB US, MacBook US) | Korean |
+| 2 | `C` | JIS Korean for UK ISO | ISO (UK) | Korean |
+| 3 | `A_QWERTY` | JIS English | any (JIS symbols) | English |
+| 4–6 | `CJ_QWERTZ`, `CJ_SWISS_QZ`, `CJ_AZERTY` | reserved | | |
+| 7 | `A_DVORAK` | JIS Dvorak | any (JIS symbols, Dvorak letters) | English |
+| 8 | `A_COLEMAK` | JIS Colemak | any (JIS symbols, Colemak letters) | English |
+| 9 | `B_QWERTY` | US English | any (US ANSI symbols) | English |
+| 10 | `CJ_QWERTY` | UK English | any (UK ISO symbols; ¥ and ろ type the ISO keys JIS lacks) | English |
 
 ## Naming a new mode
 
@@ -85,14 +86,21 @@ swapped case needs one ISO user or one ISO keyboard to confirm.
 
 ## What every mode keeps
 
-These are shared by every Korean mode (JIS English, `A_QWERTY`, types English and keeps none of
-them; it's built with the engine's `english` feature and tested in `tests/english.rs`), and a mode can't change them:
+Every **Korean mode** (`Mode::is_korean`) shares these, and can't change them:
 
 - **Standard 2-set on the 26 letter keys**, Shift layer included (the core principle, spec §1).
 - **Shift+Z is F10**, and **F6–F10** work as spec §6 says.
 - **The automaton and everything after it** (spec §4 onward): the implied ㅇ, the double press,
   backspace by jamo, commit rules, hanja and predictions.
 - **Space, Enter, Backspace, Tab, Esc, the arrows and the modifiers** keep their spec §3.5 behavior.
+
+Every **English mode** (spec §3.6.2) keeps none of the Korean ones, and shares these instead:
+
+- **Every key goes to the app**: the letters (`Mode::letter`, upper case with Shift) and the stock
+  keyboard's symbols, with no preedit. Switching in commits what Korean left unconfirmed.
+- **⌥ + a letter offers its variants** (spec §3.6.3).
+- **⌘ and ⌥ stay on the JIS QWERTY positions**, even when the mode moves keys (Dvorak, Colemak);
+  Ctrl does too for now (spec §3.6.4, **[decide]**).
 
 ## What a mode defines
 
@@ -106,6 +114,12 @@ All of it lives in `engine/src/layout.rs`, on the `Mode` enum:
 | Name | `Mode::name` | What a settings menu shows, e.g. "JIS Korean for UK ISO". Unique. |
 | Key table | `Mode::korean` → `<keyboard>_korean(key)` | What each non-letter key types: `(unshifted, shifted)`, each `Out::Jamo` (goes into the automaton) or `Out::Char` (goes in as-is). Return `None` for keys the mode leaves out: they commit and pass through to the app. |
 | Stock table | `Mode::stock` → `stock_<keyboard>(key)` | The characters the keyboard's own layout prints on those keys. It drives the F8 escape, the English reading and the standard 2-set prediction, so a mode never suggests a symbol from another keyboard. It must cover every key the key table maps to a `Char`. |
+| Korean or not | `Mode::is_korean` | `true` for a 2-set mode. An English mode's key table is its stock table (`Mode::korean` returns the stock characters for it). |
+| Optional keys | `Mode::optional_keys` | The symbol keys the **Dedicated symbol keys** setting turns off, to type their stock characters. Empty for most modes; Mode C's are [, ] and the extra key. |
+| Moved keys | `Mode::qwerty_key` → `dvorak(key)`, `colemak(key)` | English modes that move letters: which JIS English key each physical key types as. Its letters and symbols both follow it (`Mode::letter`, `Mode::stock`); ⌘ and ⌥ don't. Other modes return the key as it is. |
+
+An English mode is `#[cfg(feature = "english")]` on its variant and on every match arm that names
+it, and goes in the `english` build's `Mode::ALL` only.
 
 Keep the key table's comments in the style of `jis_korean` and `ansi_korean`: one line on what
 the mode changes and why.
@@ -116,20 +130,27 @@ matching id. `tests/header.rs` fails until the two agree.
 
 ## What the tests check
 
-`cargo test` in `/engine` runs `tests/modes.rs` over every mode in `Mode::ALL`:
+`cargo test` in `/engine` runs `tests/modes.rs` over every mode in `Mode::ALL`
+(`cargo test --features english` includes the English modes; CI runs both):
 
-- ids, names and mode names are unique, ids round-trip through `Mode::from_id`, and unknown ids
-  are refused (`None`), not replaced;
+- ids, names and mode names are unique and non-empty, ids round-trip through `Mode::from_id`, and
+  unknown ids are refused (`None`), not replaced;
 - each mode name is upper-case snake case, with its id in its namespace's range (spec §3.6.1);
+- id 2 and the letter C belong to the ISO mode;
 - over the C ABI, `jk_mode_id_at` lists the modes and `jk_set_mode` refuses an unknown id;
-- names are unique and non-empty;
-- the letter keys type standard 2-set, in the mode's layout and in its F8 escape;
+- in every Korean mode, the letter keys type standard 2-set, in the mode's layout and in its F8
+  escape, with its optional keys on and off; off, an optional key types its stock character and
+  nothing else changes;
 - the stock table has a character for every key the key table maps to a character;
 - the control keys (Space, Enter, Backspace, F-keys, Esc) aren't in either table.
 
-Add your mode's own examples next to Mode B's in `tests/modes.rs` (what a few keys type, what they
-read as in English, and one F8 example), and one prediction example in `tests/predict.rs` if the
-stock symbols differ from an existing mode's.
+`tests/baseline.rs` also types the whole 2-set baseline in every Korean mode.
+
+Add a Korean mode's own examples next to Mode B's and Mode C's in `tests/modes.rs` (what a few keys
+type, what they read as in English, and one F8 example), and one prediction example in
+`tests/predict.rs` if the stock symbols differ from an existing mode's. An English mode's go in
+`tests/english.rs`: its id and mode name, what it types, that keys pass through, and the ⌥ +
+letter variants of the letter it types.
 
 ## Docs
 
@@ -172,6 +193,14 @@ To add a mode on macOS:
    add it to `ICONS` in `mac/Makefile` and name it in the mode's Info.plist entry
    (`docs/logo/README.md` has the design rules and steps).
 
+An English mode differs in three places. It isn't in the checked-in `mac/Info.plist`:
+`mac/tools/add-english-mode.sh` adds it to the built bundle under `make ENGLISH=1` (one `add` line:
+mode name, badge, Keyboard Viewer layout, and whether it's primary in the Roman script; only
+`A_QWERTY` is), along with its `KLInfo_` entry. In `InputModes.english` it has `korean: false`, so
+英数 and the Korean Key switch to and from it (spec §8.2.1). Its `make-keylayout` rule ends in
+`caps`, and its keylayout and badge go in the `ifeq ($(ENGLISH),1)` parts of `KEYLAYOUTS` and
+`ICONS`.
+
 `make install` doesn't enable a new mode: users add it in System Settings. **A mode added to an
 input method that's already installed doesn't appear in System Settings until the user logs out and
 back in**, even though the system's input-source APIs list it right away. System Settings and the
@@ -181,5 +210,16 @@ Apple has confirmed this has no workaround (developer forums thread 775526, FB23
 
 ### Other shells
 
-Windows, Minecraft and the web playground run Mode A for now. Each needs a way to pick the mode
-and, for keys only another keyboard has, their canonical codes.
+None of them is built with the `english` feature, so they have Modes A, B and C.
+
+- **Windows** lists every mode its engine has in the language bar menu ("Mode B: JIS Korean for US
+  ANSI"), with `jk_mode_id_at`, so a new Korean mode appears there with no shell change. The choice
+  is saved as the `Mode` value under `HKCU\Software\JIS Korean`; an id the build doesn't have falls
+  back to Mode A. Mode C adds its Dedicated Symbol Keys item.
+- **The web playground** lists its modes by hand: add one to `MODES` in `web/src/App.tsx` (and to
+  the mode list in `web/src/docs/WebPage.tsx`).
+- **Minecraft** follows the input method's mode (`SystemMode`: macOS's `CurrentModeID`, Windows's
+  `Mode` value) and has no picker of its own. An id its engine doesn't have, such as an English
+  mode's, is refused by `jk_set_mode`, which keeps the mode it had.
+
+Each shell also needs the canonical codes of any keys only the new keyboard has.
