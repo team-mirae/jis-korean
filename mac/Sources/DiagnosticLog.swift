@@ -6,8 +6,11 @@ import Foundation
 enum DiagnosticLog {
     static let key = "DiagnosticLog"
 
+    /// Whether the log is on: checked before building a line that costs something.
+    static var isOn: Bool { UserDefaults.standard.bool(forKey: key) }
+
     static func note(_ message: String) {
-        guard UserDefaults.standard.bool(forKey: key) else { return }
+        guard isOn else { return }
         let url = FileManager.default.urls(for: .libraryDirectory, in: .userDomainMask)[0]
             .appendingPathComponent("Logs/JISKorean.log")
         let line = "\(ISO8601DateFormatter().string(from: Date())) [\(ProcessInfo.processInfo.processIdentifier)] \(message)\n"

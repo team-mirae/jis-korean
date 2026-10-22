@@ -66,14 +66,42 @@ enum InputModes {
     }
 
     /// Selects a mode's input source, as the input menu would: `noErr`, `paramErr` if it isn't added
-    /// in System Settings, or macOS's own error.
+    /// in System Settings, or macOS's own error (logged).
     @discardableResult
     static func select(_ mode: Mode) -> OSStatus {
         let query = [kTISPropertyInputSourceID as String: mode.sourceID] as CFDictionary
         guard let source = (TISCreateInputSourceList(query, false)?.takeRetainedValue() as? [TISInputSource])?.first else {
+            DiagnosticLog.note("selecting \(mode.letter) failed: not added in System Settings")
             return OSStatus(paramErr)
         }
-        return TISSelectInputSource(source)
+        // Remember the source we're leaving: until macOS reports the switch, selectedNow() still
+        // names it, and `selected()` answers with the target instead.
+        pending = (target: mode, from: selectedNow()?.sourceID, until: Date().addingTimeInterval(2))
+        let status = TISSelectInputSource(source)
+        if status != noErr {
+            pending = nil
+            DiagnosticLog.note("selecting \(mode.letter) failed (\(status))")
+        }
+        return status
+    }
+
+    /// A selection JIS Korean asked macOS for (`select`) that macOS hasn't reported yet. A field
+    /// activated in this window (Chrome activates its fields out of order) would otherwise read the
+    /// source being left and put every field back on it.
+    private static var pending: (target: Mode, from: String?, until: Date)?
+
+    /// The mode a field being activated is in: what macOS has selected, if it's one of ours, except
+    /// that while a selection of ours is in flight and macOS still names the source being left, the
+    /// target counts as selected.
+    static func selected() -> Mode? {
+        let now = selectedNow()
+        if let pending {
+            if now?.sourceID == pending.from && Date() <= pending.until {
+                return pending.target
+            }
+            self.pending = nil
+        }
+        return now
     }
 
     /// Whether a mode's input source is added in System Settings.
@@ -84,8 +112,12 @@ enum InputModes {
 
     static let defaultMode = all[0]
 
-    /// The mode last selected, shared by every input controller.
-    private(set) static var current = defaultMode
+    /// The mode last selected, shared by every input controller. At launch (the input method
+    /// starts on demand, and an install restarts it) it's the mode selected then, else the one
+    /// recorded last (PublicAPI): not Mode A whatever the menu bar shows.
+    private(set) static var current = selectedNow()
+        ?? UserDefaults.standard.string(forKey: PublicAPI.currentSourceKey).flatMap(mode(sourceID:))
+        ?? defaultMode
 
     static func mode(sourceID: String) -> Mode? {
         all.first { $0.sourceID == sourceID }
@@ -143,10 +175,13 @@ enum PublicAPI {
     static let modeChangeRefused = Notification.Name(prefix + "ModeChangeRefused")
 
     static let currentModeKey = "CurrentMode"
+    static let currentSourceKey = "CurrentModeInputSourceID"
     /// The setting that lets other programs change the mode (off by default).
     static let allowKey = "AllowOtherAppsToChangeMode"
 
     static var allowed: Bool { UserDefaults.standard.bool(forKey: allowKey) }
+
+    private static let notices = SystemNotices()
 
     /// Starts listening for SetMode. Call once, in the input method's process.
     static func start() {
@@ -160,15 +195,14 @@ enum PublicAPI {
         center.addObserver(forName: resolveKeyCodeFromOutput, object: nil, queue: .main) { note in
             reply(resolveKeyCodeFromOutput, note.userInfo, resolveOutput(note.userInfo ?? [:]))
         }
-        // A mode selected from outside (the input menu, Ctrl+Space, Karabiner, Hammerspoon) is the
-        // current one even when macOS doesn't tell the open session: the fields follow it on
-        // their next key.
-        center.addObserver(forName: Notification.Name(kTISNotifySelectedKeyboardInputSourceChanged as String), object: nil,
-                           queue: .main) { _ in
-            if let mode = InputModes.selectedNow() {
-                InputModes.becameCurrent(mode)
-            }
-        }
+        // A mode selected from outside (the input menu, Ctrl+Space, Karabiner) is the current one
+        // even when macOS doesn't tell the open session: the fields follow it on their next key.
+        // Delivered even while suspended: AppKit suspends distributed notifications whenever the
+        // app isn't active, and an input method never is, so with the default (coalesce) macOS's
+        // notice could be held back for good.
+        center.addObserver(notices, selector: #selector(SystemNotices.selectionChanged(_:)),
+                           name: Notification.Name(kTISNotifySelectedKeyboardInputSourceChanged as String), object: nil,
+                           suspensionBehavior: .deliverImmediately)
         if UserDefaults.standard.string(forKey: currentModeKey) == nil {
             store(InputModes.current)
         }
@@ -185,7 +219,7 @@ enum PublicAPI {
         let defaults = UserDefaults.standard
         defaults.set(mode.letter, forKey: currentModeKey)
         defaults.set(Int(mode.id), forKey: "CurrentModeID")
-        defaults.set(mode.sourceID, forKey: "CurrentModeInputSourceID")
+        defaults.set(mode.sourceID, forKey: currentSourceKey)
         defaults.set(InputModes.name(mode), forKey: "CurrentModeName")
     }
 
@@ -380,5 +414,17 @@ enum PublicAPI {
     private static func notRunning() -> Int32 {
         print("No answer: JIS Korean isn't running. Select it once in the input menu, then try again.")
         return 1
+    }
+}
+
+/// PublicAPI's target for macOS's own notifications (a selector needs an object).
+private final class SystemNotices: NSObject {
+    /// macOS selected an input source: one of ours, or another (ABC, Japanese).
+    @objc func selectionChanged(_ note: Notification) {
+        let mode = InputModes.selected()
+        DiagnosticLog.note("macOS selected \(mode?.letter ?? "another input source")")
+        if let mode {
+            InputModes.becameCurrent(mode)
+        }
     }
 }

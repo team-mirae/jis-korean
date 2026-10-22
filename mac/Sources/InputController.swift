@@ -38,6 +38,14 @@ final class JKInputController: IMKInputController {
     /// its fields (the omnibox, the page) often and out of order, so the last activated one isn't
     /// always it.
     private(set) static weak var keyed: JKInputController?
+    /// The controller a switch key acts on, in place: the one that last got a key when it's in the
+    /// app JIS Korean was last activated in (Chrome activates its fields out of order, so the last
+    /// activated one isn't always the field typed in), else the last activated one (the user moved
+    /// to another app and hasn't typed there yet).
+    static var typing: JKInputController? {
+        if let keyed, keyed.appID == focused?.appID { return keyed }
+        return focused ?? keyed
+    }
     /// Unmapped key codes already logged, per app (see `handle`).
     private static var unmappedNoted = Set<String>()
     /// The mode this controller's engine is in (`jk_set_mode`), nil before the first.
@@ -78,6 +86,8 @@ final class JKInputController: IMKInputController {
 
     override func handle(_ event: NSEvent!, client sender: Any!) -> Bool {
         guard let event, event.type == .keyDown, let client = sender as? IMKTextInput else { return false }
+        let started = Date()
+        defer { noteSlowKey(started, client) }
         Self.keyed = self
         syncMode(client)
         if engineKey(event.keyCode) == UInt32(JK_KEY_OTHER) {
@@ -125,22 +135,42 @@ final class JKInputController: IMKInputController {
         #if PREDICT
         saveLearned()
         #endif
+        noteKey(consumed: consumed != 0, client)
         return consumed != 0
+    }
+
+    /// One line per key, without the key: whether the engine took it, and the state that decides
+    /// what the app types when it didn't. Shows whether keys reach the input method at all (an app
+    /// can type through the layout without asking it).
+    private func noteKey(consumed: Bool, _ client: IMKTextInput) {
+        guard DiagnosticLog.isOn else { return }
+        let app = client.bundleIdentifier()
+        DiagnosticLog.note("key in \(app ?? "?"): consumed \(consumed), engine mode \(modeID.map(String.init) ?? "none"), layout \(KeyboardViewerLayout.named(to: app) ?? "none"), current \(InputModes.current.letter)")
+    }
+
+    /// A key that held the app for long: logged with its time.
+    private func noteSlowKey(_ started: Date, _ client: IMKTextInput) {
+        let ms = Date().timeIntervalSince(started) * 1000
+        if ms > 100 {
+            DiagnosticLog.note(String(format: "a key took %.0f ms in %@", ms, client.bundleIdentifier() ?? "?"))
+        }
     }
 
     override func activateServer(_ sender: Any!) {
         super.activateServer(sender)
         appID = (sender as? IMKTextInput)?.bundleIdentifier()
         Self.focused = self
-        DiagnosticLog.note("activated in \((sender as? IMKTextInput)?.bundleIdentifier() ?? "?")")
+        // Which mode's input source is selected (spec §8.2): macOS's answer, unless a selection of
+        // ours is still in flight. setValue(_:forTag:client:) also reports it, but not always
+        // before the first key.
+        let mode = InputModes.selected() ?? InputModes.current
+        DiagnosticLog.note("activated in \(appID ?? "?"): selected \(InputModes.selectedNow()?.letter ?? "another input source"), current \(InputModes.current.letter), using \(mode.letter)")
         #if PREDICT
         clientApp = (sender as? IMKTextInput)?.bundleIdentifier()
         DefaultOffApps.noticeIfFirst(clientApp)
         #endif
         jk_activate(engine)
-        // Which mode's input source was selected (spec §8.2). setValue(_:forTag:client:) also
-        // reports it, but not always before the first key.
-        applyMode(InputModes.selectedNow() ?? InputModes.current, client: sender as? IMKTextInput)
+        applyMode(mode, client: sender as? IMKTextInput)
         #if PREDICT
         applyPredictionsSetting()
         // A new or changed training file (docs/training-contract.md): applied, then settings again.
@@ -182,22 +212,33 @@ final class JKInputController: IMKInputController {
         KeyboardViewerLayout.select(mode.keyboardViewerLayout, for: client)
     }
 
-    /// Keeps this field's engine on the mode JIS Korean is in. A switch can reach another
-    /// controller than the one typing (カタカナ and F18 from the key tap, the public API, a
-    /// selection macOS didn't report to this session); this field then catches up on its next
-    /// key. Otherwise its engine stays in the old mode, and an English engine passes letters on
-    /// to the Korean mode's layout, which types them as loose jamo (ㄷㅏㄹㅏ for 다락방).
+    /// Keeps this field's engine, and its app's keyboard layout, on the mode JIS Korean is in. A
+    /// switch can reach another controller than the one typing (カタカナ and F18 from the key tap,
+    /// the public API, a selection macOS didn't report to this session); this field then catches up
+    /// on its next key. Otherwise its engine stays in the old mode, and an English engine passes
+    /// letters on to the Korean mode's layout, which types them as loose jamo (ㄷㅏㄹㅏ for 다락방).
+    /// The layout is the app's, not the field's (KeyboardViewerLayout): another field of the app
+    /// may have named its own mode's layout since, so it's checked on its own, engine or no engine.
     private func syncMode(_ client: IMKTextInput) {
         let mode = InputModes.current
-        guard modeID != mode.id else { return }
-        DiagnosticLog.note("mode resync \(modeID.map { String($0) } ?? "none") -> \(mode.letter) in \(client.bundleIdentifier() ?? "?")")
-        setEngineMode(mode, client: client)
+        let app = client.bundleIdentifier()
+        if modeID != mode.id {
+            DiagnosticLog.note("mode resync \(modeID.map { String($0) } ?? "none") -> \(mode.letter) in \(app ?? "?")")
+            setEngineMode(mode, client: client)
+        } else if KeyboardViewerLayout.named(to: app) != mode.keyboardViewerLayout {
+            DiagnosticLog.note("layout resync \(KeyboardViewerLayout.named(to: app) ?? "none") -> \(mode.keyboardViewerLayout) in \(app ?? "?")")
+            KeyboardViewerLayout.select(mode.keyboardViewerLayout, for: client)
+        }
     }
 
     override func deactivateServer(_ sender: Any!) {
         noteEarlyCommit("deactivateServer", sender)
         flush(sender)
-        SuggestionWindow.shared.hide()
+        hideList()
+        // macOS drops the layout named to the app when the input method is deactivated there.
+        let app = (sender as? IMKTextInput)?.bundleIdentifier() ?? appID
+        KeyboardViewerLayout.forget(app)
+        DiagnosticLog.note("deactivated in \(app ?? "?")")
         super.deactivateServer(sender)
     }
 
@@ -583,16 +624,26 @@ final class JKInputController: IMKInputController {
         showList(client, empty: preedit.isEmpty)
     }
 
+    /// Which list was asked for last: a show scheduled for an earlier one is dropped.
+    private var listGeneration = 0
+
     /// Hanja candidates after F7, or the predictions while typing (when there's more than one).
     private func showList(_ client: IMKTextInput, empty: Bool) {
-        // The caret's rectangle is a synchronous round trip into the app: asked only when a list
-        // shows, not on every key.
-        func caret() -> NSRect {
-            var rect = NSRect.zero
-            _ = client.attributes(forCharacterIndex: 0, lineHeightRectangle: &rect)
-            return rect
-        }
         let window = SuggestionWindow.shared
+        listGeneration += 1
+        let generation = listGeneration
+        // The caret's rectangle is a synchronous round trip into the app, asked once the key is
+        // done rather than inside it: inside, the app may not have the marked text yet (Chrome
+        // hands it to the page's process after the key, and asks that process for the rectangle,
+        // blocking), and the key would wait on it.
+        func show(_ items: [String], selected: Int?, horizontal: Bool = false) {
+            DispatchQueue.main.async { [weak self] in
+                guard let self, generation == self.listGeneration else { return }
+                var caret = NSRect.zero
+                _ = client.attributes(forCharacterIndex: 0, lineHeightRectangle: &caret)
+                window.show(items, selected: selected, below: caret, horizontal: horizontal)
+            }
+        }
         let hanja = jk_candidate_count(engine)
         if hanja > 0 {
             let items = (0..<hanja).map { i -> String in
@@ -603,18 +654,23 @@ final class JKInputController: IMKInputController {
             let selected = jk_candidate_selected(engine)
             window.onPick = { [weak self] index in self?.pickHanja(index, from: selected, client) }
             // An English mode's list is letter variants (spec §3.6.3): one row.
-            window.show(items, selected: selected < hanja ? selected : nil, below: caret(),
-                        horizontal: !InputModes.current.korean)
+            show(items, selected: selected < hanja ? selected : nil, horizontal: !InputModes.current.korean)
             return
         }
         #if PREDICT
         if !empty && predictions.count > 1 {
             window.onPick = { [weak self] index in self?.commitPrediction(index, to: client) }
-            window.show(predictions, selected: chosen, below: caret())
+            show(predictions, selected: chosen)
             return
         }
         #endif
         window.hide()
+    }
+
+    /// Hides the list, dropping any show still scheduled.
+    private func hideList() {
+        listGeneration += 1
+        SuggestionWindow.shared.hide()
     }
 
     /// A click on a hanja candidate: move the engine's selection there, then pick it.

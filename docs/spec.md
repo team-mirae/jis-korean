@@ -1005,7 +1005,18 @@ names the mode's layout to the client on each activation (`overrideKeyboard(with
 - **Its plain and Shift layers** carry the mode's legends. Shift+Z shows F10.
 - **Its Cmd, Ctrl and Option layers, and unlabelled keys,** are ABC's on the mode's keyboard (JIS
   for Mode A, ANSI for Mode B, ISO for Mode C), so shortcuts and Option characters are unchanged.
-- **Typing is unaffected:** the input method reads key codes, not characters.
+- **The engine reads key codes,** not characters, so the layout never changes what a key JIS Korean
+  consumes types. A key it passes on (letters in an English mode, shortcuts) is typed by this layout,
+  and so is every key an app types without asking the input method: password fields, where macOS
+  bypasses input methods, and in Chrome 152–156 any field that once looked like a password
+  (Chromium issue 567321058, fixed in 157). In a Korean mode those come out as bare jamo, as with
+  Apple's Korean input method and its 2SetHangul layout.
+- **The layout named is the app's, not the field's:** every field of an app (Chrome's omnibox and
+  its pages) is typed through the layout named last, and macOS drops it when the input method is
+  deactivated there. So the input method keeps the name last given to each app and, before a key,
+  names the field's mode's layout again when it differs, as it does the engine's mode (a switch can
+  reach another field than the one typing, §8.2.1). Otherwise an English engine's letters, passed on
+  to the app, would be typed by a Korean layout as bare jamo.
 
 ### 8.2 Modes as input sources, and the public API (macOS)
 
@@ -1074,6 +1085,13 @@ that go back to Korean go to the Korean mode used last.
   asynchronously, so a key pressed right after can land in the wrong one. Switching between modes of
   one input method stays in the same process and the same session with the app, which is how
   Japanese switches between Kana and Romaji.
+- **Selecting is asynchronous.** The field switches in place first (its engine and its app's
+  layout), then macOS is asked to select the mode's input source. Until macOS reports that, it
+  still names the old source, so a field activated meanwhile (Chrome activates its fields out of
+  order) counts the selection as made instead of reverting to the old mode, which every other field
+  would then follow. macOS's notice of a selection is taken even while the input method's
+  notifications are suspended (AppKit suspends them whenever the app isn't active, and an input
+  method never is).
 - **It's macOS's English input source.** It's declared with the Roman script (JIS English as the
   script's primary mode, US and UK English beside it), so 英数 selects it
   (as with Japanese input methods' own Romaji modes), Ctrl+Space switches between it and the last
