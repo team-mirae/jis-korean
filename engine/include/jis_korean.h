@@ -216,6 +216,11 @@ const uint8_t *jk_prediction_ptr(JkEngine *engine, size_t index);
 size_t jk_prediction_len(JkEngine *engine, size_t index);
 uint32_t jk_prediction_kind(JkEngine *engine, size_t index);
 void jk_commit_prediction(JkEngine *engine, size_t index); /* then read jk_commit_* */
+/* Commits prediction `index` because the host must (focus loss): learns nothing. */
+void jk_flush_prediction(JkEngine *engine, size_t index);
+/* A committing key (Space, Enter, a shortcut, ...) while prediction `index` shows: the prediction
+ * stands in for the unconfirmed text, then the key acts on it. Returns 1 if consumed. */
+uint32_t jk_key_after_prediction(JkEngine *engine, size_t index, uint32_t key, uint32_t mods);
 /* User tuning (spec §10.5): a multiplier on each scenario's learned probability, 1.0 = as learned,
  * clamped to 0.1-10; 0 turns an alternative off (not Korean or English). */
 enum {

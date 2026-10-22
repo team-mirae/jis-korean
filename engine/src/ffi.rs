@@ -33,9 +33,19 @@ fn guard<T>(fallback: T, f: impl FnOnce() -> T) -> T {
 
 fn with<T>(handle: *mut JkEngine, fallback: T, f: impl FnOnce(&mut JkEngine) -> T) -> T {
     // SAFETY: callers pass a handle from `jk_new` that hasn't been freed, from one thread.
-    match unsafe { handle.as_mut() } {
-        Some(h) => guard(fallback, || f(h)),
-        None => fallback,
+    if unsafe { handle.as_mut() }.is_none() {
+        return fallback;
+    }
+    match catch_unwind(AssertUnwindSafe(|| f(unsafe { &mut *handle }))) {
+        Ok(value) => value,
+        Err(_) => {
+            // A panic: nothing from before it may be applied again (the shell reads `last` after
+            // the call), and the unconfirmed state it left may be inconsistent.
+            let h = unsafe { &mut *handle };
+            h.last = Output::default();
+            h.engine.clear();
+            fallback
+        }
     }
 }
 
@@ -705,6 +715,28 @@ mod predict_ffi {
         }
     }
 
+    /// A committing key while prediction `index` shows: the prediction stands in for the
+    /// unconfirmed text, then the key acts on it. Returns 1 if the key was consumed; read the
+    /// text with `jk_commit_*` and `jk_preedit_*`.
+    #[unsafe(no_mangle)]
+    pub extern "C" fn jk_key_after_prediction(handle: *mut JkEngine, index: usize, key: u32, mods: u32) -> u32 {
+        with(handle, 0, |h| {
+            h.last = h.engine.key_after_prediction(index, crate::Key::from_id(key), crate::Mods::from_bits(mods));
+            h.predictions.clear();
+            h.last.consumed as u32
+        })
+    }
+
+    /// Commits prediction `index` because the host must (focus loss): learns nothing. Read the
+    /// text with `jk_commit_*`.
+    #[unsafe(no_mangle)]
+    pub extern "C" fn jk_flush_prediction(handle: *mut JkEngine, index: usize) {
+        with(handle, (), |h| {
+            h.last = h.engine.flush_prediction(index);
+            h.predictions.clear();
+        })
+    }
+
     /// Commits prediction `index`; read the text with `jk_commit_*`.
     #[unsafe(no_mangle)]
     pub extern "C" fn jk_commit_prediction(handle: *mut JkEngine, index: usize) {
@@ -712,5 +744,28 @@ mod predict_ffi {
             h.last = h.engine.commit_prediction(index);
             h.predictions.clear();
         })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn a_panic_leaves_no_output_to_apply_again() {
+        let handle = jk_new();
+        jk_key(handle, Key::from_code("KeyG") as u32, 0);
+        jk_key(handle, Key::from_code("Space") as u32, 0);
+        let consumed = with(handle, 7, |h| {
+            assert_eq!(h.last.commit, "ㅎ ");
+            panic!("simulated");
+        });
+        assert_eq!(consumed, 7);
+        // SAFETY: the handle is live.
+        let h = unsafe { &*handle };
+        assert_eq!(h.last, Output::default());
+        assert!(h.engine.preedit().is_empty());
+        // SAFETY: from jk_new, freed once.
+        unsafe { jk_free(handle) };
     }
 }

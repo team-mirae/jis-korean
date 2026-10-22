@@ -51,6 +51,9 @@ struct Conversion {
 struct HanjaList {
     /// Tokens from here on are replaced by the pick.
     start: usize,
+    /// The segment as typed, when opening the list turned it into plain characters (a reading
+    /// not on a keystroke boundary): closing the list without a pick puts it back.
+    typed: Option<Vec<Token>>,
     candidates: Vec<Candidate>,
     selected: usize,
 }
@@ -232,7 +235,8 @@ impl Engine {
     /// An open hanja list commits its selected candidate.
     pub fn flush(&mut self) -> Output {
         self.accept_hanja();
-        self.commit(String::new(), true)
+        // Not the user's choice: nothing is learned from it (spec §10.11).
+        self.commit_quietly(String::new(), true)
     }
 
     /// Discards everything unconfirmed, for hosts that commit a reading of their own (the
@@ -272,6 +276,13 @@ impl Engine {
         if !self.mode.is_korean() {
             return self.english_key(key, mods);
         }
+        // A press-and-hold letter still open from JIS English (the mode changed under it): it
+        // stays where it was, as plain text before what's typed now.
+        #[cfg(feature = "english")]
+        if let Some(held) = self.held.take() {
+            self.last_letter = None;
+            self.segment.insert(0, Token::Text(held.shown()));
+        }
         // Backspace right after accepting a top prediction: a weak sign it was wrong.
         #[cfg(feature = "predict")]
         if let Some(kind) = self.accepted.take()
@@ -305,7 +316,12 @@ impl Engine {
         match key {
             Key::F6 => {
                 self.hangul();
-                self.commit(String::new(), true)
+                // Korean, forced: the context, but no choice among predictions.
+                #[cfg(feature = "predict")]
+                if !self.segment.is_empty() {
+                    self.previous = Some(Language::Korean);
+                }
+                self.commit_quietly(String::new(), true)
             }
             Key::F7 => {
                 self.open_hanja();
@@ -374,11 +390,11 @@ impl Engine {
                 Key::Enter => {
                     self.accept_hanja();
                 }
-                Key::Escape | Key::Backspace => self.hanja = None,
+                Key::Escape | Key::Backspace => self.close_hanja(),
                 Key::F6 => {
                     // Back to Hangul (spec §6): F6 commits the reading as typed.
-                    self.hanja = None;
-                    return Some(self.commit(String::new(), true));
+                    self.close_hanja();
+                    return Some(self.commit_quietly(String::new(), true));
                 }
                 _ => match key.digit().and_then(|d| d.to_digit(10)) {
                     Some(n @ 1..=9) if !mods.shift && page_start + (n as usize) <= count => {
@@ -405,14 +421,24 @@ impl Engine {
         let prefix = &text[..text.len() - reading.len()];
         // The tokens that typed the reading, so earlier tokens stay editable. When the reading
         // doesn't fall on a token boundary (a final it took, say), the prefix becomes plain text.
+        let mut typed = None;
         let start = (0..self.segment.len())
             .rev()
             .find(|&k| compose(&self.segment[k..]) == reading && compose(&self.segment[..k]) == prefix)
             .unwrap_or_else(|| {
-                self.segment = prefix.chars().map(Token::Text).chain(reading.chars().map(Token::Text)).collect();
+                let text = prefix.chars().map(Token::Text).chain(reading.chars().map(Token::Text)).collect();
+                typed = Some(std::mem::replace(&mut self.segment, text));
                 prefix.chars().count()
             });
-        self.hanja = Some(HanjaList { start, candidates: candidates.to_vec(), selected: 0 });
+        self.hanja = Some(HanjaList { start, typed, candidates: candidates.to_vec(), selected: 0 });
+    }
+
+    /// Closes the hanja list without a pick: the segment is as it was typed, still editable
+    /// (spec §7.2).
+    fn close_hanja(&mut self) {
+        if let Some(typed) = self.hanja.take().and_then(|list| list.typed) {
+            self.segment = typed;
+        }
     }
 
     fn accept_hanja(&mut self) {
@@ -444,13 +470,20 @@ impl Engine {
                 conversion.width = width;
             }
             None => {
-                let symbols = matches!(self.segment.last(), Some(Token::Text(c) | Token::Typed(c, _)) if c.is_ascii_graphic());
+                // A symbol run (spec §5.3) is typed symbols and digits, and symbols an earlier
+                // conversion left; letters and digits it left belong to a word, which never mixes in.
+                let in_run = |t: &Token| match *t {
+                    Token::Typed(c, _) => c.is_ascii_graphic(),
+                    Token::Text(c) => c.is_ascii_punctuation(),
+                    _ => false,
+                };
+                let symbols = self.segment.last().is_some_and(in_run);
                 let run = self
                     .segment
                     .iter()
                     .rev()
                     .take_while(|t| match t {
-                        Token::Text(c) | Token::Typed(c, _) => symbols && c.is_ascii_graphic(),
+                        Token::Text(_) | Token::Typed(..) => symbols && in_run(t),
                         Token::Jamo { raw, .. } | Token::IeungVowel { raw, .. } => !symbols && raw.is_some(),
                         Token::Bare => false,
                     })
@@ -703,15 +736,50 @@ impl Engine {
         Output { commit: chosen.text, consumed: true, ..Output::default() }
     }
 
-    fn take_segment(&mut self) -> String {
-        // JIS English stages nothing but a press-and-hold letter: what it shows is what commits.
-        #[cfg(feature = "english")]
-        if let Some(held) = self.held.take() {
-            return held.shown().to_string();
-        }
+    /// A key that commits (Space, Enter, a shortcut, …) while prediction `index` is what shows:
+    /// that prediction stands in for the unconfirmed text, then the key does what it does to
+    /// it (spec §10): Space adds a space, Enter passes on unless it only commits (Shift+Enter or
+    /// the setting), and so on. Learns the choice as [`Engine::commit_prediction`] does.
+    #[cfg(feature = "predict")]
+    pub fn key_after_prediction(&mut self, index: usize, key: Key, mods: Mods) -> Output {
+        let shown = self.predictions();
+        let Some(chosen) = shown.get(index).cloned() else { return self.key(key, mods) };
+        let kinds = shown.iter().map(|p| learn::scenario(p.kind)).collect();
+        self.learn(&Event::Chose { shown: kinds, chosen: index });
+        self.previous = Some(Language::of(chosen.kind));
         self.conversion = None;
         self.hanja = None;
-        compose(&std::mem::take(&mut self.segment))
+        self.segment = chosen.text.chars().map(Token::Text).collect();
+        // The choice is learned above: the key's own commit learns nothing more.
+        let learning = std::mem::replace(&mut self.learning, false);
+        let out = self.key(key, mods);
+        self.learning = learning;
+        // After the key, which clears what was accepted before it and sets the context.
+        self.accepted = (index == 0 && self.learning).then(|| learn::scenario(chosen.kind));
+        self.previous = Some(Language::of(chosen.kind));
+        out
+    }
+
+    /// Commits prediction `index` because the host must (focus loss, a click elsewhere): like
+    /// [`Engine::flush`], it isn't a choice, so nothing is learned.
+    #[cfg(feature = "predict")]
+    pub fn flush_prediction(&mut self, index: usize) -> Output {
+        let Some(chosen) = self.predictions().into_iter().nth(index) else { return self.flush() };
+        self.previous = Some(Language::of(chosen.kind));
+        self.take_segment();
+        Output { commit: chosen.text, consumed: true, ..Output::default() }
+    }
+
+    fn take_segment(&mut self) -> String {
+        // JIS English stages nothing but a press-and-hold letter: what it shows is what commits,
+        // before anything typed after switching to a Korean mode with the list still open.
+        #[cfg(feature = "english")]
+        let held = self.held.take().map(|held| held.shown().to_string()).unwrap_or_default();
+        #[cfg(not(feature = "english"))]
+        let held = String::new();
+        self.conversion = None;
+        self.hanja = None;
+        held + &compose(&std::mem::take(&mut self.segment))
     }
 
     /// A key in JIS English (spec §3.6.2, §3.6.3): every key goes to the app, except while a held
@@ -786,8 +854,28 @@ impl Engine {
         }
     }
 
-    /// Commits the segment followed by `suffix`.
+    /// Commits the segment followed by `suffix`, for a key that commits: the Korean reading was
+    /// the user's choice (spec §10.11 Accept, when it was the top prediction with others shown),
+    /// and the context for the next word (§10.3).
     fn commit(&mut self, suffix: String, consumed: bool) -> Output {
+        #[cfg(feature = "predict")]
+        if !self.segment.is_empty() && self.hanja.is_none() {
+            let shown = self.predictions();
+            if let Some(top) = shown.first()
+                && top.kind == crate::predict::Kind::Korean
+                && shown.len() > 1
+            {
+                let kinds = shown.iter().map(|p| learn::scenario(p.kind)).collect();
+                self.learn(&Event::Chose { shown: kinds, chosen: 0 });
+                self.accepted = self.learning.then_some(Weight::Korean);
+            }
+            self.previous = Some(Language::Korean);
+        }
+        self.commit_quietly(suffix, consumed)
+    }
+
+    /// Commits the segment followed by `suffix`, learning nothing.
+    fn commit_quietly(&mut self, suffix: String, consumed: bool) -> Output {
         let mut commit = self.take_segment();
         commit.push_str(&suffix);
         Output { commit, consumed, ..Output::default() }

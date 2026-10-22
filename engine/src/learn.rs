@@ -31,6 +31,9 @@ pub const MIN: f64 = 0.5;
 pub const MAX: f64 = 2.0;
 /// Counts halve every this many events, so habits can change.
 const HALF_LIFE: f64 = 400.0;
+/// The most any count can hold in an import: halving every [`HALF_LIFE`] events keeps real counts
+/// far below it, and anything larger (or a sum of them) could overflow to infinity.
+const MAX_COUNT: f64 = 1e6;
 
 /// The scenario a prediction's kind is tuned by (the bare-vowel reading by Implied ㅇ, inversely:
 /// see [`Learner::weight`]).
@@ -156,11 +159,14 @@ impl Learner {
             return None;
         }
         let events: f64 = fields.next()?.parse().ok()?;
+        if !events.is_finite() {
+            return None;
+        }
         let mut tables = [[0.0; KINDS]; 4];
         for table in &mut tables {
             let values: Vec<f64> = fields.next()?.split(',').map(str::parse).collect::<Result<_, _>>().ok()?;
             // Exports from before a scenario was added have fewer columns: the rest start at 0.
-            if values.len() < FIRST_KINDS || values.len() > KINDS || values.iter().any(|v| !v.is_finite() || *v < 0.0) {
+            if values.len() < FIRST_KINDS || values.len() > KINDS || values.iter().any(|v| !v.is_finite() || !(0.0..=MAX_COUNT).contains(v)) {
                 return None;
             }
             table[..values.len()].copy_from_slice(&values);
@@ -225,5 +231,15 @@ mod tests {
         // An export from before Implied ㄹ (seven columns) still loads.
         let old = "jkl1 3 0,0,3,0,0,0,0 0,0,0,0,0,0,0 0,0,0,0,0,0,0 0,0,0,0,0,0,0";
         assert_eq!(Learner::import(old).map(|l| l.promoted[Weight::Implied as usize]), Some(3.0));
+    }
+
+    #[test]
+    fn imports_with_counts_that_would_break_the_weights_are_refused() {
+        let zeros = "0,0,0,0,0,0,0 0,0,0,0,0,0,0 0,0,0,0,0,0,0";
+        // A NaN event count would never halve.
+        assert_eq!(Learner::import(&format!("jkl1 NaN 0,0,0,0,0,0,0 {zeros}")), None);
+        assert_eq!(Learner::import(&format!("jkl1 inf 0,0,0,0,0,0,0 {zeros}")), None);
+        // Two huge counts sum to infinity, and the weight to NaN.
+        assert_eq!(Learner::import(&format!("jkl1 1 1e308,0,0,0,0,0,0 {zeros}")), None);
     }
 }

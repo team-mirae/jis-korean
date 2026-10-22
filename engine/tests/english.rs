@@ -165,6 +165,23 @@ fn flush_keeps_what_shows() {
 }
 
 #[test]
+fn a_list_left_open_by_a_mode_switch_keeps_its_letter_before_the_korean() {
+    // The host switched to Mode A without a flush while the list was open: the letter stays
+    // where it was, and the Korean typed after it is neither hidden nor lost on commit.
+    let mut engine = english();
+    hold(&mut engine, "KeyE", false);
+    engine.set_mode(Mode::A);
+    for code in ["KeyG", "KeyK"] {
+        engine.key(key(code), Mods::NONE);
+    }
+    assert_eq!(engine.key(key("KeyS"), Mods::NONE).preedit, "e한");
+    let out = engine.key(key("Space"), Mods::NONE);
+    assert_eq!(out.commit, "e한 ");
+    assert!(engine.preedit().is_empty());
+    assert_eq!(engine.key(key("KeyK"), Mods::NONE).preedit, "아");
+}
+
+#[test]
 fn other_held_keys_repeat_as_usual() {
     let mut engine = english();
     // No variants: the repeat goes to the app.

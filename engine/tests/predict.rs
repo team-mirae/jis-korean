@@ -103,6 +103,36 @@ fn committing_a_prediction_sets_the_context() {
 }
 
 #[test]
+fn a_committing_key_acts_on_the_prediction_shown() {
+    // §5.1 and §10: the key does to the shown prediction what it does to the Korean reading.
+    let english = |e: &Engine| e.predictions().iter().position(|p| p.kind == Kind::English).unwrap();
+    let key = |code: &str| Key::from_code(code);
+    let shift = Mods { shift: true, ..Mods::NONE };
+
+    let mut e = typed("KeyD KeyK KeyS KeyS KeyU KeyD");
+    let out = e.key_after_prediction(english(&e), key("Space"), Mods::NONE);
+    assert_eq!((out.commit.as_str(), out.consumed), ("dkssud ", true));
+
+    // Plain Enter commits and goes on to the app; Shift+Enter and "Enter commits" only commit.
+    let mut e = typed("KeyD KeyK KeyS KeyS KeyU KeyD");
+    let out = e.key_after_prediction(english(&e), key("Enter"), Mods::NONE);
+    assert_eq!((out.commit.as_str(), out.consumed), ("dkssud", false));
+    let mut e = typed("KeyD KeyK KeyS KeyS KeyU KeyD");
+    let out = e.key_after_prediction(english(&e), key("Enter"), shift);
+    assert_eq!((out.commit.as_str(), out.consumed), ("dkssud", true));
+    let mut e = typed("KeyD KeyK KeyS KeyS KeyU KeyD");
+    e.set_enter_commits(true);
+    let out = e.key_after_prediction(english(&e), key("Enter"), Mods::NONE);
+    assert_eq!((out.commit.as_str(), out.consumed), ("dkssud", true));
+    assert_eq!(e.preedit(), "");
+
+    // An index that isn't listed: the key acts on the Korean reading.
+    let mut e = typed("KeyG KeyK KeyS");
+    let out = e.key_after_prediction(99, key("Space"), Mods::NONE);
+    assert_eq!(out.commit, "한 ");
+}
+
+#[test]
 fn without_a_predictor_the_engine_is_lite() {
     let mut e = Engine::new();
     e.key(Key::from_code("KeyG"), Mods::NONE);

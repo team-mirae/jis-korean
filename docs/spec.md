@@ -781,7 +781,9 @@ Windows reads `HKCU\Software\JIS Korean`, value `Weight.<Scenario>` (§8.4).
 - The Minecraft mod still has its own Java copy of the ranker; it should move to this layer
   (through the wasm engine) so there's one implementation.
 - Hosts so far: the web playground (predictions on by default, picker under the caret, Space
-  commits the top reading) and macOS (marked text shows the top reading, committing keys take it;
+  commits the top reading) and macOS (marked text shows the top reading, committing keys take it
+  and then act on it as on the Korean reading (`Engine::key_after_prediction`): Space adds a space,
+  Shift+Enter and the "Enter commits" setting (§5.1) only commit, plain Enter goes on to the app;
   "Predictions" menu item; `make PREDICT=0` strips the layer). macOS has no picker yet: the other
   readings need an IMK candidate window.
 - Learning from the user's picks (session or persistent) isn't in the draft.
@@ -888,9 +890,12 @@ Off by default. When on, gentle multipliers on the §10.5 scenario weights follo
 picks. All logic is in the engine (`engine/src/learn.rs`, pure and deterministic); hosts only store
 one line of counts and show the setting.
 
-- **Signals:** the engine records them itself when a prediction is committed.
+- **Signals:** the engine records them itself when a key commits (a prediction, or the Korean
+  reading). A commit the host forces (focus loss, a click elsewhere: `flush`,
+  `flush_prediction`) and F6 (Korean, forced) are no choice and record nothing.
   - **Override:** a lower prediction chosen (↓ or a click) over the top one.
-  - **Accept:** the top one committed while other kinds were shown.
+  - **Accept:** the top one committed while other kinds were shown, also the Korean reading on top
+    committed by a plain commit key (Space, Enter).
   - **Regret:** Backspace right after an accept, counted as half a demotion.
   - Only kinds that were shown count, so rarely shown kinds don't look unpopular. A choice between
     two readings of the same kind says nothing.

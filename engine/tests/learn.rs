@@ -199,3 +199,34 @@ fn an_excluded_app_uses_what_was_learned_but_records_nothing() {
     e.key(Key::Backspace, Mods::NONE);
     assert_eq!(*e.learner(), learner);
 }
+
+#[test]
+fn a_commit_key_on_the_korean_top_is_an_accept_and_a_flush_is_no_choice() {
+    // §10.11 Accept: the top one committed while other kinds were shown, also when the top is
+    // the Korean reading and a plain Space commits it. A focus loss (flush) is nobody's choice.
+    let typed = |e: &mut Engine| {
+        for c in "dkssud".chars() {
+            e.key(Key::from_code(&format!("Key{}", c.to_ascii_uppercase())), Mods::NONE);
+        }
+        let list = e.predictions();
+        assert_eq!(list.first().map(|p| p.kind), Some(Kind::Korean), "{list:?}");
+        assert!(list.len() > 1, "{list:?}");
+    };
+    let mut e = Engine::new();
+    e.set_predictor(Some(predictor()));
+    e.set_learning(true);
+    typed(&mut e);
+    assert_eq!(e.key(Key::Space, Mods::NONE).commit, "안녕 ");
+    assert_ne!(*e.learner(), Learner::default());
+
+    let mut e = Engine::new();
+    e.set_predictor(Some(predictor()));
+    e.set_learning(true);
+    typed(&mut e);
+    assert_eq!(e.flush().commit, "안녕");
+    assert_eq!(*e.learner(), Learner::default());
+    typed(&mut e);
+    let english = e.predictions().iter().position(|p| p.kind == Kind::English).unwrap();
+    assert_eq!(e.flush_prediction(english).commit, "dkssud");
+    assert_eq!(*e.learner(), Learner::default());
+}

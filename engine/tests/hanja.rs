@@ -187,6 +187,23 @@ fn reading_inside_a_moved_final_still_converts() {
     assert_eq!(out.preedit, "말李");
 }
 
+#[test]
+fn cancelling_a_reading_off_a_keystroke_boundary_keeps_the_keys_as_typed() {
+    // §7.2: after Esc or Backspace the Hangul stays editable. 말이 typed with the double press
+    // went to plain text while the list was open; cancelling gives the keystrokes back, so
+    // Backspace takes the second ㅣ (§4.2: 말이 → 마리) and F10 still has the letters.
+    for cancel in ["Escape", "Backspace"] {
+        let mut e = Engine::new();
+        e.set_dictionary(Arc::new(Dictionary::parse("이\t李\t오얏 리\n")));
+        let (_, out) = run(&mut e, &format!("KeyA KeyK KeyF KeyL KeyL F7 {cancel}"));
+        assert_eq!(out.preedit, "말이", "{cancel}");
+        let (_, out) = run(&mut e, "Backspace");
+        assert_eq!(out.preedit, "마리", "{cancel}");
+        let (_, out) = run(&mut e, "KeyL F10");
+        assert_eq!(out.preedit, "akfll", "{cancel}");
+    }
+}
+
 // §5.3 F9/F10 on symbols and digits
 
 #[test]
@@ -194,6 +211,15 @@ fn f9_converts_trailing_symbols_and_digits() {
     check("S-Digit2 S-Digit0 S-Digit2 S-Digit6 F9", "", "２０２６");
     check("KeyG KeyK KeyS Minus F9", "", "한！");
     check("Minus S-Minus F9 F10", "", "!?");
+}
+
+#[test]
+fn a_symbol_run_never_takes_letters_an_earlier_conversion_left() {
+    // §5.3: the run and a word never mix, also when the word was converted first.
+    check("KeyG KeyK KeyS F10 Minus F9", "", "gks！");
+    check("KeyG KeyK KeyS F10 Minus F9 F9", "", "gks！");
+    // Symbols an earlier conversion left are still part of the run.
+    check("Minus F9 F10 S-Minus F9", "", "！？");
 }
 
 #[test]
