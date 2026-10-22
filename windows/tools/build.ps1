@@ -16,7 +16,8 @@ if (-not $cargo) { $cargo = "$env:USERPROFILE\.cargo\bin\cargo.exe" }
 if (-not (Test-Path $cargo)) { throw 'cargo not found: install Rust (rustup) first.' }
 
 $variant = if ($Lite) { 'lite' } else { 'full' }
-[string[]] $features = if ($Lite) { '--no-default-features' } else { @() }
+# The English modes (spec §3.6.2) are optional in the engine: Windows uses them as ABC's layouts.
+[string[]] $features = if ($Lite) { '--no-default-features', '--features', 'english' } else { '--features', 'english' }
 $predict = if ($Lite) { 'OFF' } else { 'ON' }
 $triples = @{ x64 = 'x86_64-pc-windows-msvc'; x86 = 'i686-pc-windows-msvc' }
 

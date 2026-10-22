@@ -40,11 +40,30 @@ enum MenuId : UINT {
     kMenuTrainingFolder,
     kMenuAppOff,
     kMenuEnterCommits,
-    kMenuModeFirst = 100,  // + the mode's index in the engine's list (jk_mode_id_at)
+    kMenuEnglishDefault,  // ABC's layout: the Korean mode's keyboard's English
+    kMenuEnglishWindows,  // ABC's layout: Windows' own (keys pass through)
+    kMenuModeFirst = 100,     // + the mode's index in the engine's list (jk_mode_id_at)
+    kMenuEnglishFirst = 300,  // + the index of an English mode, as ABC's layout
 };
 
 // Mode C (spec §3.6), the mode whose symbol keys are optional (Dedicated symbol keys).
 constexpr unsigned kModeC = 2;
+
+// A DWORD setting that isn't there (no mode id is this large: spec §3.6.1).
+constexpr unsigned long kNotSet = 0xFFFFFFFE;
+
+// A mode's mode name (spec §3.6.1), "A", "A_QWERTY"; empty for an unknown id.
+std::string ModeCode(std::uint32_t id) {
+    return std::string(reinterpret_cast<const char*>(jk_mode_code_ptr(id)), jk_mode_code_len(id));
+}
+
+// The mode whose mode name is `code`, or 0xFFFFFFFF (Windows' layout) if this build lacks it.
+std::uint32_t ModeByCode(const std::string& code) {
+    for (std::uint32_t i = 0; i < jk_mode_count(); ++i) {
+        if (ModeCode(jk_mode_id_at(i)) == code) return jk_mode_id_at(i);
+    }
+    return 0xFFFFFFFF;
+}
 
 std::wstring Utf16(const std::uint8_t* data, size_t length) {
     if (!data || !length) return {};
@@ -204,7 +223,7 @@ STDMETHODIMP TextService::ActivateEx(ITfThreadMgr* thread_mgr, TfClientId client
     AdviseCompartments(true);
     open_ = !ReadEnglish();
     SetOpen(open_);
-    if (lang_bar_) lang_bar_->SetState(mode_, open_);
+    if (lang_bar_) lang_bar_->SetState(mode_, open_, english_mode_);
 
     jk_activate(engine_);
     Preload();
@@ -339,6 +358,11 @@ bool TextService::Private(const wchar_t* why) {
     return true;
 }
 
+bool TextService::TypesEnglish(std::uint32_t key) const {
+    // ABC, outside password fields and programs JIS Korean is off in (those pass everything).
+    return !open_ && !private_ && !app_off_ && key != JK_KEY_MODIFIER && key != JK_KEY_OTHER;
+}
+
 bool TextService::Wants(unsigned vk, std::uint32_t key, std::uint32_t mods) const {
     // A password field: every key goes to the app untouched, as in ABC. Nothing is composed,
     // listed or learned there, so nothing of it can show on screen.
@@ -377,7 +401,11 @@ STDMETHODIMP TextService::OnTestKeyDown(ITfContext* context, WPARAM wparam, LPAR
     const std::uint32_t key = KeyOf(wparam, lparam);
     const std::uint32_t mods = Modifiers();
     if (!Composing()) private_ = PrivateField(context);
-    if (Wants(vk, key, mods)) {
+    if (TypesEnglish(key)) {
+        // ABC: the English layout's character, typed here for the same reason as below.
+        *eaten = TypeEnglish(context ? context : composition_context_.Get(), key, mods);
+        tested_ = {wparam, lparam, GetTickCount64(), *eaten != FALSE, true};
+    } else if (Wants(vk, key, mods)) {
         EnsureData();
         HandleKey(context ? context : composition_context_.Get(), vk, key, mods, eaten);
         tested_ = {wparam, lparam, GetTickCount64(), *eaten != FALSE, true};
@@ -412,7 +440,9 @@ STDMETHODIMP TextService::OnKeyDown(ITfContext* context, WPARAM wparam, LPARAM l
         const std::uint32_t key = KeyOf(wparam, lparam);
         const std::uint32_t mods = Modifiers();
         if (!Composing()) private_ = PrivateField(context);
-        if (Wants(vk, key, mods)) {
+        if (TypesEnglish(key)) {
+            *eaten = TypeEnglish(context, key, mods);
+        } else if (Wants(vk, key, mods)) {
             EnsureData();
             HandleKey(context, vk, key, mods, eaten);
         }
@@ -428,18 +458,20 @@ void TextService::HandleKey(ITfContext* context, unsigned vk, std::uint32_t key,
         *eaten = TRUE;
         return;
     }
-    // A key that commits takes the reading on screen, not the Korean one underneath.
+    // A key that commits takes the reading on screen, not the Korean one underneath, and then does
+    // to it what it does to any text (Space adds a space, Shift+Enter only commits): the engine
+    // does both (jk_key_after_prediction), as on macOS.
     const bool commits = (mods & kShortcut) || vk == kVkTab || key == JK_KEY_SPACE ||
                          key == JK_KEY_ENTER || key == JK_KEY_ESCAPE || key == JK_KEY_ARROWUP ||
                          key == JK_KEY_ARROWDOWN || key == JK_KEY_ARROWLEFT ||
                          key == JK_KEY_ARROWRIGHT || key == JK_KEY_OTHER;
     if (shown_ && commits) {
-        CommitPrediction(chosen_.value_or(0), context);
-        if (key == JK_KEY_SPACE && !(mods & ~static_cast<std::uint32_t>(JK_MOD_SHIFT))) {
-            UpdateText(context, L" ", {}, false);
-            *eaten = TRUE;
-            return;
-        }
+        *eaten = jk_key_after_prediction(engine_, chosen_.value_or(0), key, mods) != 0;
+        chosen_.reset();
+        shown_.reset();
+        Apply(context);
+        SaveLearned();
+        return;
     }
     chosen_.reset();
 #else
@@ -563,7 +595,11 @@ void TextService::PickHanja(size_t index) {
 void TextService::Flush(ITfContext* context) {
 #ifdef JK_PREDICT
     if (shown_) {
-        CommitPrediction(chosen_.value_or(0), context);
+        // Committed because focus moved or the IME switched: not a choice to learn from.
+        jk_flush_prediction(engine_, chosen_.value_or(0));
+        chosen_.reset();
+        shown_.reset();
+        Apply(context);
         return;
     }
 #endif
@@ -619,6 +655,11 @@ void TextService::ApplySettings() {
     app_off_ = settings::AppOff(settings::ExeName());
     // The mode follows the keyboard, not the app: one setting for every app (spec §8.4).
     SetMode(static_cast<unsigned>(settings::ReadDword(L"Mode", 0)));
+    // ABC's layout (spec §8.4): the setting if it's an English mode this build has, or Windows'
+    // own; else (unset, or a mode this build lacks) the Korean mode's keyboard's English.
+    const unsigned long english = settings::ReadDword(L"EnglishMode", kNotSet);
+    english_mode_ = english == kPassThrough || jk_mode_is_english(english) ? english : DefaultEnglish();
+    if (lang_bar_) lang_bar_->SetState(mode_, open_, english_mode_);
     jk_set_dedicated_symbols(engine_, settings::ReadDword(L"DedicatedSymbols", 1) ? 1 : 0);
     jk_set_enter_commits(engine_, settings::ReadDword(L"EnterCommits", 0) ? 1 : 0);
 #ifdef JK_PREDICT
@@ -647,16 +688,56 @@ void TextService::ApplySettings() {
 #endif
 }
 
+std::uint32_t TextService::DefaultEnglish() const {
+    // The same keyboard's QWERTY English (spec §3.6.2): JIS English on JIS, US English on US
+    // ANSI, UK English on ISO.
+    const std::string korean = ModeCode(mode_);
+    const char* english = korean == "B" ? "B_QWERTY" : korean == "C" ? "CJ_QWERTY" : "A_QWERTY";
+    return ModeByCode(english);
+}
+
+bool TextService::SameKeyboard(std::uint32_t english) const {
+    // A mode name's namespace is its keyboard family (spec §3.6.1): A_ JIS, B_ US ANSI, C_ and
+    // CJ_ ISO, the families of Modes A, B and C.
+    const std::string korean = ModeCode(mode_), code = ModeCode(english);
+    if (korean.empty() || code.empty()) return false;
+    if (code.rfind(korean + "_", 0) == 0) return true;
+    return korean == "C" && code.rfind("CJ_", 0) == 0;
+}
+
+bool TextService::TypeEnglish(ITfContext* context, std::uint32_t key, std::uint32_t mods) {
+    // Shortcuts (Ctrl, Alt, Win) are the app's: Alt + letter variants (spec §3.6.3) are macOS's
+    // only, since Alt + letter is Windows' menu key. Keys without a character (Space, Enter,
+    // arrows, F-keys) go to the app too.
+    if (english_mode_ == kPassThrough || (mods & kShortcut) || !context) return false;
+    std::uint32_t ch = jk_legend_in(key, (mods & JK_MOD_SHIFT) ? 1 : 0, 0, english_mode_);
+    if (!ch) return false;
+    // Caps Lock types capitals (spec §3.6.2), and Shift then lower case, as Windows' layouts do.
+    if ((GetKeyState(VK_CAPITAL) & 1) && ch < 0x80 && isalpha(static_cast<int>(ch))) {
+        ch = isupper(static_cast<int>(ch)) ? static_cast<std::uint32_t>(tolower(static_cast<int>(ch)))
+                                           : static_cast<std::uint32_t>(toupper(static_cast<int>(ch)));
+    }
+    std::wstring text;
+    if (ch >= 0x10000) {
+        text += static_cast<wchar_t>(0xD800 + ((ch - 0x10000) >> 10));
+        text += static_cast<wchar_t>(0xDC00 + ((ch - 0x10000) & 0x3FF));
+    } else {
+        text += static_cast<wchar_t>(ch);
+    }
+    UpdateText(context, text, {}, false);
+    return true;
+}
+
 void TextService::SetMode(unsigned mode) {
     if (mode == mode_) return;
-    // An id this build doesn't have (a mode set by a newer version, or an English mode left out
-    // of the build) is refused: Mode A then.
-    if (!jk_set_mode(engine_, mode)) {
+    // An id this build doesn't have (a mode set by a newer version) is refused, and an English
+    // mode isn't a Korean mode (it's ABC's layout, below): Mode A then.
+    if (jk_mode_is_english(mode) || !jk_set_mode(engine_, mode)) {
         mode = 0;
         jk_set_mode(engine_, mode);
     }
     mode_ = mode;
-    if (lang_bar_) lang_bar_->SetState(mode_, open_);
+    if (lang_bar_) lang_bar_->SetState(mode_, open_, english_mode_);
 }
 
 void TextService::InitMenu(ITfMenu* menu) {
@@ -669,13 +750,18 @@ void TextService::InitMenu(ITfMenu* menu) {
     auto separator = [menu] {
         menu->AddMenuItem(0, TF_LBMENUF_SEPARATOR, nullptr, nullptr, L"", 0, nullptr);
     };
-    add(kMenuEnglish, L"ABC: Keys Pass Through (한/영)", !open_);
+    add(kMenuEnglish, L"ABC: English (한/영)", !open_);
     add(kMenuAppOff, L"Off in " + settings::ExeName() + L" (Keys Pass Through There)", app_off_);
     separator();
-    // Every mode this build has, in the engine's order and by its names (spec §3.6.1): ids have
-    // gaps, so they're listed with jk_mode_id_at. "Mode A: JIS Korean Original Layout"...
+    // Every Korean mode this build has, in the engine's order and by its names (spec §3.6.1): ids
+    // have gaps, so they're listed with jk_mode_id_at. "Mode A: JIS Korean Original Layout"...
+    auto label = [](std::uint32_t id) {
+        return Utf16(jk_mode_name_ptr(id), jk_mode_name_len(id)) + L" (" +
+               Utf16(jk_mode_code_ptr(id), jk_mode_code_len(id)) + L")";
+    };
     for (std::uint32_t index = 0; index < jk_mode_count(); ++index) {
         const std::uint32_t id = jk_mode_id_at(index);
+        if (jk_mode_is_english(id)) continue;
         const std::wstring code = Utf16(jk_mode_code_ptr(id), jk_mode_code_len(id));
         const std::wstring name = Utf16(jk_mode_name_ptr(id), jk_mode_name_len(id));
         add(kMenuModeFirst + index, L"Mode " + code + L": " + name, mode_ == id);
@@ -683,6 +769,38 @@ void TextService::InitMenu(ITfMenu* menu) {
     // Mode C's symbol keys are optional (spec §3.6), as in macOS's input menu while it's active.
     if (mode_ == kModeC) {
         add(kMenuDedicatedSymbols, L"Dedicated Symbol Keys", settings::ReadDword(L"DedicatedSymbols", 1) != 0);
+    }
+    // What ABC (한/영) types (spec §8.4): by default the Korean mode's keyboard's English; any
+    // English mode on request, this keyboard's first; or Windows' own layout.
+    ITfMenu* english = nullptr;
+    const std::wstring english_title = L"English Layout (한/영)";
+    if (SUCCEEDED(menu->AddMenuItem(0, TF_LBMENUF_SUBMENU, nullptr, nullptr, english_title.c_str(),
+                                    static_cast<ULONG>(english_title.size()), &english)) && english) {
+        const bool unset = settings::ReadDword(L"EnglishMode", kNotSet) == kNotSet;
+        auto item = [english](UINT id, const std::wstring& text, bool checked) {
+            english->AddMenuItem(id, checked ? TF_LBMENUF_CHECKED : 0, nullptr, nullptr, text.c_str(),
+                                 static_cast<ULONG>(text.size()), nullptr);
+        };
+        auto line = [english] { english->AddMenuItem(0, TF_LBMENUF_SEPARATOR, nullptr, nullptr, L"", 0, nullptr); };
+        const std::uint32_t fallback = DefaultEnglish();
+        item(kMenuEnglishDefault,
+             L"Default for This Keyboard: " +
+                 (fallback == kPassThrough ? std::wstring(L"Windows' Layout") : label(fallback)),
+             unset);
+        line();
+        for (const bool same : {true, false}) {
+            bool any = false;
+            for (std::uint32_t index = 0; index < jk_mode_count(); ++index) {
+                const std::uint32_t id = jk_mode_id_at(index);
+                if (!jk_mode_is_english(id) || SameKeyboard(id) != same) continue;
+                item(kMenuEnglishFirst + index, label(id), !unset && english_mode_ == id);
+                any = true;
+            }
+            if (any) line();
+        }
+        item(kMenuEnglishWindows, L"Windows' Keyboard Layout (Keys Pass Through)",
+             !unset && english_mode_ == kPassThrough);
+        english->Release();
     }
     separator();
 #ifdef JK_PREDICT
@@ -729,6 +847,11 @@ void TextService::OnMenu(UINT id) {
         ApplySettings();
         return;
     }
+    if (id >= kMenuEnglishFirst && id < kMenuEnglishFirst + jk_mode_count()) {
+        settings::WriteDword(L"EnglishMode", jk_mode_id_at(id - kMenuEnglishFirst));
+        ApplySettings();
+        return;
+    }
     switch (id) {
         case kMenuEnglish:
             WriteEnglish(open_);
@@ -736,6 +859,12 @@ void TextService::OnMenu(UINT id) {
         case kMenuAppOff:
             if (!app_off_ && composition_context_) Flush(composition_context_.Get());
             settings::SetAppOff(settings::ExeName(), !app_off_);
+            break;
+        case kMenuEnglishDefault:
+            settings::Delete(L"EnglishMode");
+            break;
+        case kMenuEnglishWindows:
+            settings::WriteDword(L"EnglishMode", kPassThrough);
             break;
         case kMenuDedicatedSymbols:
             settings::WriteDword(L"DedicatedSymbols", settings::ReadDword(L"DedicatedSymbols", 1) ? 0 : 1);
@@ -804,7 +933,7 @@ void TextService::SetOpen(bool open) {
         (ReadCompartment(openclose.Get()) != 0) != open) {
         WriteCompartment(openclose.Get(), client_id_, open ? 1 : 0);
     }
-    if (lang_bar_) lang_bar_->SetState(mode_, open_);
+    if (lang_bar_) lang_bar_->SetState(mode_, open_, english_mode_);
     if (changed) log::Write(L"%s", open ? L"한글" : L"ABC");
 }
 

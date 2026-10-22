@@ -131,6 +131,20 @@ int main() {
         Check(!jk::json::Parse(deep), "deep nesting is rejected, not a stack overflow");
     }
 
+    // ABC's English layouts (spec §3.6.2, §3.6.4, §8.4): the shell types jk_legend_in.
+    {
+        Check(!jk_mode_is_english(0) && !jk_mode_is_english(1) && !jk_mode_is_english(2) &&
+                  !jk_mode_is_english(4242),
+              "the Korean modes aren't English");
+        const std::uint32_t digit2 = jk::EngineKey(0x32, 0x03, false), key_s = jk::EngineKey(0x53, 0x1F, false);
+        const std::uint32_t ro = jk::EngineKey(0xE2, 0x73, false);
+        Check(jk_mode_is_english(3) && jk_legend_in(digit2, 1, 0, 3) == U'"', "JIS English: Shift+2 is \"");
+        Check(jk_mode_is_english(9) && jk_legend_in(digit2, 1, 0, 9) == U'@', "US English: Shift+2 is @");
+        Check(jk_mode_is_english(7) && jk_legend_in(key_s, 0, 0, 7) == U'o', "JIS Dvorak: the S key is o");
+        Check(jk_mode_is_english(8) && jk_legend_in(key_s, 0, 0, 8) == U'r', "JIS Colemak: the S key is r");
+        Check(jk_mode_is_english(10) && jk_legend_in(ro, 0, 0, 10) == U'\\', "UK English: ろ is \\");
+    }
+
     std::printf(failures ? "%d failed\n" : "all passed\n", failures);
     return failures ? 1 : 0;
 }

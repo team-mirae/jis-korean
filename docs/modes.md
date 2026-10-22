@@ -210,12 +210,15 @@ Apple has confirmed this has no workaround (developer forums thread 775526, FB23
 
 ### Other shells
 
-None of them is built with the `english` feature, so they have Modes A, B and C.
+Only Windows is built with the `english` feature; the others have Modes A, B and C.
 
-- **Windows** lists every mode its engine has in the language bar menu ("Mode B: JIS Korean for US
-  ANSI"), with `jk_mode_id_at`, so a new Korean mode appears there with no shell change. The choice
-  is saved as the `Mode` value under `HKCU\Software\JIS Korean`; an id the build doesn't have falls
-  back to Mode A. Mode C adds its Dedicated Symbol Keys item.
+- **Windows** lists every Korean mode its engine has in the language bar menu ("Mode B: JIS Korean
+  for US ANSI"), with `jk_mode_id_at` and `jk_mode_is_english`, so a new Korean mode appears there
+  with no shell change. The choice is saved as the `Mode` value under `HKCU\Software\JIS Korean`;
+  an id the build doesn't have falls back to Mode A. Mode C adds its Dedicated Symbol Keys item.
+  The English modes are listed apart, under English Layout (한/영): they're only the layout 한/영
+  types (spec §8.4), saved as `EnglishMode`, so a new English mode appears there too, after the
+  ones of the Korean mode's keyboard family (by namespace).
 - **The web playground** lists its modes by hand: add one to `MODES` in `web/src/App.tsx` (and to
   the mode list in `web/src/docs/WebPage.tsx`).
 - **Minecraft** follows the input method's mode (`SystemMode`: macOS's `CurrentModeID`, Windows's

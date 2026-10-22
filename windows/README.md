@@ -20,7 +20,8 @@ python -I tools/make-icons.py # only after the logo changes: icons/taegeuk.ico f
 
 The DLL embeds the hanja dictionary and, in the full build, the prediction model (about 6.5 MB),
 so each process maps one copy from the image. It links the static CRT: it loads into every app
-and can't count on a VC++ runtime being installed.
+and can't count on a VC++ runtime being installed. The engine is built with its `english` feature,
+for ABC's English layouts (spec §8.4).
 
 ## Install
 
@@ -44,7 +45,8 @@ Windows for any TIP).
 | | |
 |---|---|
 | Modes A, B, C (spec §3.6) | Right-click the 한글 / ABC indicator in the taskbar → Mode A (JIS), Mode B (US ANSI) or Mode C (UK ISO). One setting for every app: the mode follows the keyboard, not the app. Mode A is the default. In Mode C the menu also has **Dedicated Symbol Keys** (on by default): off, [ ] and the ISO extra key type their UK ISO characters. |
-| 한/영 | Switches JIS Korean off (ABC: every key goes to the app untouched, as Windows' US layout types it) and on again, as the Microsoft IME does. It commits what's unconfirmed first. The state is one for the whole session, every app, and isn't stored: after a restart it's 한글. A click on the indicator does the same. On a US ANSI keyboard, Windows' Korean layout sends 한/영 from Right Alt. JIS and ISO keyboards have no 한/영 key, and JIS Korean deliberately doesn't pick one: map the key you want to 한/영 (`VK_HANGUL`) with your keyboard's software or a remapper such as PowerToys (spec §8.4). |
+| 한/영 | Switches JIS Korean to English (ABC, in the English layout below) and back to 한글, as the Microsoft IME does. It commits what's unconfirmed first. The state is one for the whole session, every app, and isn't stored: after a restart it's 한글. A click on the indicator does the same. On a US ANSI keyboard, Windows' Korean layout sends 한/영 from Right Alt. JIS and ISO keyboards have no 한/영 key, and JIS Korean deliberately doesn't pick one: map the key you want to 한/영 (`VK_HANGUL`) with your keyboard's software or a remapper such as PowerToys (spec §8.4). |
+| English Layout (한/영) | What ABC types, a selector of its own in the menu. By default the keyboard's English: JIS English in Mode A, US English in Mode B, UK English in Mode C. Any other English layout on request (JIS Dvorak, JIS Colemak, …; your keyboard's first), or **Windows' Keyboard Layout**, which passes every key to the app untouched. Shortcuts (Ctrl, Alt, Win) always go to the app; the Alt + letter variants of macOS's English modes are deliberately left out (spec §3.6.3). |
 | Predictions (spec §10) | The unconfirmed text shows the top reading (`hello` shows as hello). ↓ / Tab and ↑ move through the list under it, Space / Enter commit what's shown, a click picks a row. Off by default in terminals, remote desktop, password managers, File Explorer and launchers (spec §10.11.1). |
 | Hanja (F7) | The list under the text, numbered 1–9 per page (spec §7). |
 
@@ -60,8 +62,8 @@ switch, and that is all it can be. It's very hard to make it work the way people
 - **It doesn't know what you were typing.** Pressing it commits what's unconfirmed as it is and
   then hands every key to the app. It can't go back and turn the last word into English, and
   pressing it mid-word splits the word in two.
-- **English typed in ABC is invisible to JIS Korean.** No predictions, no F9 / F10, no hanja,
-  and nothing learned from it: the keys never reach the engine.
+- **English typed in ABC is invisible to JIS Korean's composition.** No predictions, no F9 / F10,
+  no hanja, and nothing learned from it: ABC only types the English layout's characters.
 - **One state for everything.** It's the same in every app and every field, and starts on 한글
   after a restart, so a field that "should" be English needs the key pressed again.
 - **Mixed text costs two extra presses per switch**, where JIS Korean's predictions need none.
@@ -102,6 +104,7 @@ see the user's key). The menu writes them; apps pick a change up at their next f
 |---|---|---|---|
 | `Mode` | DWORD | 0 | 0 = Mode A (JIS), 1 = Mode B (US ANSI), 2 = Mode C (UK ISO) |
 | `DedicatedSymbols` | DWORD | 1 | Mode C's [ ] and ISO extra key: 1 = JIS Korean's symbols, 0 = UK ISO's (spec §3.6) |
+| `EnglishMode` | DWORD | unset | ABC's layout: an English mode's id (3 JIS English, 7 JIS Dvorak, 8 JIS Colemak, 9 US English, 10 UK English), `0xFFFFFFFF` = Windows' layout; unset = the keyboard's default (spec §8.4) |
 | `Predictions` | DWORD | 1 | the predictive layer |
 | `EnterCommits` | DWORD | 0 | Enter commits without a new line (spec §5.1) |
 | `LearnFromChoices` | DWORD | 0 | learning from your choices (spec §10.11) |

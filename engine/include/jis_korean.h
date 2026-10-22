@@ -124,6 +124,9 @@ size_t jk_mode_name_len(uint32_t mode);
 /* A mode's mode name ("A", "A_QWERTY"; spec §3.6.1). Empty for an unknown id. */
 const uint8_t *jk_mode_code_ptr(uint32_t mode);
 size_t jk_mode_code_len(uint32_t mode);
+/* 1 for an English mode (spec §3.6.2: it consumes no key; its keys type jk_legend_in), 0 for a
+ * Korean mode or an unknown id. */
+uint32_t jk_mode_is_english(uint32_t mode);
 uint32_t jk_is_escaped(JkEngine *engine);
 
 const uint8_t *jk_commit_ptr(JkEngine *engine);

@@ -19,8 +19,9 @@ public:
     LangBarButton(const LangBarButton&) = delete;
     LangBarButton& operator=(const LangBarButton&) = delete;
 
-    // `mode` (engine id) names the tooltip; `open` false shows ABC, not 한글.
-    void SetState(unsigned mode, bool open);
+    // `mode` (engine id) names the tooltip; `open` false shows ABC, not 한글, and the tooltip
+    // names `english`, ABC's layout (an engine id, or anything else for Windows' own layout).
+    void SetState(unsigned mode, bool open, unsigned english);
     void Detach();  // drops the callbacks (the text service is going away)
 
     // IUnknown
@@ -46,6 +47,7 @@ private:
     ~LangBarButton();
     LONG refs_ = 1;
     unsigned mode_ = 0;  // for the tooltip
+    unsigned english_ = 0xFFFFFFFF;
     bool open_ = true;
     std::function<void(ITfMenu*)> init_menu_;
     std::function<void(UINT)> on_menu_;

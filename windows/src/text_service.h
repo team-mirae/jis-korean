@@ -80,6 +80,15 @@ private:
     // Whether a key-down goes through the engine. Decided the same way in OnTestKeyDown and
     // OnKeyDown; keys the engine then doesn't consume go on to the app after its commit.
     bool Wants(unsigned vk, std::uint32_t key, std::uint32_t mods) const;
+    // ABC (한/영): types the key's character in the English layout (english_mode_), from the
+    // engine's table (jk_legend_in), as macOS's keyboard layout generated from it does. False:
+    // the key goes to the app (shortcuts, Space, Enter, F-keys, Windows' layout).
+    bool TypeEnglish(ITfContext* context, std::uint32_t key, std::uint32_t mods);
+    bool TypesEnglish(std::uint32_t key) const;  // in ABC, this key goes to TypeEnglish
+    // The English layout for the Korean mode's keyboard: A → JIS English, B → US English,
+    // C → UK English (spec §8.4); Windows' layout if this build has none.
+    std::uint32_t DefaultEnglish() const;
+    bool SameKeyboard(std::uint32_t english) const;  // its namespace is the Korean mode's family
     // A password or PIN field (input scope), or one the app turned the keyboard off for.
     bool PrivateField(ITfContext* context);
     bool Private(const wchar_t* why);  // logs why a field is private, returns true
@@ -149,6 +158,9 @@ private:
     } tested_;
     unsigned mode_ = 0xFF;  // none yet: the first ApplySettings sets it
     bool open_ = true;  // false: 한/영 switched to English
+    // ABC's layout: an English mode id (spec §3.6.2), or kPassThrough for Windows' own layout.
+    static constexpr std::uint32_t kPassThrough = 0xFFFFFFFF;
+    std::uint32_t english_mode_ = kPassThrough;
     bool predicting_ = false;
     bool private_ = false;     // the focused field is a password field: keys pass through
     bool app_off_ = false;     // JIS Korean is off in this program (settings::AppOff)

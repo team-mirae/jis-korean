@@ -312,6 +312,9 @@ macOS), so a default build has the Korean modes only. Their ids and names are re
 
 #### 3.6.3 Letter variants (⌥ + letter)
 
+**macOS only, deliberately.** Other platforms leave it out: on Windows Alt + letter is the app's
+menu and shortcut key, used far too much to take (§8.4).
+
 In the English modes, **⌥ + a letter** offers the letter's accented and other variants, macOS's
 press-and-hold set. Nothing is typed first: the letter shows as the preedit with its list beside
 it, none selected. The list runs horizontally, since every variant is a single letter. With Shift
@@ -670,10 +673,11 @@ Raised by this spec:
     and brackets and leaves every other key as US ANSI has it.
 12. ~~**`B_` and `C_` namespaces.**~~ Settled (§3.6.1): `B_` varies Mode B on US ANSI boards,
     `C_` varies Mode C on ISO boards; each is supported on its board type only.
-13. **JIS English on other platforms (§3.6.2).** Partly settled: **not on Windows.** JIS English
-    is a macOS workaround (switching English → Korean through Hammerspoon could switch back by
-    itself); Windows has 한/영 inside the one input method (§8.4) and doesn't need it. Still open:
-    should the web playground and Minecraft offer `A_QWERTY`, or is it macOS only?
+13. **JIS English on other platforms (§3.6.2).** Partly settled for Windows: no English input
+    mode of its own. JIS English is a macOS workaround (switching English → Korean through
+    Hammerspoon could switch back by itself); Windows has 한/영 inside the one input method, and
+    the English modes are only the layout 한/영 types (§8.4), without letter variants (§3.6.3,
+    macOS only). Still open: should the web playground and Minecraft offer `A_QWERTY`?
 
 ---
 
@@ -1183,9 +1187,8 @@ and none of the tools that read input sources there select them by ID the way Ha
 Karabiner do on macOS, so a mode per input method would cost more than it gives. The reason the
 mode is not per app is the same as on macOS: it follows the keyboard.
 
-**한/영** works exactly like the Microsoft Korean IME's: it switches JIS Korean off (**ABC**: every
-key goes to the app untouched, typed by Windows' own layout) and back on (**한글**), committing
-what's unconfirmed first (§5.1, IME switch). The state is one for the whole session, shared by every
+**한/영** works exactly like the Microsoft Korean IME's: it switches JIS Korean to English (**ABC**)
+and back (**한글**), committing what's unconfirmed first (§5.1, IME switch). The state is one for the whole session, shared by every
 app, and never stored: it starts on 한글 after a restart or a crash. The taskbar shows 한글 or ABC
 where the Microsoft IME shows 가 / A, and a click there switches too. On a US ANSI keyboard,
 Windows' Korean layout sends 한/영 from Right Alt.
@@ -1196,8 +1199,26 @@ configured outside JIS Korean, by mapping a key to 한/영 (`VK_HANGUL`) with th
 software, Windows' Korean keyboard type, or a remapper such as PowerToys. JIS Korean handles
 `VK_HANGUL` from wherever it comes. The indicator's click and menu work on every keyboard.
 
-It's an on/off switch, nothing more: the English typed in ABC never reaches the engine (no
-predictions, F9/F10, hanja or learning), and switching mid-word splits the word. The recommended
+**ABC's layout** is an English mode (§3.6.2, §3.6.4), chosen in the menu's **English Layout
+(한/영)**, a selector of its own next to the Korean mode's:
+
+| Setting | ABC types |
+|---|---|
+| Default for this keyboard (unset) | the Korean mode's keyboard's English: Mode A → JIS English (`A_QWERTY`), B → US English (`B_QWERTY`), C → UK English (`CJ_QWERTY`) |
+| Any English mode | that mode, whatever the Korean mode: the same keyboard's (`A_` for A, `B_` for B, `C_` and `CJ_` for C) are listed first, the others after |
+| Windows' keyboard layout | every key goes to the app untouched, typed by Windows' own layout (the earlier behaviour) |
+
+Windows doesn't switch between three languages, so the English modes are only this: the layout 한/영
+types, not input methods of their own. As on macOS the engine consumes no key in an English mode;
+the shell types each key's character from the engine's table (`jk_legend_in`), as macOS's keyboard
+layout is generated from it, so the symbols can't drift. Caps Lock types capitals. Shortcuts
+(Ctrl, Alt, Win), Space, Enter, Tab, the arrows and the F-keys go to the app. **Letter variants
+(§3.6.3) are deliberately left out on Windows**, and on every platform but macOS: Alt + letter is
+Windows' menu and shortcut key, used far too much to take. `jk_mode_is_english` tells a shell which
+modes are English; the Windows build has them (the engine's `english` feature).
+
+It's an on/off switch, nothing more: the English typed in ABC never reaches the engine's
+composition (no predictions, F9/F10, hanja or learning), and switching mid-word splits the word. The recommended
 way to mix English in is to stay in JIS Korean (Mode B on US ANSI keyboards), let the predictions
 read English words (§10), and train them on the user's own English words with a training file
 (§10.12); `windows/README.md` explains this to users.
@@ -1210,8 +1231,9 @@ banking and certificate programs) can't be told apart from text: there the user 
 or turns JIS Korean off for that program in the menu (`Apps\<program.exe>\Off`), which passes
 every key through there only.
 
-**Settings** are the macOS ones, stored in `HKCU\Software\JIS Korean` (`Mode` by engine id,
-`DedicatedSymbols`, `Predictions`, `EnterCommits`, `LearnFromChoices`, `Learned`, `Weight.<Scenario>`, per app
+**Settings** are the macOS ones, stored in `HKCU\Software\JIS Korean` (`Mode` by engine id, a
+Korean mode; `EnglishMode`, ABC's layout: an English mode's id, `0xFFFFFFFF` for Windows' layout,
+unset for the default; `DedicatedSymbols`, `Predictions`, `EnterCommits`, `LearnFromChoices`, `Learned`, `Weight.<Scenario>`, per app
 `Apps\<program.exe>\Predictions`); the default-off apps (§10.11.1) are matched by program file name.
 The training file is `%APPDATA%\JIS Korean\training.json`. The Minecraft mod reads `Mode` to type
 the same mode in the game.

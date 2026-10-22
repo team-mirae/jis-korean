@@ -278,6 +278,10 @@ fn c_abi_lists_modes_by_position_and_refuses_unknown_ids() {
     assert_eq!(jk_mode_id_at(jk_mode_count()), u32::MAX);
     assert_eq!(jk_mode_code_len(2), 1);
     assert_eq!((jk_mode_name_len(9_999), jk_mode_code_len(9_999)), (0, 0));
+    for mode in Mode::ALL {
+        assert_eq!(jk_mode_is_english(mode.id()), !mode.is_korean() as u32, "{mode:?}");
+    }
+    assert_eq!(jk_mode_is_english(9_999), 0);
     let id = |key: Key| Key::ALL.iter().position(|&k| k == key).unwrap() as u32;
     assert_ne!(jk_legend_in(id(Key::Digit1), 0, 0, 1), 0);
     assert_eq!(jk_legend_in(id(Key::Digit1), 0, 0, 4), 0);

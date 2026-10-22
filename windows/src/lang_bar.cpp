@@ -206,10 +206,11 @@ LangBarButton::~LangBarButton() {
     DllRelease();
 }
 
-void LangBarButton::SetState(unsigned mode, bool open) {
-    if (mode == mode_ && open == open_) return;
+void LangBarButton::SetState(unsigned mode, bool open, unsigned english) {
+    if (mode == mode_ && open == open_ && english == english_) return;
     mode_ = mode;
     open_ = open;
+    english_ = english;
     if (sink_) sink_->OnUpdate(TF_LBI_ICON | TF_LBI_TOOLTIP | TF_LBI_TEXT);
 }
 
@@ -273,7 +274,13 @@ STDMETHODIMP LangBarButton::GetTooltipString(BSTR* tooltip) {
     std::wstring text = L"JIS Korean";
     const std::wstring code = wide(jk_mode_code_ptr(mode_), jk_mode_code_len(mode_));
     if (!code.empty()) text += L", Mode " + code + L": " + wide(jk_mode_name_ptr(mode_), jk_mode_name_len(mode_));
-    text += open_ ? L": 한글" : L": ABC (한/영)";
+    if (open_) {
+        text += L": 한글";
+    } else {
+        // ABC: the English layout it types (spec §8.4), or Windows' own.
+        const std::wstring english = wide(jk_mode_name_ptr(english_), jk_mode_name_len(english_));
+        text += L": ABC (한/영), " + (english.empty() ? std::wstring(L"Windows' keyboard layout") : english);
+    }
     *tooltip = SysAllocString(text.c_str());
     return *tooltip ? S_OK : E_OUTOFMEMORY;
 }

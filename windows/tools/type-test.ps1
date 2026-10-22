@@ -13,7 +13,8 @@ $pad = Resolve-Path "$PSScriptRoot\..\build\x64\jk_testpad.exe"
 $key = 'HKCU:\Software\JIS Korean'
 if (-not (Test-Path $key)) { New-Item $key | Out-Null }
 
-# name, Mode (0 A, 1 B, 2 C), Predictions, keys, expected text in the control[, DedicatedSymbols]
+# name, Mode (0 A, 1 B, 2 C), Predictions, keys, expected text in the control[, DedicatedSymbols
+# [, EnglishMode: ABC's layout id, 'unset' for the keyboard's default, 'windows' for Windows' own]]
 $cases = @(
     @('한글 안녕 (Space commits)', 0, 0, 'KeyG KeyK KeyS KeyR KeyM KeyF Space KeyD KeyK KeyS KeyS KeyU KeyD Space', '한글 안녕 '),
     @('Enter commits, new line', 0, 0, 'KeyG KeyK KeyS Enter KeyG KeyK Space', "한`r`n하 "),
@@ -33,11 +34,17 @@ $cases = @(
     @('Mode A symbols: @ key → ''', 0, 0, 'BracketLeft Space', "' "),
     @('Mode B: Shift+[ → 「, Shift+2 → 2', 1, 0, 'S-BracketLeft S-Digit2 Space', '「2 '),
     @('Mode B: 한', 1, 0, 'KeyG KeyK KeyS Space', '한 '),
-    @('한/영: ABC passes keys, back to 한글', 1, 0, 'KeyG KeyK Hangul KeyG KeyK Space Hangul KeyG KeyK Space', '하gk 하 '),
+    @('한/영: ABC types English, back to 한글', 1, 0, 'KeyG KeyK Hangul KeyG KeyK Space Hangul KeyG KeyK Space', '하gk 하 '),
     @('predictions: hello', 1, 1, 'KeyH KeyE KeyL KeyL KeyO Space', 'hello '),
     @('predictions: 한글 stays Korean', 1, 1, 'KeyG KeyK KeyS KeyR KeyM KeyF Space', '한글 '),
+    @('predictions: Shift+Enter commits hello, no new line', 1, 1, 'KeyH KeyE KeyL KeyL KeyO S-Enter', 'hello'),
     @('Mode C: ISO key · —, Shift+[ 「', 2, 0, 'IntlBackslash S-IntlBackslash S-BracketLeft KeyG KeyK KeyS Space', '·—「한 '),
-    @('Mode C, dedicated symbol keys off', 2, 0, 'IntlBackslash S-IntlBackslash S-BracketLeft Space', '\|{ ', 0)
+    @('Mode C, dedicated symbol keys off', 2, 0, 'IntlBackslash S-IntlBackslash S-BracketLeft Space', '\|{ ', 0),
+    @('ABC in Mode A: JIS English (default)', 0, 0, 'Hangul KeyG S-Digit2 BracketLeft Hangul', 'g"@', 1, 'unset'),
+    @('ABC in Mode B: US English (default)', 1, 0, 'Hangul KeyG S-Digit2 BracketLeft Hangul', 'g@[', 1, 'unset'),
+    @('ABC: JIS Dvorak', 0, 0, 'Hangul KeyS KeyD KeyF S-KeyJ Hangul', 'oeuH', 1, 7),
+    @('ABC: Windows layout passes keys', 0, 0, 'Hangul KeyG S-Digit2 Hangul', 'g@', 1, 'windows'),
+    @('ABC in Mode A, then 한글 again', 0, 0, 'Hangul KeyG KeyK Hangul KeyG KeyK Space', 'gk하 ', 1, 'unset')
 )
 # Password fields: every key passes through untouched (ABC), with predictions on.
 # (The leading comma keeps a one-case list a list of cases: PowerShell would unroll it.)
@@ -46,7 +53,7 @@ $passwordCases = @(
 )
 
 $saved = @{}
-foreach ($name in 'Mode', 'Predictions', 'DedicatedSymbols') {
+foreach ($name in 'Mode', 'Predictions', 'DedicatedSymbols', 'EnglishMode') {
     $saved[$name] = (Get-ItemProperty $key -Name $name -ErrorAction SilentlyContinue).$name
 }
 $failed = 0
@@ -57,6 +64,10 @@ try {
         Set-ItemProperty $key Mode $c[1] -Type DWord
         Set-ItemProperty $key Predictions $c[2] -Type DWord
         Set-ItemProperty $key DedicatedSymbols $(if ($c.Count -gt 5) { $c[5] } else { 1 }) -Type DWord
+        $english = if ($c.Count -gt 6) { $c[6] } else { 'unset' }
+        if ($english -eq 'unset') { Remove-ItemProperty $key -Name EnglishMode -ErrorAction SilentlyContinue }
+        elseif ($english -eq 'windows') { Set-ItemProperty $key EnglishMode ([int32]-1) -Type DWord }
+        else { Set-ItemProperty $key EnglishMode $english -Type DWord }
         $targets = if ([object]::ReferenceEquals($c, $passwordCases[0])) { @('password', 'pwscope') } else { $Target }
         foreach ($t in $targets) {
             Remove-Item $out -ErrorAction SilentlyContinue

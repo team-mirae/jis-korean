@@ -159,6 +159,14 @@ pub extern "C" fn jk_mode_code_len(mode: u32) -> usize {
     mode_text(mode, Mode::code).len()
 }
 
+/// Whether a mode is an English mode (spec §3.6.2): it types its letters and stock symbols, composes
+/// nothing and consumes no key, so a shell types its keys from [`jk_legend_in`]. 0 for the Korean
+/// modes and for an unknown id.
+#[unsafe(no_mangle)]
+pub extern "C" fn jk_mode_is_english(mode: u32) -> u32 {
+    Mode::from_id(mode).is_some_and(|m| !m.is_korean()) as u32
+}
+
 #[unsafe(no_mangle)]
 pub extern "C" fn jk_is_escaped(handle: *mut JkEngine) -> u32 {
     with(handle, 0, |h| h.engine.is_escaped() as u32)
