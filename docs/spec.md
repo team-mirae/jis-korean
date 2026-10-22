@@ -200,7 +200,7 @@ Ids are in ranges; they don't have to be given in order:
 
 | Ids | For |
 |---|---|
-| 0–14 | Mirae Research's official modes. 0–8 are taken or reserved (below); 9–14 are held for future official designations. |
+| 0–14 | Mirae Research's official modes. 0–10 are taken or reserved (below); 11–14 are held for future official designations. |
 | 15–30 | Official modes contributed from outside, each accepted by a majority of the contributors. |
 | 31–99 | Custom layouts: any free id, chosen by whoever makes the layout. Nothing coordinates them, so two forks can pick the same one. |
 | 10000–11000 | Development and preview builds: a temporary id for a mode still being made. When it's done it gets a permanent id in its range (0–30 for an official mode), and the temporary one is dropped. Never saved by a release build's settings. |
@@ -208,7 +208,7 @@ Ids are in ranges; they don't have to be given in order:
 Every other id is invalid for now (0–99 may grow later). Every platform can hold ids up to
 2,147,483,647 (Minecraft's Java `int` is the narrowest), so the ranges have room to grow.
 
-**Ids are looked up, never counted.** Ids have gaps (3, then 9 or 31), and a build has only the
+**Ids are looked up, never counted.** Ids have gaps (3, then 7, or 31), and a build has only the
 modes it was built with (JIS English needs `ENGLISH=1`; reserved ids have no mode yet). So the
 engine keeps an explicit table of the modes it has, each with its id, and nothing assumes ids run
 from 0 without gaps:
@@ -271,16 +271,17 @@ an ISO board, for example, isn't an issue this repository will fix.
 | 4 | `CJ_QWERTZ` | **[decide]** | QZ | Reserved |
 | 5 | `CJ_SWISS_QZ` | **[decide]** | CH | Reserved |
 | 6 | `CJ_AZERTY` | **[decide]** | AY | Reserved |
-| 7 | `A_DVORAK` | **[decide]** | DV | Reserved |
-| 8 | `A_COLEMAK` | **[decide]** | CMK | Reserved |
+| 7 | `A_DVORAK` | JIS Dvorak | DV | Specified (§3.6.4) |
+| 8 | `A_COLEMAK` | JIS Colemak | CMK | Specified (§3.6.4) |
 | 9 | `B_QWERTY` | US English | US | Specified (§3.6.2) |
 | 10 | `CJ_QWERTY` | UK English | GB | Specified (§3.6.2) |
 
 A **reserved** mode has its id and name held for it, and nothing else yet: no key table, no build.
 Ids 4–8 are Mirae Research's Latin-layout modes in the family of JIS English (§3.6.2): the European
 layouts as `CJ_` modes (4–6), and Dvorak and Colemak as `A_` modes (7–8), which aren't tied to
-European ISO boards. Each has its layout's letters, with the symbols still to be decided per mode, and a badge of the taegeuk with its
-badge text over the lower right, as `ABC` on JIS English's. Ids 11–14 are held for Mirae Research's
+European ISO boards. Each has its layout's letters, with the symbols still to be decided per mode
+(Dvorak's and Colemak's are, §3.6.4), and a badge of the taegeuk with its badge text over the lower
+right, as `ABC` on JIS English's. Ids 11–14 are held for Mirae Research's
 next official modes.
 
 #### 3.6.2 `A_QWERTY`: JIS English, and `B_QWERTY` and `CJ_QWERTY`
@@ -294,7 +295,7 @@ It isn't a 2-set mode (nor are ids 4–8): none of §3.1–3.5 or §4 onward app
 the Japanese input method's Romaji mode without its Japanese conversions: the engine consumes no key
 (every key goes to the app, typed by the mode's keyboard layout, §8.1) and composes nothing; no
 predictions, hanja or F6–F10: F9 and F10 go to the app, Shift+Z types Z and Shift+X types X.
-Caps Lock types capitals. The one thing it adds is press and hold (§3.6.3). Switching in commits whatever a Korean mode left unconfirmed. The core principle (§1) is about the Korean modes and
+Caps Lock types capitals. The one thing it adds is letter variants on ⌥ (§3.6.3). Switching in commits whatever a Korean mode left unconfirmed. The core principle (§1) is about the Korean modes and
 is unaffected. The engine still names the layout: its key table is the JIS stock table (Mode A's
 stock keyboard), which the macOS keyboard layout is generated from, so the symbols can't drift from
 Mode A's F8 escape.
@@ -309,15 +310,14 @@ hold (§3.6.3) included, is the same for all three. Together they're the
 They're **optional**: built only on request (the engine's `english` feature; `make ENGLISH=1` on
 macOS), so a default build has the Korean modes only. Their ids and names are reserved either way.
 
-#### 3.6.3 Press and hold (JIS English)
+#### 3.6.3 Letter variants (⌥ + letter)
 
-Holding a letter key offers its accented and other variants, as macOS does for its English layouts
-(which it does only for plain keyboard layouts, never inside an input method, so JIS English has its
-own). The letter is typed as usual; its first auto-repeat (`JK_MOD_REPEAT`) opens the list instead
-of repeating it. The letter already typed is taken back into the preedit (`take_back`: 1), and the
-list shows its variants, none selected:
+In the English modes, **⌥ + a letter** offers the letter's accented and other variants, macOS's
+press-and-hold set. Nothing is typed first: the letter shows as the preedit with its list beside
+it, none selected. The list runs horizontally, since every variant is a single letter. With Shift
+(or Caps Lock), the capitals:
 
-| Letter | Variants (1, 2, …) | With Shift |
+| Letter | Variants (1, 2, …) | With Shift (or Caps Lock) |
 |---|---|---|
 | a | à á â ä æ ã å ā | À Á Â Ä Æ Ã Å Ā |
 | c | ç ć č | Ç Ć Č |
@@ -333,22 +333,54 @@ list shows its variants, none selected:
 
 While the list is open:
 
-- **1–9** pick that variant. A digit past the list keeps the letter and is typed after it.
+- **1–9 and 0** pick the first ten variants (0 is the tenth). A variant past the tenth has no
+  digit: choose it with the arrows. A digit past the list keeps the letter and is typed after it.
+- **The same ⌥ + letter again** chooses the next variant, wrapping. Its auto-repeat
+  (`JK_MOD_REPEAT`) does nothing.
 - **The arrows** choose (the preedit shows the choice); from none, → and ↓ go to the first, ← and ↑
-  to the last, wrapping. **Enter** commits the choice; with none chosen it keeps the letter and
-  goes on to the app.
-- **Esc** keeps the letter. **Backspace** removes it.
-- **The held key's own repeats** do nothing more.
-- **Any other key** (Space, a letter, a shortcut) keeps what shows, the choice or the letter, and
-  goes on to the app.
+  to the last, wrapping. **Enter** commits the choice, or the letter with none chosen, and stops
+  there.
+- **Esc** and **Backspace** cancel: nothing is typed.
+- **Any other key** (Space, a letter, a shortcut, another ⌥ + letter) keeps what shows, the choice
+  or the letter, and goes on to the app (another ⌥ + letter opens its own list).
 
-Other keys repeat as usual: a key without variants, a repeat whose key or Shift differs from the
-press before it, and anything with Ctrl, Option or Cmd. The Korean modes ignore `JK_MOD_REPEAT`.
+⌥ on a letter without variants types what ABC's ⌥ layer has there, and ⌥ with ⌘ or Ctrl is a
+shortcut. Holding a key repeats it as usual: there's no press and hold, which would need the app to
+take back the letter already typed, and many apps (terminals, Discord) can't. In a terminal, ⌥ goes
+to the app untouched (readline's ⌥C, ⌥U and ⌥L, with Option as Meta). The Korean modes ignore ⌥ and
+`JK_MOD_REPEAT`.
 
-Examples (key codes; `…` is the key's auto-repeat): `KeyU KeyU… Digit2` → ü; `S-KeyU S-KeyU… Digit2`
-→ Ü; `KeyE KeyE… ArrowLeft Enter` → ę; `KeyA KeyA… KeyB` → ab; `KeyO KeyO… Backspace` → nothing.
+Examples (key codes; `A-` is ⌥): `A-KeyU Digit2` → ü; `A-S-KeyU Digit2` → Ü; `A-KeyE A-KeyE A-KeyE
+Enter` → é; `A-KeyE ArrowLeft Enter` → ę; `A-KeyA KeyB` → ab; `A-KeyO Escape` → nothing.
 
 Examples: `KeyG KeyK KeyS` → `gks`; `S-Digit2` → `"`; `BracketLeft` → `@`; `IntlYen` → `¥`.
+
+#### 3.6.4 `A_DVORAK` and `A_COLEMAK`: JIS Dvorak and JIS Colemak
+
+**JIS Dvorak** (id 7) and **JIS Colemak** (id 8) are JIS English (§3.6.2) with Dvorak's and
+Colemak's letters. They only move JIS English's keys: every symbol keeps its JIS Shift pair, and a
+symbol key moves only when a letter takes its place. The number row, `@ [ : ]`, ¥ and ろ stay where
+they are.
+
+| Key (JIS English) | JIS Dvorak | JIS Colemak |
+|---|---|---|
+| Q row: `q w e r t y u i o p` | `/ , . p y f g c r l` | `q w f p g j l u y ;` |
+| A row: `a s d f g h j k l ;` | `a o e u i d h t n s` | `a r s t d h n e i o` |
+| Z row: `z x c v b n m , . /` | `; q j k x b m w v z` | `z x c v b k m , . /` |
+
+- **Dvorak**: the four JIS symbol keys its letters displace go to its punctuation slots: `, <` on
+  W, `. >` on E, `; +` on Z, and `/ ?` on Q, where Dvorak has `' "` (JIS types those on Shift+7 and
+  Shift+2).
+- **Colemak**: `; +` goes to P, Colemak's semicolon. Caps Lock stays JIS Korean's switch (§8.2.1);
+  Colemak's Backspace on Caps Lock isn't adopted.
+- **⌘ and ⌥ use JIS English's keys**, so shortcuts stay where they are on JIS QWERTY: ⌘C is the
+  key JIS English types c on, whichever letter the mode types there. ⌥ types what it does in JIS
+  English, except on the letters with variants (§3.6.3), which follow the letter the key types. **Ctrl** does the same by default. **[decide]** Apple's Dvorak – QWERTY ⌘ keeps Ctrl on
+  Dvorak's letters instead (Ctrl+A, Ctrl+E in a terminal).
+
+Everything else is JIS English: the engine consumes no key and composes nothing, and ⌥ (§3.6.3)
+offers the variants of the letter the key types, not of its JIS English letter (in JIS Dvorak, ⌥ on
+the F key, which types u, offers ü). They're English modes, built with the `english` feature like the others.
 
 ---
 

@@ -78,10 +78,6 @@ pub struct Output {
     pub candidates: Option<Candidates>,
     /// The same keystrokes read as English on stock JIS (see [`Engine::english`]).
     pub english: String,
-    /// How many characters just before the insertion point the preedit takes back: they're removed
-    /// from the document and shown as the preedit instead. 1 when JIS English opens a press-and-hold
-    /// list on the letter already typed (spec §3.6.3); otherwise 0.
-    pub take_back: usize,
 }
 
 #[derive(Clone)]
@@ -96,12 +92,9 @@ pub struct Engine {
     symbols: bool,
     enter_commits: bool,
     dictionary: Option<Arc<Dictionary>>,
-    /// JIS English's press-and-hold list, while one is open (spec §3.6.3).
+    /// The English modes' ⌥ + letter list of variants, while one is open (spec §3.6.3).
     #[cfg(feature = "english")]
     held: Option<crate::hold::Held>,
-    /// The letter key JIS English typed last (key, Shift), whose auto-repeat opens the list.
-    #[cfg(feature = "english")]
-    last_letter: Option<(Key, bool)>,
     /// The predictive layer; `None` is the deterministic lite engine.
     #[cfg(feature = "predict")]
     predictor: Option<Arc<Predictor>>,
@@ -153,8 +146,6 @@ impl Engine {
             dictionary: None,
             #[cfg(feature = "english")]
             held: None,
-            #[cfg(feature = "english")]
-            last_letter: None,
             #[cfg(feature = "predict")]
             predictor: None,
             #[cfg(feature = "predict")]
@@ -276,11 +267,10 @@ impl Engine {
         if !self.mode.is_korean() {
             return self.english_key(key, mods);
         }
-        // A press-and-hold letter still open from JIS English (the mode changed under it): it
-        // stays where it was, as plain text before what's typed now.
+        // A variants list still open from an English mode (the mode changed under it): what it
+        // shows stays, as plain text before what's typed now.
         #[cfg(feature = "english")]
         if let Some(held) = self.held.take() {
-            self.last_letter = None;
             self.segment.insert(0, Token::Text(held.shown()));
         }
         // Backspace right after accepting a top prediction: a weak sign it was wrong.
@@ -782,65 +772,67 @@ impl Engine {
         held + &compose(&std::mem::take(&mut self.segment))
     }
 
-    /// A key in JIS English (spec §3.6.2, §3.6.3): every key goes to the app, except while a held
-    /// letter's list is open, and the auto-repeat that opens it.
+    /// A key in an English mode (spec §3.6.2, §3.6.3): every key goes to the app, except ⌥ + a
+    /// letter with variants, which opens their list, and the keys that work the list while it's open.
     #[cfg(feature = "english")]
     fn english_key(&mut self, key: Key, mods: Mods) -> Output {
         // Whatever a Korean mode left unconfirmed commits before the key, as on any switch.
         let mut commit = if self.held.is_none() { self.take_segment() } else { String::new() };
         self.layout = Layout::JisKorean;
+        // ⌥ alone (Shift allowed): ⌘ and Ctrl make it a shortcut.
+        let option = mods.alt && !mods.ctrl && !mods.meta;
         if let Some(held) = self.held.as_mut() {
             let count = held.variants.len();
-            let pick = key.digit().and_then(|d| d.to_digit(10)).filter(|&d| (1..=count as u32).contains(&d));
-            let mut handled = !mods.is_shortcut();
-            if mods.repeat && key == held.key {
-                // Still held: nothing more.
-            } else if !handled {
-            } else if let Some(d) = pick {
-                held.selected = Some(d as usize - 1);
-                return self.commit(String::new(), true);
-            } else {
-                match key {
-                    Key::ArrowRight | Key::ArrowDown => held.selected = Some(held.selected.map_or(0, |i| (i + 1) % count)),
-                    Key::ArrowLeft | Key::ArrowUp => {
-                        held.selected = Some(held.selected.map_or(count - 1, |i| (i + count - 1) % count))
-                    }
-                    Key::Enter if held.selected.is_some() => return self.commit(String::new(), true),
-                    Key::Escape => {
-                        held.selected = None;
-                        return self.commit(String::new(), true);
-                    }
-                    Key::Backspace => {
-                        // The letter goes too, as Backspace would have taken it.
-                        self.held = None;
-                        self.last_letter = None;
-                        return Output { consumed: true, ..Output::default() };
-                    }
-                    _ => handled = false,
+            if option && key == held.key {
+                // The same ⌥ + letter again: the next variant. Its auto-repeat does nothing.
+                if !mods.repeat {
+                    held.selected = Some(held.selected.map_or(0, |i| (i + 1) % count));
                 }
-            }
-            if handled {
                 return self.held_output();
             }
-            // Any other key keeps what's shown, then goes to the app.
+            if !mods.is_shortcut() {
+                // 1–9 and 0 pick the first ten; a digit past the list is typed after the letter.
+                let pick = key.digit().and_then(|d| d.to_digit(10)).map(|d| if d == 0 { 10 } else { d as usize });
+                if let Some(n) = pick.filter(|&n| n <= count) {
+                    held.selected = Some(n - 1);
+                    return self.commit(String::new(), true);
+                }
+                match key {
+                    Key::ArrowRight | Key::ArrowDown => {
+                        held.selected = Some(held.selected.map_or(0, |i| (i + 1) % count));
+                        return self.held_output();
+                    }
+                    Key::ArrowLeft | Key::ArrowUp => {
+                        held.selected = Some(held.selected.map_or(count - 1, |i| (i + count - 1) % count));
+                        return self.held_output();
+                    }
+                    // The choice, or the letter with none.
+                    Key::Enter => return self.commit(String::new(), true),
+                    // Nothing was typed yet: both leave nothing.
+                    Key::Escape | Key::Backspace => {
+                        self.held = None;
+                        return Output { consumed: true, ..Output::default() };
+                    }
+                    _ => {}
+                }
+            }
+            // Any other key keeps what's shown, then goes on (another ⌥ + letter opens its list).
             commit = self.take_segment();
         }
         let upper = mods.shift || mods.caps;
-        if !mods.is_shortcut()
-            && mods.repeat
-            && self.last_letter == Some((key, mods.shift))
-            && let (Some(variants), Some(letter)) = (crate::hold::variants(key, upper), key.letter())
+        if option
+            && !mods.repeat
+            && let Some(letter) = self.mode.letter(key)
+            && let Some(variants) = crate::hold::variants(letter, upper)
         {
             let letter = if upper { letter.to_ascii_uppercase() } else { letter };
             self.held = Some(crate::hold::Held { key, letter, variants, selected: None });
-            self.last_letter = None;
-            return Output { take_back: 1, ..self.held_output() };
+            return Output { commit, ..self.held_output() };
         }
-        self.last_letter = (!mods.is_shortcut() && !mods.repeat && key.letter().is_some()).then_some((key, mods.shift));
         Output { commit, consumed: false, ..Output::default() }
     }
 
-    /// The open press-and-hold list: the shown character as the preedit, the variants as the list
+    /// The open variants list: the shown character as the preedit, the variants as the list
     /// (none selected is `selected` = the count).
     #[cfg(feature = "english")]
     fn held_output(&self) -> Output {

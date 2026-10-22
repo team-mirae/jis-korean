@@ -184,13 +184,6 @@ pub extern "C" fn jk_preedit_len(handle: *mut JkEngine) -> usize {
     with(handle, 0, |h| h.last.preedit.len())
 }
 
-/// How many characters before the insertion point the preedit takes back (spec §3.6.3): the shell
-/// removes them from the document and shows the preedit in their place.
-#[unsafe(no_mangle)]
-pub extern "C" fn jk_take_back(handle: *mut JkEngine) -> usize {
-    with(handle, 0, |h| h.last.take_back)
-}
-
 /// Number of key ids; ids are `0..jk_key_count()`.
 #[unsafe(no_mangle)]
 pub extern "C" fn jk_key_count() -> u32 {

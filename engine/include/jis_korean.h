@@ -93,8 +93,8 @@ enum {
     JK_MOD_CTRL = 2,
     JK_MOD_ALT = 4,  /* Alt / Option */
     JK_MOD_META = 8, /* Cmd / Win */
-    JK_MOD_REPEAT = 16, /* the key's auto-repeat while held (JIS English's press and hold) */
-    JK_MOD_CAPS = 32,   /* Caps Lock on (the English modes' press and hold offers capitals) */
+    JK_MOD_REPEAT = 16, /* the key's auto-repeat while held (an English mode's variants list ignores it) */
+    JK_MOD_CAPS = 32,   /* Caps Lock on (the English modes' variants lists offer capitals) */
 };
 
 JkEngine *jk_new(void);
@@ -130,11 +130,6 @@ const uint8_t *jk_commit_ptr(JkEngine *engine);
 size_t jk_commit_len(JkEngine *engine);
 const uint8_t *jk_preedit_ptr(JkEngine *engine);
 size_t jk_preedit_len(JkEngine *engine);
-/* How many characters just before the insertion point the preedit takes back: remove them from the
- * document and show the preedit in their place (1 when JIS English opens a press-and-hold list on
- * the letter just typed; otherwise 0). */
-size_t jk_take_back(JkEngine *engine);
-
 uint32_t jk_key_count(void);
 const uint8_t *jk_key_code_ptr(uint32_t key);
 size_t jk_key_code_len(uint32_t key);

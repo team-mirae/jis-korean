@@ -2,7 +2,9 @@ import Cocoa
 
 /// The suggestion list under the marked text: predictions while typing, hanja candidates after F7.
 /// Modeled on the macOS Japanese input method's live-conversion list: a rounded Liquid Glass panel,
-/// one row per suggestion with hairline separators, and a slim scroll thumb when it overflows.
+/// one row per suggestion with hairline separators, and a slim scroll thumb when it overflows. The
+/// English modes' letter variants (spec §3.6.3) are single letters, so they run in one row instead,
+/// each with the digit that picks it.
 final class SuggestionWindow {
     static let shared = SuggestionWindow()
 
@@ -53,9 +55,10 @@ final class SuggestionWindow {
     }
 
     /// Shows `items` under the caret rectangle `caret` (screen coordinates); `selected` is the
-    /// highlighted row, or nil while nothing is chosen yet.
-    func show(_ items: [String], selected: Int?, below caret: NSRect) {
+    /// highlighted item, or nil while nothing is chosen yet. `horizontal`: one row of single letters.
+    func show(_ items: [String], selected: Int?, below caret: NSRect, horizontal: Bool = false) {
         guard !items.isEmpty else { return hide() }
+        list.horizontal = horizontal
         list.update(items: items, selected: selected)
         let size = list.preferredSize
         var origin = NSPoint(x: caret.minX - SuggestionListView.textInset, y: caret.minY - 6 - size.height)
@@ -84,6 +87,13 @@ private final class SuggestionListView: NSView {
     private static let font = NSFont.systemFont(ofSize: 15)
 
     var onPick: ((Int) -> Void)?
+    /// One row of cells, each a letter over the digit that picks it (1–9, 0 for the tenth, none
+    /// after), instead of a column of rows.
+    var horizontal = false
+    private static let cellWidth: CGFloat = 34
+    private static let cellHeight: CGFloat = 46
+    private static let letterFont = NSFont.systemFont(ofSize: 19)
+    private static let digitFont = NSFont.monospacedDigitSystemFont(ofSize: 10, weight: .medium)
     private var items: [String] = []
     private var selected: Int?
     private var firstVisible = 0
@@ -91,6 +101,11 @@ private final class SuggestionListView: NSView {
     override var isFlipped: Bool { true }
 
     var preferredSize: NSSize {
+        if horizontal {
+            let widest = items.map { ($0 as NSString).size(withAttributes: [.font: Self.letterFont]).width }.max() ?? 0
+            let cell = max(Self.cellWidth, ceil(widest) + 12)
+            return NSSize(width: CGFloat(items.count) * cell + 10, height: Self.cellHeight + 10)
+        }
         let widest = items.map { ($0 as NSString).size(withAttributes: [.font: Self.font]).width }.max() ?? 0
         let scroll: CGFloat = items.count > Self.visibleRows ? 14 : 0
         let width = max(180, ceil(widest) + Self.textInset * 2 + 8 + scroll)
@@ -110,7 +125,40 @@ private final class SuggestionListView: NSView {
         needsDisplay = true
     }
 
+    private var cellWidth: CGFloat {
+        horizontal && !items.isEmpty ? (bounds.width - 10) / CGFloat(items.count) : Self.cellWidth
+    }
+
+    private func drawHorizontal() {
+        let width = cellWidth
+        for (index, item) in items.enumerated() {
+            let cell = NSRect(x: 5 + CGFloat(index) * width, y: 5, width: width, height: Self.cellHeight)
+            let isSelected = index == selected
+            if isSelected {
+                NSColor.controlAccentColor.withAlphaComponent(0.85).setFill()
+                NSBezierPath(roundedRect: cell.insetBy(dx: 1, dy: 0), xRadius: 8, yRadius: 8).fill()
+            }
+            let color = isSelected ? NSColor.white : NSColor.labelColor
+            let letter = item as NSString
+            let letterAttributes: [NSAttributedString.Key: Any] = [.font: Self.letterFont, .foregroundColor: color]
+            let size = letter.size(withAttributes: letterAttributes)
+            letter.draw(at: NSPoint(x: cell.midX - size.width / 2, y: cell.minY + 5), withAttributes: letterAttributes)
+            // 1–9, then 0 for the tenth; later ones have no digit.
+            if index < 10 {
+                let digit = String((index + 1) % 10) as NSString
+                let digitAttributes: [NSAttributedString.Key: Any] = [
+                    .font: Self.digitFont,
+                    .foregroundColor: isSelected ? NSColor.white.withAlphaComponent(0.85) : NSColor.secondaryLabelColor,
+                ]
+                let digitSize = digit.size(withAttributes: digitAttributes)
+                digit.draw(at: NSPoint(x: cell.midX - digitSize.width / 2, y: cell.maxY - digitSize.height - 4),
+                           withAttributes: digitAttributes)
+            }
+        }
+    }
+
     override func draw(_ dirtyRect: NSRect) {
+        if horizontal { return drawHorizontal() }
         let rows = min(items.count, Self.visibleRows)
         let overflow = items.count > Self.visibleRows
         let rightEdge = bounds.width - (overflow ? 14 : 0)
@@ -150,6 +198,11 @@ private final class SuggestionListView: NSView {
 
     override func mouseDown(with event: NSEvent) {
         let point = convert(event.locationInWindow, from: nil)
+        if horizontal {
+            let index = Int((point.x - 5) / cellWidth)
+            if index >= 0 && index < items.count { onPick?(index) }
+            return
+        }
         let row = Int((point.y - 5) / Self.rowHeight)
         let index = firstVisible + row
         if row >= 0 && row < Self.visibleRows && index < items.count {
@@ -158,6 +211,7 @@ private final class SuggestionListView: NSView {
     }
 
     override func scrollWheel(with event: NSEvent) {
+        if horizontal { return }
         let step = event.scrollingDeltaY > 0 ? -1 : event.scrollingDeltaY < 0 ? 1 : 0
         firstVisible = min(max(0, firstVisible + step), max(0, items.count - Self.visibleRows))
         needsDisplay = true
