@@ -128,7 +128,8 @@ sits where it does.
   - A summary shows what was applied.
 - **macOS:** put the file at `~/Library/Application Support/JIS Korean/training.json`. You can drag
   it there in Finder; the input menu's "Open Training Folder" opens that folder.
-  - It's read the next time you switch to JIS Korean, and again whenever the file changes.
+  - It's read the next time you switch to JIS Korean, and again whenever its content changes
+    (saving it unchanged, or touching it, applies nothing again).
   - Weights go to the `Weight.<Scenario>` preferences, the vocabulary is kept on your Mac, and
     examples feed the learner even with "Learn from My Choices" off.
 - **Undo:**

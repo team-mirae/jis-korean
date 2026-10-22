@@ -20,6 +20,9 @@ final class SuggestionWindow {
         panel.hasShadow = true
         panel.hidesOnDeactivate = false
         panel.becomesKeyOnlyIfNeeded = true
+        // Readings of what's being typed: never in screen sharing, recordings or screenshots (as on
+        // Windows).
+        panel.sharingType = .none
 
         let glass: NSView
         if #available(macOS 26.0, *) {

@@ -1,4 +1,5 @@
 import Cocoa
+import CryptoKit
 
 #if PREDICT
 /// The training contract (docs/training-contract.md, spec §10.12) on macOS: a training file at
@@ -12,6 +13,9 @@ enum Training {
     static let file = folder.appendingPathComponent("training.json")
 
     private static let appliedDateKey = "TrainingFileDate"
+    /// The SHA-256 of the file last applied: a new date with the same content (touched, saved
+    /// unchanged, rewritten by a sync tool) applies nothing, so its examples aren't learned twice.
+    private static let appliedHashKey = "TrainingFileHash"
     private static let koreanWordsKey = "TrainingWords.Korean"
     private static let englishWordsKey = "TrainingWords.English"
     private static let weightKeys = [
@@ -52,6 +56,7 @@ enum Training {
         guard let date else {
             if defaults.object(forKey: appliedDateKey) != nil {
                 defaults.removeObject(forKey: appliedDateKey)
+                defaults.removeObject(forKey: appliedHashKey)
                 defaults.removeObject(forKey: koreanWordsKey)
                 defaults.removeObject(forKey: englishWordsKey)
             }
@@ -61,8 +66,13 @@ enum Training {
             return
         }
         defaults.set(date, forKey: appliedDateKey)
-        guard let data = try? Data(contentsOf: file),
-              let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+        guard let data = try? Data(contentsOf: file) else { return }
+        let hash = SHA256.hash(data: data).map { String(format: "%02x", $0) }.joined()
+        if defaults.string(forKey: appliedHashKey) == hash {
+            return
+        }
+        defaults.set(hash, forKey: appliedHashKey)
+        guard let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
               json["format"] as? String == "jis-korean-training", json["version"] as? Int == 1
         else {
             NSLog("JIS Korean: %@ isn't a version 1 training file; ignored", file.path)

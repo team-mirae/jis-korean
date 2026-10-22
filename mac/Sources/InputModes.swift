@@ -155,6 +155,15 @@ enum PublicAPI {
         center.addObserver(forName: resolveKeyCodeFromOutput, object: nil, queue: .main) { note in
             reply(resolveKeyCodeFromOutput, note.userInfo, resolveOutput(note.userInfo ?? [:]))
         }
+        // A mode selected from outside (the input menu, Ctrl+Space, Karabiner, Hammerspoon) is the
+        // current one even when macOS doesn't tell the open session: the fields follow it on
+        // their next key.
+        center.addObserver(forName: Notification.Name(kTISNotifySelectedKeyboardInputSourceChanged as String), object: nil,
+                           queue: .main) { _ in
+            if let mode = InputModes.selectedNow() {
+                InputModes.becameCurrent(mode)
+            }
+        }
         if UserDefaults.standard.string(forKey: currentModeKey) == nil {
             store(InputModes.current)
         }

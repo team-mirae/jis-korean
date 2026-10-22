@@ -37,6 +37,14 @@ final class JKInputController: IMKInputController {
     /// The controller JIS Korean was last activated in: the focused app's, while JIS Korean is the
     /// input source. The public API answers for it.
     private(set) static weak var focused: JKInputController?
+    /// The controller that last received a key: the field really being typed in. Chrome activates
+    /// its fields (the omnibox, the page) often and out of order, so the last activated one isn't
+    /// always it.
+    private(set) static weak var keyed: JKInputController?
+    /// Unmapped key codes already logged, per app (see `handle`).
+    private static var unmappedNoted = Set<String>()
+    /// The mode this controller's engine is in (`jk_set_mode`), nil before the first.
+    private var modeID: UInt32?
     /// The app it types into, and whether predictions are on there (spec §10.11).
     private(set) var appID: String?
     private(set) var predicting = false
@@ -48,6 +56,8 @@ final class JKInputController: IMKInputController {
     /// The reading shown as the marked text in place of the Korean one: the chosen row, or the top
     /// prediction when it isn't the Korean reading. Nil: the engine's own preedit shows.
     private var shown: String?
+    /// What shows while no row is chosen: the top prediction when it isn't the Korean reading.
+    private var topShown: String?
     /// The bundle identifier of the app this controller types into (for the per-app settings).
     private var clientApp: String?
     #endif
@@ -71,35 +81,43 @@ final class JKInputController: IMKInputController {
 
     override func handle(_ event: NSEvent!, client sender: Any!) -> Bool {
         guard let event, event.type == .keyDown, let client = sender as? IMKTextInput else { return false }
+        Self.keyed = self
+        syncMode(client)
         if engineKey(event.keyCode) == UInt32(JK_KEY_OTHER) {
             // Keys JIS Korean doesn't map, with the app: shows which keys an app passes on at all
-            // (iTerm keeps F1–F19 to itself) and what code a remapped key arrives as.
-            DiagnosticLog.note("unmapped key code \(event.keyCode) in \(client.bundleIdentifier() ?? "?")")
+            // (iTerm keeps F1–F19 to itself) and what code a remapped key arrives as. Once per code
+            // and app, so what's typed on unmapped keys (a PIN on the keypad) isn't in the log.
+            let note = "unmapped key code \(event.keyCode) in \(client.bundleIdentifier() ?? "?")"
+            if Self.unmappedNoted.insert(note).inserted {
+                DiagnosticLog.note(note)
+            }
         }
         #if ENGLISH
         if let handled = handleSwitchKey(event, client) {
             return handled
         }
         #endif
-        #if PREDICT
-        if let handled = handleList(event, client) {
-            return handled
-        }
-        // A key that commits takes the reading on screen, not the Korean one underneath.
-        if shown != nil && commits(event) {
-            commitPrediction(chosen ?? 0, to: client)
-            if event.keyCode == UInt16(kVK_Space) && modifiers(event.modifierFlags) & ~UInt32(JK_MOD_SHIFT) == 0 {
-                client.insertText(" ", replacementRange: NSRange(location: NSNotFound, length: NSNotFound))
-                return true
-            }
-        }
-        chosen = nil
-        #endif
         // The auto-repeat of a held key, and Caps Lock: JIS English's press and hold and F9/F10 read
         // them (spec §3.6.3, §3.6.4); the Korean modes ignore them.
         var extra = event.isARepeat ? UInt32(JK_MOD_REPEAT) : 0
         if event.modifierFlags.contains(.capsLock) { extra |= UInt32(JK_MOD_CAPS) }
-        let consumed = jk_key(engine, engineKey(event.keyCode), modifiers(event.modifierFlags) | extra)
+        let mods = modifiers(event.modifierFlags) | extra
+        #if PREDICT
+        if let handled = handleList(event, client) {
+            return handled
+        }
+        // A key that commits takes the reading on screen, not the Korean one underneath, and then
+        // does to it what it does to any text (Space adds a space, Shift+Enter only commits).
+        if shown != nil && commits(event) {
+            let consumed = jk_key_after_prediction(engine, chosen ?? 0, engineKey(event.keyCode), mods)
+            chosen = nil
+            apply(to: client)
+            saveLearned()
+            return consumed != 0
+        }
+        chosen = nil
+        #endif
+        let consumed = jk_key(engine, engineKey(event.keyCode), mods)
         apply(to: client)
         #if PREDICT
         saveLearned()
@@ -138,6 +156,7 @@ final class JKInputController: IMKInputController {
 
     /// The system names the input mode the user picked: JIS Korean's modes are input modes.
     override func setValue(_ value: Any!, forTag tag: Int, client sender: Any!) {
+        // Switching commits what's unconfirmed first (spec §8.2.1): applyMode does it.
         if tag == kTextServiceInputModePropertyTag, let id = value as? String, let mode = InputModes.mode(sourceID: id) {
             applyMode(mode, client: sender as? IMKTextInput)
         }
@@ -146,11 +165,34 @@ final class JKInputController: IMKInputController {
 
     private func applyMode(_ mode: InputModes.Mode, client: IMKTextInput?) {
         InputModes.becameCurrent(mode)
+        setEngineMode(mode, client: client)
+    }
+
+    /// Puts this controller's engine and its client's keyboard layout on `mode`, committing what
+    /// the old mode left unconfirmed.
+    private func setEngineMode(_ mode: InputModes.Mode, client: IMKTextInput?) {
+        if let modeID, modeID != mode.id {
+            flush(client)
+        }
         jk_set_mode(engine, mode.id)
+        modeID = mode.id
         KeyboardViewerLayout.select(mode.keyboardViewerLayout, for: client)
     }
 
+    /// Keeps this field's engine on the mode JIS Korean is in. A switch can reach another
+    /// controller than the one typing (カタカナ and F18 from the key tap, the public API, a
+    /// selection macOS didn't report to this session); this field then catches up on its next
+    /// key. Otherwise its engine stays in the old mode, and an English engine passes letters on
+    /// to the Korean mode's layout, which types them as loose jamo (ㄷㅏㄹㅏ for 다락방).
+    private func syncMode(_ client: IMKTextInput) {
+        let mode = InputModes.current
+        guard modeID != mode.id else { return }
+        DiagnosticLog.note("mode resync \(modeID.map { String($0) } ?? "none") -> \(mode.letter) in \(client.bundleIdentifier() ?? "?")")
+        setEngineMode(mode, client: client)
+    }
+
     override func deactivateServer(_ sender: Any!) {
+        noteEarlyCommit("deactivateServer", sender)
         flush(sender)
         SuggestionWindow.shared.hide()
         super.deactivateServer(sender)
@@ -158,7 +200,17 @@ final class JKInputController: IMKInputController {
 
     /// Called by the system on focus changes, mouse clicks in the text and similar.
     override func commitComposition(_ sender: Any!) {
+        noteEarlyCommit("commitComposition", sender)
         flush(sender)
+    }
+
+    /// Logs a commit the app or the system asked for while something was unconfirmed: how many
+    /// characters, never the text.
+    private func noteEarlyCommit(_ what: String, _ sender: Any!) {
+        let length = jk_preedit_len(engine)
+        guard length > 0 else { return }
+        let app = (sender as? IMKTextInput)?.bundleIdentifier() ?? appID ?? "?"
+        DiagnosticLog.note("\(what) in \(app) with \(length) unconfirmed byte(s)")
     }
 
     override func menu() -> NSMenu! {
@@ -297,14 +349,15 @@ final class JKInputController: IMKInputController {
     /// mode that mode again, so macOS shows it under the caret.
     func koreanKeyFromTap() {
         guard let client = client() as IMKTextInput? else { return }
-        if InputModes.current.korean {
+        if InputModes.current.korean && modeID == InputModes.current.id {
             selectLater(InputModes.current)
             return
         }
-        guard InputModes.isEnabled(InputModes.lastKorean) else { return }
-        flush(client)
-        applyMode(InputModes.lastKorean, client: client)
-        selectLater(InputModes.lastKorean)
+        // English, or this field's engine didn't follow an earlier switch: Korean, in place.
+        let target = InputModes.current.korean ? InputModes.current : InputModes.lastKorean
+        guard InputModes.isEnabled(target) else { return }
+        applyMode(target, client: client)
+        selectLater(target)
     }
 
     /// Selects `mode`'s input source once the key being handled is done: selecting it from inside
@@ -461,7 +514,10 @@ final class JKInputController: IMKInputController {
         let client = (sender as? IMKTextInput) ?? (client() as IMKTextInput?)
         #if PREDICT
         if shown != nil, let client {
-            commitPrediction(chosen ?? 0, to: client)
+            // Committed because the system or the app asked: not a choice to learn from.
+            jk_flush_prediction(engine, chosen ?? 0)
+            chosen = nil
+            apply(to: client)
             return
         }
         #endif
@@ -489,10 +545,10 @@ final class JKInputController: IMKInputController {
             predictions = (0..<count).map { text(jk_prediction_ptr(engine, $0), jk_prediction_len(engine, $0)) }
             let topIsKorean = count == 0 || jk_prediction_kind(engine, 0) == UInt32(JK_PREDICTION_KOREAN)
             if let chosen, chosen >= count { self.chosen = nil }
-            shown = chosen.map { predictions[$0] } ?? (topIsKorean ? nil : predictions.first)
+            topShown = topIsKorean ? nil : predictions.first
         } else {
             chosen = nil
-            shown = nil
+            topShown = nil
         }
         #endif
         refresh(client)
@@ -503,9 +559,9 @@ final class JKInputController: IMKInputController {
         let notFound = NSRange(location: NSNotFound, length: NSNotFound)
         var preedit = text(jk_preedit_ptr(engine), jk_preedit_len(engine))
         #if PREDICT
-        if let chosen, chosen < predictions.count {
-            shown = predictions[chosen]
-        }
+        // The chosen row, else the top reading: Escape out of a row shows (and commits) the top
+        // reading again, not the row left behind.
+        shown = chosen.flatMap { $0 < predictions.count ? predictions[$0] : nil } ?? topShown
         if let shown {
             preedit = shown
         }
@@ -537,8 +593,13 @@ final class JKInputController: IMKInputController {
 
     /// Hanja candidates after F7, or the predictions while typing (when there's more than one).
     private func showList(_ client: IMKTextInput, empty: Bool) {
-        var caret = NSRect.zero
-        _ = client.attributes(forCharacterIndex: 0, lineHeightRectangle: &caret)
+        // The caret's rectangle is a synchronous round trip into the app: asked only when a list
+        // shows, not on every key.
+        func caret() -> NSRect {
+            var rect = NSRect.zero
+            _ = client.attributes(forCharacterIndex: 0, lineHeightRectangle: &rect)
+            return rect
+        }
         let window = SuggestionWindow.shared
         let hanja = jk_candidate_count(engine)
         if hanja > 0 {
@@ -549,13 +610,13 @@ final class JKInputController: IMKInputController {
             }
             let selected = jk_candidate_selected(engine)
             window.onPick = { [weak self] index in self?.pickHanja(index, from: selected, client) }
-            window.show(items, selected: selected, below: caret)
+            window.show(items, selected: selected, below: caret())
             return
         }
         #if PREDICT
         if !empty && predictions.count > 1 {
             window.onPick = { [weak self] index in self?.commitPrediction(index, to: client) }
-            window.show(predictions, selected: chosen, below: caret)
+            window.show(predictions, selected: chosen, below: caret())
             return
         }
         #endif

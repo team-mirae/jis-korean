@@ -74,10 +74,14 @@ enum KoreanKeyTap {
     }
 
     static func goToKorean() {
-        if InputModes.selectedNow() != nil, let controller = JKInputController.focused {
+        // The field being typed in: the last activated controller isn't always it (Chrome
+        // activates its fields out of order). Any other field follows on its next key.
+        if InputModes.selectedNow() != nil, let controller = JKInputController.keyed ?? JKInputController.focused {
             controller.koreanKeyFromTap()
-        } else {
-            // Another input source is selected (Japanese, ABC): select the last Korean mode.
+        } else if InputModes.isEnabled(InputModes.lastKorean) {
+            // Another input source is selected (Japanese, ABC): select the last Korean mode, and
+            // record it, so the fields follow even if macOS doesn't tell their sessions.
+            InputModes.becameCurrent(InputModes.lastKorean)
             InputModes.select(InputModes.lastKorean)
         }
         DiagnosticLog.note("Korean Key (tap)")

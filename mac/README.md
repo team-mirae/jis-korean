@@ -20,7 +20,9 @@ make dist            # build/<variant>/JISKorean-<version>[-lite].zip
 The full build includes the engine's predictive layer and its model (`Resources/predict/`). With it
 on, the marked text shows the **top reading** of what you typed: `hello` shows as hello, not
 옫이애, and `bb` as ㅠㅠ. Space, Enter, Tab, Escape, arrows, shortcuts and clicking away commit what's
-shown. F6 still forces Korean and F10 English letters.
+shown, and then act as they would on it (Shift+Enter and "Enter Commits Without a New Line" only
+commit). F6 still forces Korean and F10 English letters. The suggestion list never appears in screen
+sharing, recordings or screenshots.
 
 Tune it per scenario (spec §10.5) with multipliers on each reading's learned probability, applied
 when the input method activates:
@@ -150,7 +152,8 @@ English modes under English.
 ## Notes
 
 - Shortcuts (Ctrl, Option, Cmd) commit first, then go to the app unchanged.
-- Debug logs: `/usr/bin/log stream --predicate 'process == "JISKorean"'` (in zsh, `log` alone is a shell builtin), and the input method's own `~/Library/Logs/JISKorean.log` (launches, activations, Keyboard Viewer), off by default: `defaults write me.sjun.inputmethod.JISKorean DiagnosticLog -bool true` turns it on immediately, `-bool false` off.
+- Debug logs: `/usr/bin/log stream --predicate 'process == "JISKorean"'` (in zsh, `log` alone is a shell builtin), and the input method's own `~/Library/Logs/JISKorean.log` (launches, activations, mode switches, Keyboard Viewer, commits the
+  system or an app forced, with their length only, and each unmapped key code once per app), off by default: `defaults write me.sjun.inputmethod.JISKorean DiagnosticLog -bool true` turns it on immediately, `-bool false` off.
 
 - Input method installed but not launching after a reinstall, or Keyboard Viewer showing ABC
   legends: see [docs/troubleshooting/macos-input-method-not-launching.md](../docs/troubleshooting/macos-input-method-not-launching.md).
