@@ -39,6 +39,9 @@ class StagingTest {
 			Map.entry("Ctrl-A", new int[] {4, Keys.MOD_CONTROL}),
 			Map.entry("Left", new int[] {80, 0}),
 			Map.entry("S-2", new int[] {31, Keys.MOD_SHIFT}),
+			Map.entry("S-4", new int[] {33, Keys.MOD_SHIFT}),
+			Map.entry("S-6", new int[] {35, Keys.MOD_SHIFT}),
+			Map.entry("S-Minus", new int[] {45, Keys.MOD_SHIFT}),
 			Map.entry("Grave", new int[] {53, 0}));
 
 	private Staging staging;
@@ -126,9 +129,32 @@ class StagingTest {
 	}
 
 	@Test
+	void symbolsAndShiftedDigitsAloneCommitAsTyped() {
+		// No letter keys: the legends' reading, not the stock JIS characters (&$ for 64, = for ?).
+		check("{S-6}{S-4} ", "64 ");
+		check("{S-Minus}{Enter}", "?");
+		setUp();
+		field.append("/tp ");
+		type("{S-6}{S-4} ");
+		assertEquals("/tp 64 ", field.toString());
+	}
+
+	@Test
+	void shiftZStaysKieukInTheEscape() {
+		// Spec §6: Shift+Z is F10 except in the F8 escape, where it is ㅋ.
+		check("{F8}zZ{F6}", "ㅋㅋ");
+	}
+
+	@Test
 	void shiftOnANonTenseKeyIsEnglish() {
 		check("Hi ", "Hi ");
 		check("Steve ", "Steve ");
+	}
+
+	@Test
+	void sloppyShiftOnAKnownKoreanWordStaysKorean() {
+		// Shift still held after ㅆ (⇧T) over the next key: 있는, not dlTSms.
+		check("dlTSms ", "있는 ");
 	}
 
 	@Test

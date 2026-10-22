@@ -122,7 +122,8 @@ public final class Staging {
 		// Shift+Z is F10 (spec §6). When the ranked reading is already what F10 would give (English,
 		// plain letters as typed), it skips ahead: F10 twice (gks → GKS).
 		// Only on the first press: once converted, the two readings are the same and F10 just cycles.
-		if (code.equals("KeyZ") && shift && !isEmpty() && !korean.equals(english)
+		// Not in the F8 escape, where Shift+Z is ㅋ as in standard 2-set (spec §6).
+		if (code.equals("KeyZ") && shift && !isEmpty() && !engine.escaped() && !korean.equals(english)
 				&& english.chars().allMatch(Character::isLetter) && ranking(before).language() == Language.ENGLISH) {
 			update(engine.key("F10", false));
 		}

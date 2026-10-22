@@ -53,7 +53,10 @@ Held-out accuracy (from the build script's report):
 | Real Korean text, word by word (Samsung Electronics' "사업의 내용", not trained on) | about 96% |
 
 Rules on top of the model:
-- **Shift on a key that Korean never shifts** (anything but Q W E R T O P) means English.
+- **Shift on a key that Korean never shifts** (anything but Q W E R T O P) means English, unless the
+  Korean reading is a known word (Shift held over from ㅆ: `dlTSms` is 있는).
+- **No letter or digit key at all** (Shift+digits, `?`, `!`, `^^`) means Korean: what the keys' legends
+  show (`64`, not the stock JIS `&$`).
 - **Exact matches** in the common-word lists lean their way.
 - **Leftover bare jamo** count against Korean, except chat words like ㅋㅋ.
 - **A `/command` name** is English, unless it's one of the Mirae server's Korean aliases (`/귓말`,

@@ -110,7 +110,14 @@ public final class Ranker {
 		if (override != null) {
 			return new Choice(override, override == Language.KOREAN ? 99 : -99, "override");
 		}
-		for (int i = 0; i < englishText.length(); i++) {
+		// No letter or digit key at all (Shift+digits, ? ! ^^): the model has nothing to go on, and
+		// what the keys' legends show is the Korean reading (64, not the stock JIS &$).
+		if (englishText.chars().noneMatch(c -> c < 128 && Character.isLetterOrDigit(c))) {
+			return new Choice(Language.KOREAN, 99, "symbols");
+		}
+		// A known Korean word is Korean even with Shift held over from a tense consonant (있는 typed
+		// d l ⇧T ⇧S m s): sloppy Shift still types 2-set (spec §1).
+		for (int i = 0; i < englishText.length() && !koreanWords.contains(koreanText); i++) {
 			char c = englishText.charAt(i);
 			boolean midWord = i > 0 && Character.isLetter(englishText.charAt(i - 1));
 			if (c >= 'A' && c <= 'Z' && KOREAN_SHIFTS.indexOf(c) < 0
