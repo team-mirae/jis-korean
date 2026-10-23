@@ -12,6 +12,37 @@ refreshes them; only relaunching the app (or logging out) does.** Fix C is kept 
 is what brought the input method back for System Settings, but it is not a recovery for other apps.
 Fix B is what prevents the state.
 
+**Update (2026-10-23): fixes B and C shipped; the re-add after every update is still required, and
+this is why.** Both landed in `d8d9577`. B is in `mac/Makefile`: `install` now swaps the bundle in
+with renames (`ditto` to `.JISKorean.app.new`, `mv` the old aside, `mv` the new into place), so the
+path is never absent and the "bundle vanished" state above can't arise from an ordinary reinstall.
+C is in `mac/tools/register.swift`: after `TISRegisterInputSource` it snapshots whether the source
+was enabled/selected, then disables → settles → enables → reselects the fresh ref, and prints the
+remove/re-add instruction if the reselect fails.
+
+C does not refresh **already-running** apps on this macOS. Watching `distnoted` through a real
+`make install` and a standalone `register.swift` run showed only observer **registrations** of
+`AppleEnabledInputSourcesChangedNotification` (apps subscribing), never a **posted** one — the
+programmatic `TISDisableInputSource`/`TISEnableInputSource` pair does not emit the broadcast that
+makes running processes reload their input-source catalog. So, to answer "why must I remove and
+re-add JIS Korean every time it updates":
+
+> An update runs `killall JISKorean` (SIGTERM — `imklaunchagent` logs `IMDiedCallback … exitStatus
+> (15)`) and swaps the bundle. B keeps the path present, so the source is no longer dropped. But
+> every app that was already running still holds its cached input-source catalog and its binding to
+> the process that was just replaced, and it rebuilds that catalog only on the system-wide
+> enabled-sources-changed broadcast — which neither re-registration nor C's programmatic toggle
+> sends to it. Removing JIS Korean in System Settings → Keyboard → Input Sources and adding it back
+> is a user-initiated enable/disable through the full UI path, which **does** broadcast, so every
+> running app re-binds to the fresh process. Logging out and back in rebuilds every catalog from the
+> on-disk cache and does the same.
+
+So the state is milder than the 2026-10-19 one (the source is never lost, System Settings and
+newly-launched apps are fine immediately), but the manual remove/re-add — or a logout, or quitting
+and reopening the specific app — is still what a *running* app needs to pick up the new build. Not
+reproduced by live typing this session (same foreground-app caveat as below); concluded from the
+install's `distnoted`/`imklaunchagent` evidence on top of the 2026-10-19 analysis.
+
 Caveat for anyone repeating the probes below: a select only makes the *frontmost* app activate the
 input method, and only once it has a focused text field and gets a key. Selecting from a script
 with no keystroke proves nothing either way. Test by selecting JIS Korean in a text field and typing. The one-paragraph version:
