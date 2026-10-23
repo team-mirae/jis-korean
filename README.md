@@ -5,6 +5,8 @@ browser playground.
 
 **Try it in your browser: [jis-korean.sjun.me](https://jis-korean.sjun.me)**
 
+**Download:** [Windows](https://github.com/team-mirae/jis-korean/releases/tag/v0.3.0-windows) · [macOS](https://github.com/team-mirae/jis-korean/releases/tag/v0.3.0-macos) · [Minecraft](https://github.com/team-mirae/jis-korean/releases/tag/v0.3.0-minecraft)
+
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/layout/jis-korean-layouts-dark.png">
   <img alt="The JIS Korean layouts. Mode A, for JIS keyboards: double consonants and compound vowels on the number row, Korean punctuation on the symbol keys, and 한글 / 한자 / 두벌식 / 전각 / 반각 on F6–F10. Mode B, for US ANSI keyboards (HHKB US and MacBook): the same number row and brackets, and every other key as US ANSI has it. Mode C, for UK ISO keyboards: Mode B's pattern on UK symbols, with the middle dot and em dash on the extra key left of Z." src="docs/layout/jis-korean-layouts-light.png">
