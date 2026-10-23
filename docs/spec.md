@@ -1156,9 +1156,9 @@ Each key has one direction: 英数 to English, カタカナ (or F18) to Korean, 
 dropped: it costs a capital letter for a switch F18 already does).
 
 A Mac JIS keyboard (a MacBook's built-in one) has 英数 and かな but no カタカナ. The recommended
-setup remaps plain Caps Lock to カタカナ with Karabiner-Elements, which JIS Korean then reads like any
-カタカナ; Caps Lock with a modifier (Shift or ⌥) stays Caps Lock
-([docs/macbook-jis](macbook-jis/README.md)). JIS Korean itself leaves Caps Lock alone.
+setup, [macbook-jis-to-hhkb](https://github.com/themrsung/keyboard-troubleshooting/tree/main/layouts/macbook-jis-to-hhkb), makes a tap
+of Caps Lock カタカナ with Karabiner-Elements, which JIS Korean then reads like any カタカナ; a hold
+is the HHKB Fn layer, and Caps Lock moves to Fn+Tab. JIS Korean itself leaves Caps Lock alone.
 
 **ABC stays.** macOS always keeps at least one plain keyboard layout enabled (ABC, or a country
 layout), and an input method's modes don't count as one, so Apple's ABC can't be removed from the

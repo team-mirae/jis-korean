@@ -53,4 +53,4 @@ Typing on a MacBook with a US keyboard?
 [Give it JIS's keys with Karabiner!](https://github.com/themrsung/keyboard-troubleshooting/tree/main/layouts/macbook-us-to-jis)
 
 Typing on a MacBook with a JIS keyboard?
-[Make Caps Lock カタカナ with Karabiner!](docs/macbook-jis/README.md)
+[Give it カタカナ and the HHKB Fn layer with Karabiner!](https://github.com/themrsung/keyboard-troubleshooting/tree/main/layouts/macbook-jis-to-hhkb)

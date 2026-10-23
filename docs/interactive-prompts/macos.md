@@ -139,8 +139,8 @@ has stored the keyboard as JIS (42). If it's stored as 40 or 41, offer the fix i
 user runs.
 
 **A Mac JIS keyboard** (英数 and かな only): Korean needs another key. Go by the remap answer below.
-With Karabiner, the recommended key is plain Caps Lock as カタカナ, keeping Caps Lock on Shift or ⌥
-+ Caps Lock ([the MacBook JIS guide](../macbook-jis/README.md)).
+With Karabiner, the recommended setup is [macbook-jis-to-hhkb](https://github.com/themrsung/keyboard-troubleshooting/tree/main/layouts/macbook-jis-to-hhkb):
+a tap of Caps Lock is カタカナ, a hold is the HHKB Fn layer, and Caps Lock moves to Fn+Tab.
 
 **US ANSI or UK ISO:** there's no 英数 or かな. Ctrl+Space switches between the last two input
 sources. A Korean Key and an English key need remapping: go by the remap answer below.
