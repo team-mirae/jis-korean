@@ -41,7 +41,7 @@ things yourself.
 | [macos.md](macos.md) | macOS: the input method (release or build), its modes and switch keys, remapping |
 | [windows.md](windows.md) | Windows: the TSF input method (installer or build), 한/영, remapping |
 | [minecraft.md](minecraft.md) | Minecraft: the Fabric mod (release or build), offered at the end of the others |
-| [other.md](other.md) | The web playground, Linux, and platforms out of scope |
+| [other.md](other.md) | The web playground, and for Linux and other systems, a custom stack designed from keyboard-troubleshooting |
 
 ## Writing a prompt
 
