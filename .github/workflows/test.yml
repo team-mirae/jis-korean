@@ -73,3 +73,12 @@ jobs:
         run: ./tools/build.ps1
       - name: Lite build
         run: ./tools/build.ps1 -Lite
+      # The installer, from the builds above (unsigned). Runs beside the engine jobs, not before them.
+      - name: Installer
+        run: |
+          if (-not (Test-Path "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe")) { choco install innosetup -y --no-progress }
+          ./tools/package.ps1 -SkipBuild
+      - uses: actions/upload-artifact@v4
+        with:
+          name: windows-installer
+          path: windows/build/dist/*.exe
