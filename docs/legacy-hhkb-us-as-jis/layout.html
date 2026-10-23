@@ -1,0 +1,532 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>JIS Korean on an HHKB US</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700&display=swap">
+<style>
+/* docs/layout/jis-korean-layouts.html, on an HHKB Professional BT (US) remapped as JIS with
+   Karabiner-Elements: the same theme and keys as docs/mac-ansi-87-key-recommended/layout.html. */
+:root {
+  /* One key unit: an HHKB is 15 units wide. */
+  --u: min(56px, calc((100vw - 32px) / 15.8));
+  --charcoal: #433e3f;
+  --warm-gray: #7a7265;
+  --umber: #8e6e53;
+  --camel: #c69c72;
+  --taupe: #c0b7b1;
+
+  --bg: #f4f1ee;
+  --surface: #fbfaf8;
+  --border: #ddd6d0;
+  --text: var(--charcoal);
+  --muted: var(--warm-gray);
+  --accent: var(--umber);
+  --highlight: #ead8c4;
+  --plate: var(--charcoal);
+  --cap: #f7f4f1;
+  --cap-sym: #e4ddd7;
+  --cap-fn: #cfc6bf;
+  --cap-edge: #2c2829;
+  --cap-open: #5a5354;
+  --legend: var(--charcoal);
+  --legend-shift: var(--umber);
+  --legend-open: #a39a95;
+
+  --font: "Pretendard", "Noto Sans KR", "Apple SD Gothic Neo", "Malgun Gothic", system-ui, sans-serif;
+  --mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #262223;
+    --surface: #302b2c;
+    --border: #4a4445;
+    --text: #ece7e3;
+    --muted: var(--taupe);
+    --accent: var(--camel);
+    --highlight: #5a4a3c;
+    --plate: #1a1718;
+    --cap: var(--charcoal);
+    --cap-sym: #3a3536;
+    --cap-fn: #57504c;
+    --cap-edge: #121010;
+    --cap-open: #4a4445;
+    --legend: #ece7e3;
+    --legend-shift: var(--camel);
+    --legend-open: #7a7265;
+    color-scheme: dark;
+  }
+}
+
+:root[data-theme="dark"] {
+  --bg: #262223;
+  --surface: #302b2c;
+  --border: #4a4445;
+  --text: #ece7e3;
+  --muted: var(--taupe);
+  --accent: var(--camel);
+  --highlight: #5a4a3c;
+  --plate: #1a1718;
+  --cap: var(--charcoal);
+  --cap-sym: #3a3536;
+  --cap-fn: #57504c;
+  --cap-edge: #121010;
+  --cap-open: #4a4445;
+  --legend: #ece7e3;
+  --legend-shift: var(--camel);
+  --legend-open: #7a7265;
+  color-scheme: dark;
+}
+
+*, *::before, *::after { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font: 15px/1.5 var(--font);
+  -webkit-font-smoothing: antialiased;
+}
+
+main {
+  max-width: 900px;
+  margin: 0 auto;
+  padding-block: 48px 56px;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+  display: grid;
+  gap: 48px;
+}
+
+h1 {
+  margin: 0 0 8px;
+  font-size: 1.75rem;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+
+.lede {
+  margin: 0;
+  max-width: 62ch;
+  color: var(--muted);
+}
+
+/* A mode */
+
+.mode {
+  display: grid;
+  gap: 18px;
+}
+
+.mode-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 12px;
+}
+
+.eyebrow {
+  font-size: 0.8rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--accent);
+}
+
+.mode h2 {
+  margin: 0;
+  font-size: 1.3rem;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  text-wrap: balance;
+}
+
+.subtitle {
+  color: var(--muted);
+}
+
+.chip {
+  padding: 2px 10px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--surface);
+  font-size: 0.8rem;
+  font-weight: 600;
+}
+
+.chip.open {
+  border-color: var(--camel);
+  background: var(--highlight);
+}
+
+/* Keyboard plate, as in the playground */
+
+.board {
+  --gap: calc(var(--u) * 0.09);
+  display: flex;
+  justify-content: center;
+  overflow-x: auto;
+}
+
+.plate {
+  display: grid;
+  gap: var(--gap);
+  padding: calc(var(--u) * 0.24);
+  border-radius: calc(var(--u) * 0.2);
+  background: var(--plate);
+}
+
+.row {
+  display: flex;
+  gap: var(--gap);
+  padding-left: calc(var(--u) * var(--offset, 0));
+}
+
+.fn-row {
+  margin-bottom: calc(var(--u) * 0.24);
+}
+
+.key {
+  position: relative;
+  flex: none;
+  width: calc(var(--u) - var(--gap));
+  aspect-ratio: 1;
+  border-radius: calc(var(--u) * 0.1);
+  background: var(--cap);
+  box-shadow: inset 0 calc(var(--u) * -0.06) 0 var(--cap-edge);
+  color: var(--legend);
+}
+
+.key.sym { background: var(--cap-sym); }
+.key.fn { background: var(--cap-fn); }
+
+/* Stock keys: untouched by the mode, drawn as plain outlines. */
+.key.stock {
+  background: transparent;
+  box-shadow: none;
+  outline: 1px solid var(--cap-open);
+  outline-offset: -1px;
+}
+
+.key.stock span { color: var(--legend-open); }
+
+/* A MacBook's short function row. */
+.key.short {
+  height: calc(var(--u) * 0.62 - var(--gap));
+  aspect-ratio: auto;
+}
+
+.key.short .shifted { top: calc(var(--u) * 0.07); }
+.key.short .base { bottom: calc(var(--u) * 0.07); }
+
+.key span {
+  position: absolute;
+  line-height: 1;
+}
+
+.key .base {
+  left: calc(var(--u) * 0.14);
+  bottom: calc(var(--u) * 0.2);
+  font-size: calc(var(--u) * 0.32);
+  font-weight: 500;
+}
+
+.key.sym .base { font-size: calc(var(--u) * 0.28); }
+.key.stock .base { font-size: calc(var(--u) * 0.22); }
+.key.wide { width: calc(var(--u) * 1.5 - var(--gap)); height: calc(var(--u) - var(--gap)); aspect-ratio: auto; }
+
+.variant {
+  display: grid;
+  gap: 8px;
+}
+
+.variant h3 {
+  margin: 0;
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--muted);
+}
+
+.key.fn .base {
+  font-family: var(--mono);
+  font-size: calc(var(--u) * 0.2);
+}
+
+.key .shifted {
+  left: calc(var(--u) * 0.14);
+  top: calc(var(--u) * 0.1);
+  font-size: calc(var(--u) * 0.2);
+  color: var(--legend-shift);
+  white-space: nowrap;
+}
+
+.key.fn .shifted {
+  font-size: calc(var(--u) * 0.16);
+  color: var(--legend);
+}
+
+.key .latin {
+  right: calc(var(--u) * 0.12);
+  top: calc(var(--u) * 0.1);
+  font-family: var(--mono);
+  font-size: calc(var(--u) * 0.15);
+  color: var(--muted);
+}
+
+.key.home::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  bottom: calc(var(--u) * 0.09);
+  width: calc(var(--u) * 0.3);
+  height: 2px;
+  margin-left: calc(var(--u) * -0.15);
+  border-radius: 1px;
+  background: var(--taupe);
+  opacity: 0.6;
+}
+
+/* Reading notes under a board */
+
+.notes {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+  gap: 16px 28px;
+  margin: 0;
+}
+
+.notes > div {
+  min-width: 0;
+  padding-top: 10px;
+  border-top: 1px solid var(--border);
+}
+
+.notes dt {
+  font-weight: 700;
+  color: var(--accent);
+}
+
+.notes dd {
+  margin: 2px 0 0;
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+
+.swatches {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 16px;
+  font-size: 0.85rem;
+  color: var(--muted);
+}
+
+.swatch {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.swatch i {
+  width: 14px;
+  height: 14px;
+  border-radius: 3px;
+  background: var(--cap);
+  box-shadow: inset 0 -2px 0 var(--cap-edge);
+}
+
+.swatch i.sym { background: var(--cap-sym); }
+.swatch i.fn { background: var(--cap-fn); }
+.swatch i.stock { background: transparent; box-shadow: none; outline: 1px solid var(--cap-open); outline-offset: -1px; }
+
+kbd {
+  font-family: var(--font);
+  font-size: 0.95em;
+  padding: 0 4px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: var(--surface);
+  color: var(--text);
+}
+
+footer {
+  padding-top: 16px;
+  border-top: 1px solid var(--border);
+  color: var(--muted);
+  font-size: 0.85rem;
+}
+
+/* Key widths and the tenkeyless clusters */
+
+.tkl {
+  display: flex;
+  gap: calc(var(--u) * 0.3);
+}
+
+.cluster {
+  display: grid;
+  gap: var(--gap);
+  align-content: start;
+}
+
+.cluster .fn-row { margin-bottom: calc(var(--u) * 0.24); }
+
+.row.nav-gap { margin-top: var(--u); }
+
+.key.w { aspect-ratio: auto; height: calc(var(--u) - var(--gap)); }
+.spacer { flex: none; }
+
+/* A modifier or other key with a word on it. */
+.key.mod .base, .key.stock.mod .base {
+  font-size: calc(var(--u) * 0.18);
+  bottom: calc(var(--u) * 0.16);
+}
+
+/* A language switch key: what a tap does, and (above) what holding it does. */
+.key.switch { background: var(--camel); }
+.key.switch .base {
+  font-size: calc(var(--u) * 0.2);
+  font-weight: 700;
+  color: var(--charcoal);
+  bottom: calc(var(--u) * 0.16);
+}
+.key.switch .shifted { color: var(--charcoal); font-size: calc(var(--u) * 0.16); }
+.swatch i.switch { background: var(--camel); }
+
+/* Keys the Fn layer leaves to the board's own uses. */
+.key.blank { background: transparent; box-shadow: none; outline: 1px dashed var(--cap-open); outline-offset: -1px; }
+.key.blank span { color: var(--legend-open); }
+
+/* A key Karabiner moved: it types another key's character. */
+.key.moved { outline: 2px solid var(--camel); outline-offset: -2px; }
+.swatch i.moved { outline: 2px solid var(--camel); outline-offset: -2px; }
+</style>
+</head>
+<body>
+
+<main>
+  <header>
+    <h1>JIS Korean on an HHKB US</h1>
+    <p class="lede">Mode A, JIS Korean's original layout, on an HHKB Professional BT (US) seen as a JIS keyboard through Karabiner-Elements: カタカナ, 英数, かな and ろ on a tap of the modifiers, ¥ and JIS's ] on the keys the HHKB has to spare, and Backspace top right as on an HHKB JIS (README.md).</p>
+  </header>
+
+  <section class="mode" aria-labelledby="base">
+    <div class="mode-head">
+      <span class="eyebrow">Base</span>
+      <h2 id="base">Mode A</h2>
+      <span class="subtitle">DIP switches: Mac mode, wake up enable</span>
+    </div>
+    <div class="board"><div class="plate" id="board-base" role="img" aria-label="Mode A on the HHKB US"></div></div>
+    <div class="swatches">
+      <span class="swatch"><i></i>Standard 2-set letter keys</span>
+      <span class="swatch"><i class="sym"></i>Number and symbol keys</span>
+      <span class="swatch"><i class="switch"></i>Tap (lower) and hold (upper)</span>
+      <span class="swatch"><i class="sym moved"></i>Moved by Karabiner</span>
+      <span class="swatch"><i class="stock"></i>Unchanged</span>
+      <span>Lower legend: the key alone. Upper legend: with Shift. Corner: the HHKB's key cap.</span>
+    </div>
+    <dl class="notes">
+      <div><dt>カタカナ · 英数 · かな</dt><dd>Tap left ◇ for Korean, left ◆ for English, right ◆ for Japanese. Held, they're ⌥ and ⌘ as usual.</dd></div>
+      <div><dt>ろ on right Shift</dt><dd>A tap types ろ (\ and _ in Mode A), where JIS has it: right of /. Held, it's Shift.</dd></div>
+      <div><dt>¥ and JIS's ]</dt><dd>The HHKB's <kbd>\</kbd> is ¥ (— and ^), left of Backspace as on JIS. Delete is JIS's ] (] and 」, む in Kana), the key an HHKB US lacks.</dd></div>
+      <div><dt>Backspace top right</dt><dd>On <kbd>`</kbd>, as on an HHKB JIS. Fn+<kbd>`</kbd> is still forward Delete. An alternative rule keeps Delete as Backspace and puts ] on <kbd>`</kbd>.</dd></div>
+      <div><dt>The caps move by one</dt><dd>JIS has @ [ where ANSI has [ ], so the HHKB's <kbd>[</kbd> <kbd>]</kbd> type Mode A's ' " and [ 「, and <kbd>'</kbd> types JIS's : key.</dd></div>
+      <div><dt>F6–F10</dt><dd>The HHKB's own Fn+6 to Fn+0: 한글, 한자, 두벌식, 전각, 반각. Shift+Z is F10 too.</dd></div>
+    </dl>
+  </section>
+
+  <section class="mode" aria-labelledby="fn">
+    <div class="mode-head">
+      <span class="eyebrow">Fn</span>
+      <h2 id="fn">The HHKB's Fn layer</h2>
+      <span class="subtitle">Unchanged; only what JIS Korean uses is drawn</span>
+    </div>
+    <div class="board"><div class="plate" id="board-fn" role="img" aria-label="The HHKB's Fn layer"></div></div>
+    <div class="swatches">
+      <span class="swatch"><i class="fn"></i>Function keys</span>
+      <span class="swatch"><i class="blank"></i>The HHKB's own (arrows, media, Caps Lock)</span>
+    </div>
+  </section>
+
+  <footer>From docs/spec.md §2, §3, §6 and §8.2.1, and hhkb-pro-bt-as-jis.json.</footer>
+</main>
+
+<script>
+// Each key: [base, shift, cap, kind, width]. A number alone is a gap. See the 87-key drawing.
+const S = (label, w = 1) => [label, null, label, "stock mod", w];
+const B = (w = 1) => ["", null, "", "blank", w];
+
+const base = [
+  [S("Esc"),
+    ["ㅃ", "1", "1", "sym"], ["ㅉ", "2", "2", "sym"], ["ㄸ", "3", "3", "sym"], ["ㄲ", "4", "4", "sym"],
+    ["ㅆ", "5", "5", "sym"], ["ㅟ", "6", "6", "sym"], ["ㅝ", "7", "7", "sym"], ["ㅚ", "8", "8", "sym"],
+    ["ㅢ", "9", "9", "sym"], ["ㅘ", "0", "0", "sym"], ["!", "?", "-", "sym"], ["(", ")", "=", "sym"],
+    ["—", "^", "\\", "sym moved"], ["⌫", null, "`", "stock mod moved"]],
+  [S("Tab", 1.5),
+    ["ㅂ", "ㅃ", "Q"], ["ㅈ", "ㅉ", "W"], ["ㄷ", "ㄸ", "E"], ["ㄱ", "ㄲ", "R"], ["ㅅ", "ㅆ", "T"],
+    ["ㅛ", null, "Y"], ["ㅕ", null, "U"], ["ㅑ", null, "I"], ["ㅐ", "ㅒ", "O"], ["ㅔ", "ㅖ", "P"],
+    ["'", "\"", "[", "sym"], ["[", "「", "]", "sym"], ["]", "」", "Delete", "sym moved", 1.5]],
+  [S("Control", 1.75),
+    ["ㅁ", null, "A"], ["ㄴ", null, "S"], ["ㅇ", null, "D"], ["ㄹ", null, "F"], ["ㅎ", null, "G"],
+    ["ㅗ", null, "H"], ["ㅓ", null, "J"], ["ㅏ", null, "K"], ["ㅣ", null, "L"],
+    ["~", "-", ";", "sym"], [":", ";", "'", "sym"], S("Return", 2.25)],
+  [S("Shift", 2.25),
+    ["ㅋ", "반각", "Z"], ["ㅌ", null, "X"], ["ㅊ", null, "C"], ["ㅍ", null, "V"], ["ㅠ", null, "B"],
+    ["ㅜ", null, "N"], ["ㅡ", null, "M"], [",", null, ",", "sym"], [".", null, ".", "sym"],
+    ["·", null, "/", "sym"], ["ろ", "Shift", "", "switch", 1.75], S("Fn")],
+  [1.5, ["カタカナ", "⌥", "", "switch"], ["英数", "⌘", "", "switch", 1.5], S("Space", 6),
+    ["かな", "⌘", "", "switch", 1.5], S("⌥")],
+];
+
+const F = (n, label) => ["F" + n, label, "F" + n, "fn"];
+const fnLayer = [
+  [B(), F(1), F(2), F(3), F(4), F(5), F(6, "한글"), F(7, "한자"), F(8, "두벌식"), F(9, "전각"), F(10, "반각"), F(11), F(12),
+    B(), ["Del", null, "", "stock mod"]],
+  [B(1.5), ...Array(12).fill(0).map(() => B()), B(1.5)],
+  [B(1.75), ...Array(11).fill(0).map(() => B()), B(2.25)],
+  [B(2.25), ...Array(10).fill(0).map(() => B()), B(1.75), ["Fn", null, "", "switch"]],
+  [1.5, B(), B(1.5), B(6), B(1.5), B()],
+];
+
+function span(cls, text) {
+  const s = document.createElement("span");
+  s.className = cls;
+  s.textContent = text;
+  return s;
+}
+
+function row(keys) {
+  const el = document.createElement("div");
+  el.className = "row";
+  for (const k of keys) {
+    if (typeof k === "number") {
+      const gap = document.createElement("div");
+      gap.className = "spacer";
+      gap.style.width = `calc(var(--u) * ${k} - var(--gap))`;
+      el.append(gap);
+      continue;
+    }
+    const [base, shift, cap, kind = "", w = 1] = k;
+    const key = document.createElement("div");
+    key.className = ["key", "w", kind, (cap === "F" || cap === "J") && "home"].filter(Boolean).join(" ");
+    key.style.width = `calc(var(--u) * ${w} - var(--gap))`;
+    if (shift && shift !== base) key.append(span("shifted", shift));
+    key.append(span("base", base));
+    if (cap && !/switch|blank|fn/.test(kind) && cap !== base && cap !== shift) key.append(span("latin", cap));
+    key.title = (cap ? cap + ": " : "") + base + (shift && shift !== base ? ", " + shift : "");
+    el.append(key);
+  }
+  return el;
+}
+
+for (const [id, rows] of [["board-base", base], ["board-fn", fnLayer]]) {
+  document.getElementById(id).append(...rows.map(row));
+}
+document.documentElement.dataset.height = document.documentElement.scrollHeight;
+</script>
+</body>
+</html>

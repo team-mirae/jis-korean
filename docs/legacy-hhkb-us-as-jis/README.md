@@ -5,6 +5,16 @@ Karabiner-Elements gives it every key a JIS board has, mostly as tap vs hold on 
 Korean then runs Mode A (`2Set`) on it, with one key per language as spec §8.2.1 recommends for JIS
 keyboards: カタカナ to Korean, 英数 to English, かな to Japanese.
 
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="layout-dark.png">
+  <img alt="Mode A on an HHKB US remapped as JIS. Left ◇, left ◆ and right ◆ tap to カタカナ, 英数 and かな and hold to ⌥ and ⌘; right Shift taps to ろ; \ types ¥, Delete types JIS's ], and ` is Backspace. The Fn layer has F1–F12 on 1 to =, with 한글, 한자, 두벌식, 전각 and 반각 on F6–F10, and Delete on Fn+`." src="layout-light.png">
+</picture>
+
+In this folder:
+- `layout.html`, the drawing above. To redraw `layout-light.png` and `layout-dark.png`, render it at 3×
+  with headless Chrome, the same way as `docs/layout`.
+- `hhkb-pro-bt-as-jis.json`, the Karabiner-Elements rules.
+
 For a keyboard whose firmware can be remapped, see
 [the 87-key guide](../mac-ansi-87-key-recommended/README.md) instead: it needs no software.
 
