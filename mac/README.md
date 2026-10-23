@@ -123,6 +123,8 @@ keep that configured as JIS and don't remap `japanese_pc_katakana`, and カタ�
 Karabiner on or off (tested with an HHKB Hybrid Type-S JIS and an HHKB Studio). If カタカナ acts as
 かな, the keyboard (or Karabiner's virtual keyboard) is probably stored as ANSI: see
 [docs/troubleshooting/macos-katakana-and-eisu.md](../docs/troubleshooting/macos-katakana-and-eisu.md).
+To set up a remappable ANSI 87-key keyboard as a JIS board (カタカナ, 英数, かな, ¥ and ろ on two
+layers), see [docs/mac-ansi-87-key-recommended](../docs/mac-ansi-87-key-recommended/README.md).
 
 The permissions follow the build's signature: signed with an Apple Development certificate (the
 Makefile picks one from the keychain), they survive rebuilds; ad hoc, every build has to be granted
