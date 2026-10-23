@@ -388,7 +388,7 @@ Where the platform behavior in the code and docs comes from.
 <br>
 
 <p align="center">
-  <sub><a href="LICENSE">MIT</a> &nbsp;·&nbsp; Copyright 2026 Mirae Research</sub>
+  <sub><a href="LICENSE">MIT</a> &nbsp;·&nbsp; Copyright 2026 <b>Mirae Research</b> &amp; Min Jun Sung</sub>
 </p>
 
 <p align="center">
