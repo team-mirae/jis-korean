@@ -25,6 +25,12 @@
   <sub>macOS &nbsp;·&nbsp; Windows &nbsp;·&nbsp; Minecraft &nbsp;·&nbsp; 웹</sub>
 </p>
 
+<!-- foreign-language-disclaimer -->
+> [!WARNING]
+> 본 한국어 번역본은 이용자의 편의를 위해 작성되었습니다. JIS Korean 프로그램 및 team-mirae/jis-korean GitHub 레포에 게시된 모든 항목에 대해,
+> 영문 문서 또는 주석이 국문 문서 또는 주석과 충돌할 경우, 언제나 영문이 우선합니다. 또한, 번역의 난도 및 소요 시간 등을 감안하여 문헌 전체
+> 번역은 1인 개발 체제인 현재 현실적으로 어렵습니다. AI Agent를 활용하여 번역해서 사용해주시면 감사하겠습니다.
+
 <br>
 
 <table align="center">
