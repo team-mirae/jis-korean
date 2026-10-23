@@ -21,11 +21,13 @@ export function EnginePage() {
         </li>
         <li>
           <strong>Two builds.</strong> The full build has the predictive layer (the <code>predict</code> feature, the
-          default). The lite build (<code>--no-default-features</code>) is the deterministic engine alone.
+          default). The lite build (<code>--no-default-features</code>) is the deterministic engine alone. The{" "}
+          <code>english</code> feature adds the English modes (JIS English, US and UK English, JIS Dvorak and JIS
+          Colemak), which type English and compose nothing.
         </li>
         <li>
-          <strong>Targets.</strong> A static library for macOS (arm64 and x86_64), and WebAssembly for the web playground and
-          the Minecraft mod.
+          <strong>Targets.</strong> A static library for macOS (arm64 and x86_64) and Windows (x64 and x86, linked into the
+          input method's DLL), and WebAssembly for the web playground and the Minecraft mod.
         </li>
         <li>
           <strong>The spec decides.</strong> All behavior is defined in <Source path="docs/spec.md" />. Every example in it is
@@ -95,6 +97,7 @@ let out = engine.flush();                  // focus loss: commits "한"
           ["set_enter_commits(bool)", "Plain Enter commits without a new line, as Shift+Enter does."],
           ["set_dictionary(Arc<Dictionary>)", "The hanja dictionary for F7, shared between engines."],
           ["set_predictor(Option<Arc<Predictor>>)", "Turns predictions on (full build). predictions() ranks; commit_prediction(i) commits one."],
+          ["key_after_prediction(i, key, mods) / flush_prediction(i)", "A key that commits while prediction i is shown (Space, Enter, a symbol): commits what's shown, then the key acts on it. flush_prediction commits it quietly, for focus loss."],
           ["preedit() / english()", "The unconfirmed text, and the same keys read on the plain keyboard."],
           ["output_in(mode, layout, key, shift)", "What a key types in a mode, for drawing legends."],
           ["resolve::*", "Resolving keys and text (below)."],
@@ -121,13 +124,13 @@ let out = engine.flush();                  // focus loss: commits "한"
         head={["Group", "Functions"]}
         rows={[
           ["Lifecycle", <code>jk_new, jk_free</code>],
-          ["Keys", <code>jk_key, jk_flush, jk_clear, jk_activate, jk_set_enter_commits, jk_is_escaped</code>],
+          ["Keys", <code>jk_key, jk_flush, jk_clear, jk_activate, jk_set_enter_commits, jk_set_dedicated_symbols, jk_is_escaped</code>],
           ["Results", <code>jk_commit_*, jk_preedit_*, jk_english_*, jk_candidate_*</code>],
-          ["Modes", <code>jk_set_mode, jk_mode_count, jk_mode_id_at, jk_mode_name_*, jk_mode_code_*, jk_legend, jk_legend_in</code>],
+          ["Modes", <code>jk_set_mode, jk_mode_count, jk_mode_id_at, jk_mode_name_*, jk_mode_code_*, jk_mode_is_english, jk_legend, jk_legend_in</code>],
           ["Keys by name", <code>jk_key_count, jk_key_code_ptr, jk_key_code_len</code>],
           ["Resolving", <code>jk_resolve_key_input, jk_resolve_key_input_after, jk_resolve_keys_for_output, jk_resolved_*</code>],
           ["Hanja", <code>jk_dict_new, jk_dict_free, jk_set_dictionary</code>],
-          ["Predictions", <code>jk_predictor_new, jk_set_predictor, jk_predict, jk_prediction_*, jk_commit_prediction, jk_set_prediction_weight, jk_set_ranker</code>],
+          ["Predictions", <code>jk_predictor_new, jk_predictor_free, jk_set_predictor, jk_predict, jk_prediction_*, jk_commit_prediction, jk_key_after_prediction, jk_flush_prediction, jk_set_prediction_weight, jk_clear_prediction_weight, jk_set_ranker</code>],
           ["Learning", <code>jk_set_learning, jk_set_recording, jk_learned_weight, jk_learner_*, jk_learn_example, jk_predictor_with_words</code>],
           ["Key counts", <code>jk_plan, jk_plan_jis, jk_plan_conventional, jk_plan_chars, jk_plan_off_keyboard, jk_plan_dropped</code>],
         ]}
@@ -217,7 +220,9 @@ let out = engine.flush();                  // focus loss: commits "한"
         <code>cargo test</code> in <code>engine/</code>; <code>cargo test --no-default-features</code> for the lite build.
         Golden tables cover every automaton transition, Backspace, each F-key and every spec example; a robot types real
         text key by key and checks the screen after every character; <code>tests/modes.rs</code> checks every mode against
-        the mode contract (<Source path="docs/modes.md" />).
+        the mode contract (<Source path="docs/modes.md" />). <code>tests/baseline.rs</code> is the core principle as a
+        test: every syllable, typed the conventional 2-set way, in every mode. CI runs the baseline and the full and lite
+        tests on every push.
       </p>
     </>
   );

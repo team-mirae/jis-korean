@@ -18,7 +18,16 @@ export function MinecraftPage() {
           Works in single-line text fields: chat, commands, anvils, command blocks and search boxes. Books and signs use
           other widgets and aren't supported yet.
         </li>
-        <li>Keep the computer's input source on English while playing: the mod does the Korean itself.</li>
+        <li>
+          <strong>Always on, whatever the input source.</strong> In those fields the mod types with its own engine from the
+          raw key presses, and keeps the OS's text input off, so no input method (JIS Korean included) composes the same
+          keys a second time. Switch input sources as you like.
+        </li>
+        <li>
+          <strong>The mode follows JIS Korean's.</strong> Each time a screen opens, the mod reads the installed input
+          method's mode (on macOS <code>CurrentModeID</code>, on Windows the <code>Mode</code> setting) and types Mode A or
+          Mode B to match. Without JIS Korean installed, it's Mode A.
+        </li>
       </ul>
 
       <h2>How it was made to work in Minecraft</h2>
@@ -68,8 +77,8 @@ export function MinecraftPage() {
       <h3>A staging area, read two ways</h3>
       <p>
         Every key goes into a staging area, drawn in a small window above the caret. The engine gives two readings of the
-        same keys: the Korean it composes (<code>gksrmf</code> → 한글) and the English they type on a plain JIS layout (
-        <code>gksrmf</code>). Space, Enter or Tab commit the likelier one: Space adds a space, Enter then sends the line,
+        same keys: the Korean it composes (<code>gksrmf</code> → 한글) and the English they type on a plain layout of the same
+        keyboard, JIS in Mode A and US ANSI in Mode B (<code>gksrmf</code>). Space, Enter or Tab commit the likelier one: Space adds a space, Enter then sends the line,
         and Tab only commits. Minecraft's own suggestion line isn't used, so command suggestions keep working (
         <Source path="minecraft/src/main/java/me/sjun/jiskorean/Staging.java">Staging.java</Source>, which has no Minecraft
         types, so the whole flow is unit-tested).
@@ -83,7 +92,6 @@ export function MinecraftPage() {
           ["F8 / Shift+F8, F9, F10", "As in JIS Korean"],
           ["Backspace", "Edits the staging area by jamo, or deletes in the field when it's empty"],
           ["Escape", "Drops the staging area, then closes the screen"],
-          ["F18 / 英数", "Mod on / off (rebindable under Controls → JIS Korean)"],
         ]}
       />
       <p>F6 and F7 choices are remembered for the session: force a word to English once and it stays English.</p>
@@ -92,10 +100,25 @@ export function MinecraftPage() {
       <p>
         <Source path="minecraft/src/main/java/me/sjun/jiskorean/rank/Ranker.java">Ranker.java</Source> compares two
         key-trigram models on the keys pressed: one trained on English spelling, one on the keys JIS Korean users press
-        for Korean words. Rules on top: Shift on a key Korean never shifts means English; exact matches in the common-word
-        lists lean their way; leftover bare jamo count against Korean (except chat words like ㅋㅋ); a{" "}
-        <code>/command</code> name is always English; and the previous word's language tips close calls.
+        for Korean words. Rules on top:
       </p>
+      <ul>
+        <li>
+          Shift on a key Korean never shifts (anything but Q W E R T O P) means English, unless the Korean reading is a
+          known word: Shift held over from ㅆ (<code>dlTSms</code> is 있는).
+        </li>
+        <li>
+          No letter or digit key at all (Shift+digits, <code>?</code>, <code>!</code>, <code>^^</code>) means Korean: what
+          the keys' legends show.
+        </li>
+        <li>Exact matches in the common-word lists lean their way.</li>
+        <li>Leftover bare jamo count against Korean, except chat words like ㅋㅋ.</li>
+        <li>
+          A <code>/command</code> name is English, unless it's one of the Mirae server's Korean aliases. Its arguments are
+          ranked as usual.
+        </li>
+        <li>The previous word's language tips close calls.</li>
+      </ul>
       <Table
         head={["Held-out test", "Accuracy"]}
         rows={[
@@ -109,8 +132,7 @@ export function MinecraftPage() {
       <p>
         The staging window is drawn in the screen's render pass, above the focused field's caret (
         <Source path="minecraft/src/client/java/me/sjun/jiskorean/client/CandidateWindow.java">CandidateWindow.java</Source>
-        ). The on/off state is saved to <code>config/jiskorean.properties</code>, and the two key mappings are registered
-        with Fabric so they can be rebound.
+        ). The mod has no settings of its own: it's always on, in the mode JIS Korean is in.
       </p>
 
       <h2>Build and test</h2>

@@ -24,7 +24,10 @@ export function WebPage() {
           <strong>Predictions on by default,</strong> with the weights, rankers and learning exposed for tuning, and a
           key-press comparison against conventional 2-set.
         </li>
-        <li>React and Vite, with no other dependencies. Deployed at jis-korean.sjun.me.</li>
+        <li>
+          React and Vite, with no other dependencies. Deployed at jis-korean.sjun.me from <code>main</code> by GitHub
+          Actions, after the engine tests pass.
+        </li>
       </ul>
       <Code lang="sh">{`
 cd web
@@ -61,10 +64,10 @@ engine.resolveKeyCodeFromOutput("ㅃ", 1, 1);     // [["Digit1"], ["S-KeyQ"]]
           ["resolveKeyCodeFromOutput(text, min?, max?)", "Every combination of presses that types the text. Empty for a nonsensical range."],
           ["loadDictionary(url)", "The hanja dictionary, for F7."],
           ["loadPredictor(base) / setPredictions(on)", "Load the predictive layer, and turn it on or off."],
-          ["predictions() / commitPrediction(i)", "The ranked readings, and committing one."],
+          ["predictions() / commitPrediction(i)", "The ranked readings, and committing one. predictionsBy / commitPredictionBy do the same with another ranker, for comparing them."],
           ["setWeight / clearWeight / setRanker", "Tune the ranking (spec §10.5)."],
-          ["setLearning / exportLearner / importLearner / resetLearner", "Learning from choices, kept by the page."],
-          ["setUserWords / learnExample", "The training file's words and examples."],
+          ["setLearning / exportLearner / importLearner / resetLearner / learnedWeight", "Learning from choices, kept by the page."],
+          ["setUserWords / clearUserWords / learnExample", "The training file's words and examples."],
           ["plan(text)", "Key presses for a text on JIS Korean and on conventional 2-set."],
         ]}
       />
