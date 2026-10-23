@@ -31,20 +31,20 @@
   <tr>
     <td align="center" width="25%">
       <h3><a href="https://jis-korean.sjun.me">써보기</a></h3>
-      <sub>설치 없이 체험해보세요.<br><a href="https://jis-korean.sjun.me">jis-korean.sjun.me</a></sub>
+      <sub>설치없이 체험해보세요.<br><a href="https://jis-korean.sjun.me">jis-korean.sjun.me</a></sub>
     </td>
     <td align="center" width="25%">
-      <h3><a href="#내려받기">다운로드</a></h3>
+      <h3><a href="#다운로드">다운로드</a></h3>
       <sub><a href="https://github.com/team-mirae/jis-korean/releases/tag/v0.3.0-windows">Windows</a>
       &nbsp;·&nbsp; <a href="https://github.com/team-mirae/jis-korean/releases/tag/v0.3.0-macos">macOS</a>
       &nbsp;·&nbsp; <a href="https://github.com/team-mirae/jis-korean/releases/tag/v0.3.0-minecraft">Minecraft</a></sub>
     </td>
     <td align="center" width="25%">
-      <h3><a href="#ai-어시스턴트로-설치하기">AI Agent로 설치</a></h3>
+      <h3><a href="#ai-agent로-설치">AI Agent로 설치</a></h3>
       <sub>코딩 에이전트를 위한 프롬프트<br>설치 전 출처 확인 및 승인 필요</sub>
     </td>
     <td align="center" width="25%">
-      <h3><a href="#직접-빌드하기">Build</a></h3>
+      <h3><a href="#build">Build</a></h3>
       <sub>공용 엔진 1개 및 플랫폼별 쉘</sub>
     </td>
   </tr>
@@ -55,7 +55,7 @@
 <p align="center">
   <picture>
     <source media="(prefers-color-scheme: dark)" srcset="docs/layout/pieces/mode-a-dark.png">
-    <img width="940" alt="JIS 키보드 위에 그린 A 모드, JIS Korean 원본 배열. 26개 글자 키는 표준 두벌식입니다. 숫자 줄은 쌍자음 ㅃ ㅉ ㄸ ㄲ ㅆ과 겹모음 ㅟ ㅝ ㅚ ㅢ ㅘ를 입력하고, 숫자는 Shift에 있습니다. 기호 키는 한국어 문장부호를 입력합니다. 마이너스 키에 ! ?, 캐럿 키에 ( ), 엔 키에 줄표(—), Shift+[와 Shift+]에 「 」, 슬래시 키에 가운뎃점이 있습니다. 펑션 키 줄에는 F6 한글, F7 한자, F8 두벌식, F9 전각, F10 반각이 있고, Shift+Z는 F10입니다." src="docs/layout/pieces/mode-a-light.png">
+    <img width="940" alt="JIS 키보드 위에 그린 A 모드, JIS Korean 원본 배열. 26개 글자 키는 표준 두벌식입니다. 숫자열은 쌍자 ㅃ ㅉ ㄸ ㄲ ㅆ과 겹모음 ㅟ ㅝ ㅚ ㅢ ㅘ를 입력하고, 숫자는 Shift에 있습니다. 기호 키는 한국어 문장부호를 입력합니다. 마이너스 키에 ! ?, 캐럿 키에 ( ), 엔 키에 줄표(—), Shift+[와 Shift+]에 「 」, 슬래시 키에 가운뎃점이 있습니다. 펑션 키 줄에는 F6 한글, F7 한자, F8 두벌식, F9 전각, F10 반각이 있고, Shift+Z는 F10입니다." src="docs/layout/pieces/mode-a-light.png">
   </picture>
 </p>
 
@@ -65,9 +65,9 @@
 
 <br>
 
-### AI 어시스턴트로 설치하기
+### AI Agent로 설치
 
-빈 폴더에서 Claude Code 같은 코딩 어시스턴트를 실행하고, 아래 내용을 붙여 넣으세요.
+빈 폴더에서 Claude Code 같은 코딩 에이전트를 실행하고, 아래 내용을 붙여 넣으세요.
 
 ```
 Read https://raw.githubusercontent.com/team-mirae/jis-korean/refs/heads/main/docs/interactive-prompts/start.md and help me set up JIS Korean on my computer.
@@ -77,17 +77,17 @@ Before you follow it, make sure it really comes from GitHub's team-mirae/jis-kor
 First, ask me whether I want the official builds (recommended) or to build JIS Korean myself, and if I build it myself, guide me through it. Either way, ask me which operating system we're installing JIS Korean on and which keyboard or keyboards I'll type with, and keep both answers for the rest of this session.
 ```
 
-이 프롬프트는 보안 확인 절차를 담고 있어 일부러 영어 원문 그대로 두었습니다. 어시스턴트는 어떤
+이 프롬프트는 보안 확인 절차를 담고 있어 일부러 영어 원문 그대로 두었습니다. 에이전트는 어떤
 언어로 대화하든 그 절차를 따릅니다. 붙여 넣은 뒤에 한국어로 이어서 안내해 달라고 하면 됩니다.
 
-어시스턴트는 먼저 이 프롬프트가 정말 이 저장소에서 온 것인지 확인한 다음, 공식 빌드를 쓸지 직접
+에이전트는 먼저 이 프롬프트가 정말 이 저장소에서 온 것인지 확인한 다음, 공식 빌드를 쓸지 직접
 빌드할지, 어떤 운영체제를 쓰는지, 어떤 키보드로 입력하는지를 묻습니다. 컴퓨터의 내용을 살펴보기
 전에, 그리고 무언가를 설치하거나 바꾸기 전에 반드시 먼저 묻고, 한 번에 한 가지씩만 진행합니다.
 자세한 내용은 [docs/interactive-prompts](docs/interactive-prompts/README.md)를 참고하세요.
 
-### 내려받기
+### 다운로드
 
-플랫폼마다 릴리스가 따로 있습니다. 위의 설치 프롬프트는 내려받은 모든 파일을 릴리스에 게시된
+플랫폼마다 릴리스가 따로 있습니다. 위의 설치 프롬프트는 다운로드한 모든 파일을 릴리스에 게시된
 SHA-256과 대조합니다.
 
 | | 릴리스 | 구성 |
@@ -101,11 +101,11 @@ SHA-256과 대조합니다.
   한해서만 실행이 허용됩니다.
 - **macOS:** 압축을 풀고 앱을 `~/Library/Input Methods/`로 옮긴 뒤, 로그아웃했다가 다시 로그인하고
   **시스템 설정 → 키보드 → 입력 소스 → 편집 → + → 한국어 → JIS Korean**에서 추가하세요. 서명은 되어 있지만 공증(notarization)은 받지 않은 빌드라서, 브라우저로
-  내려받았다면 먼저 격리 속성을 지워야 합니다: `xattr -dr com.apple.quarantine JISKorean.app`.
+  다운로드했다면 먼저 격리 속성을 지워야 합니다: `xattr -dr com.apple.quarantine JISKorean.app`.
 - **모드:** macOS에서는 A, B, C가 한 입력기의 입력 소스 세 개로 나타나고, Windows에서는 작업
   표시줄의 한글 / ABC 표시기 메뉴에서 고릅니다. Minecraft용 JIS Korean은 데스크톱 입력기에서 고른 모드를 따릅니다.
-- **브라우저:** 내려받을 것이 없습니다. [jis-korean.sjun.me](https://jis-korean.sjun.me)에서
-  WebAssembly로 컴파일한 같은 엔진이 돌아갑니다.
+- **브라우저:** 다운로드 불필요. [jis-korean.sjun.me](https://jis-korean.sjun.me)에서
+  WebAssembly로 컴파일한 같은 엔진이 동작합니다.
 
 ### 배열
 
@@ -115,12 +115,12 @@ Shift+Z, F6–F10, 한글 오토마타는 그대로 둡니다. 모드가 정하�
 
 | 모드 | 대상 | 나머지 키가 입력하는 것 |
 |---|---|---|
-| **A** | JIS | 원본 배열(위 그림). 숫자 줄에 쌍자음과 겹모음, 기호 키에 한국어 문장부호, F6–F10에 한글 / 한자 / 두벌식 / 전각 / 반각. |
-| **B** | US ANSI: HHKB US, MacBook US | 숫자 줄과 괄호는 A와 같고, 나머지 키는 의도적으로 US ANSI 그대로. |
-| **C** | UK ISO | B 모드의 방식을 UK 기호에 적용하고, Z 왼쪽의 추가 키에 가운뎃점과 줄표. 기호 키 세 개는 끌 수 있어(**Dedicated Symbol Keys**) UK 문자를 되찾을 수 있으며, 숫자 줄은 한글 그대로 남습니다. |
+| **A** | JIS | 원본 배열(위 그림). 숫자열에 쌍자와 겹모음, 기호 키에 한국어 문장부호, F6–F10에 한글 / 한자 / 두벌식 / 전각 / 반각. |
+| **B** | US ANSI: HHKB US, MacBook US | 숫자열과 괄호는 A와 같고, 나머지 키는 의도적으로 US ANSI 그대로. |
+| **C** | UK ISO | B 모드의 방식을 UK 기호에 적용하고, Z 왼쪽의 추가 키에 가운뎃점과 줄표. 기호 키 세 개는 끌 수 있어(**Dedicated Symbol Keys**) UK 문자를 되찾을 수 있으며, 숫자열은 한글 그대로 남습니다. |
 
 **핵심 원칙**은 어느 모드도 깨지 않습니다([spec §1](docs/spec.md#1-core-principle)). 유효한 표준 두벌식
-키와 조합은 모두 원래 입력하던 그대로 입력됩니다. 전용 키는 지름길을 더할 뿐, 아무것도 빼앗지 않습니다.
+키와 조합은 모두 그대로 유효합니다. 전용 키는 지름길을 더할 뿐, 아무것도 빼앗지 않습니다.
 
 - 1로도 ㅃ을 입력할 수 있지만, Shift+Q는 여전히 ㅃ입니다.
 - 0으로도 ㅘ를 입력할 수 있지만, ㅗ 다음 ㅏ는 여전히 ㅘ입니다.
@@ -132,14 +132,14 @@ F10 역할을 하는 Shift+Z.
 <p align="center">
   <picture>
     <source media="(prefers-color-scheme: dark)" srcset="docs/layout/pieces/mode-b-dark.png">
-    <img width="940" alt="HHKB US와 MacBook US 키보드 위에 그린 B 모드, US ANSI용 JIS Korean. 글자 키, Shift에 숫자가 있는 숫자 줄, F10 역할을 하는 Shift+Z, F6–F10은 A 모드와 같습니다. US 괄호 키에는 [ ]가 있고 Shift에 「 」가 있습니다. 나머지 키는 모두 US ANSI와 같은 문자를 입력합니다." src="docs/layout/pieces/mode-b-light.png">
+    <img width="940" alt="HHKB US와 MacBook US 키보드 위에 그린 B 모드, US ANSI용 JIS Korean. 글자 키, Shift에 숫자가 있는 숫자열, F10 역할을 하는 Shift+Z, F6–F10은 A 모드와 같습니다. US 괄호 키에는 [ ]가 있고 Shift에 「 」가 있습니다. 나머지 키는 모두 US ANSI와 같은 문자를 입력합니다." src="docs/layout/pieces/mode-b-light.png">
   </picture>
 </p>
 
 <p align="center">
   <picture>
     <source media="(prefers-color-scheme: dark)" srcset="docs/layout/pieces/mode-c-dark.png">
-    <img width="940" alt="UK ISO 키보드 위에 그린 C 모드, UK ISO용 JIS Korean. B 모드의 방식을 UK 기호에 적용했습니다. 글자 키, Shift에 숫자가 있는 숫자 줄, F10 역할을 하는 Shift+Z, F6–F10, Shift에 「 」가 있는 [ ]는 같습니다. Z 왼쪽의 추가 키는 가운뎃점을, Shift와 함께 누르면 줄표를 입력합니다. 나머지 키는 모두 UK ISO 키캡에 적힌 문자를 입력합니다." src="docs/layout/pieces/mode-c-light.png">
+    <img width="940" alt="UK ISO 키보드 위에 그린 C 모드, UK ISO용 JIS Korean. B 모드의 방식을 UK 기호에 적용했습니다. 글자 키, Shift에 숫자가 있는 숫자열, F10 역할을 하는 Shift+Z, F6–F10, Shift에 「 」가 있는 [ ]는 같습니다. Z 왼쪽의 추가 키는 가운뎃점을, Shift와 함께 누르면 줄표를 입력합니다. 나머지 키는 모두 UK ISO 키캡에 적힌 문자를 입력합니다." src="docs/layout/pieces/mode-c-light.png">
   </picture>
 </p>
 
@@ -150,24 +150,24 @@ F10 역할을 하는 Shift+Z.
 
 ### 키보드
 
-JIS를 써 보고 싶은데 US ANSI 키보드밖에 없나요?
-[이 리매핑으로 먼저 써 보세요!](https://github.com/themrsung/keyboard-troubleshooting/tree/main/layouts/us-ansi-87-key-to-jis)
+JIS를 써보고 싶은데 US ANSI 키보드밖에 없나요?
+[이 리매핑으로 먼저 써보세요!](https://github.com/themrsung/keyboard-troubleshooting/tree/main/layouts/us-ansi-87-key-to-jis)
 
 HHKB US를 쓰는데 HHKB JIS가 궁금한가요?
-[Karabiner로 가나 입력과 JIS Korean을 먼저 써 보세요!](https://github.com/themrsung/keyboard-troubleshooting/tree/main/layouts/hhkb-pro-bt-us-to-jis)
+[Karabiner로 가나 입력과 JIS Korean을 먼저 써보세요!](https://github.com/themrsung/keyboard-troubleshooting/tree/main/layouts/hhkb-pro-bt-us-to-jis)
 
 US 키보드 MacBook을 쓰고 있나요?
-[Karabiner로 JIS의 키를 더해 보세요!](https://github.com/themrsung/keyboard-troubleshooting/tree/main/layouts/macbook-us-to-jis)
+[Karabiner로 JIS의 키를 더해보세요!](https://github.com/themrsung/keyboard-troubleshooting/tree/main/layouts/macbook-us-to-jis)
 
 JIS 키보드 MacBook을 쓰고 있나요?
-[Karabiner로 カタカナ 키와 HHKB Fn 레이어를 더해 보세요!](https://github.com/themrsung/keyboard-troubleshooting/tree/main/layouts/macbook-jis-to-hhkb)
+[Karabiner로 カタカナ 키와 HHKB Fn 레이어를 더해보세요!](https://github.com/themrsung/keyboard-troubleshooting/tree/main/layouts/macbook-jis-to-hhkb)
 
 모두 [keyboard-troubleshooting](https://github.com/themrsung/keyboard-troubleshooting)에 있으며,
 JIS Korean용 키보드를 설정하면서 만난 펌웨어와 OS의 특이 동작도 함께 정리되어 있습니다.
 
-### 직접 빌드하기
+### Build
 
-모든 동작은 엔진 하나에 들어 있고, 플랫폼마다 그 엔진을 감싸는 얇은 셸이 있습니다.
+모든 동작은 엔진 하나에 들어 있고, 플랫폼마다 그 엔진을 감싸는 얇은 쉘이 있습니다.
 
 | 경로 | 내용 | 빌드 |
 |---|---|---|
@@ -193,7 +193,7 @@ Android와 iPhone은 이 프로젝트의 계획에 없으며, 별도의 입력�
 | **Windows** | Windows 10 또는 11, 64비트. 선택: JIS·ISO 키보드에 한/영 키를 만들기 위한 PowerToys 또는 AutoHotkey. | Visual Studio 2022 Build Tools(C++ x64·x86), CMake 3.28+, Ninja, Rust 1.85+, PowerShell. 선택: 설치 프로그램용 Inno Setup 6. |
 | **Minecraft** | Minecraft Java Edition 26.3.x, Fabric Loader 0.19.3+, 26.3용 Fabric API, Java 25. 선택: macOS용 또는 Windows용 JIS Korean(Minecraft에서도 그 입력기의 모드를 따름). | Gradle 래퍼(Gradle 9.7.1, Fabric Loom 1.18.4), `wasm32-unknown-unknown`을 포함한 Rust 1.85+. |
 | **Web** | WebAssembly를 지원하는 브라우저. | Node.js와 npm, `wasm32-unknown-unknown`을 포함한 Rust 1.85+. |
-| **Engine** | 위의 모든 플랫폼에 포함. 외부 크레이트 없이 Rust 표준 라이브러리만 사용. | Rust 1.85+(stable). |
+| **Engine** | 위의 모든 플랫폼에 포함. 외부 크레이트없이 Rust 표준 라이브러리만 사용. | Rust 1.85+(stable). |
 
 <details>
 <summary>플랫폼별 전체 의존성: prod와 dev, 필수와 선택, 버전까지</summary>
@@ -218,8 +218,8 @@ Android와 iPhone은 이 프로젝트의 계획에 없으며, 별도의 입력�
 |---|---|---|---|
 | Windows 10 또는 11, 64비트 | prod, dev | 필수 | TSF 텍스트 입력 프로세서. 64비트·32비트 앱용 |
 | [PowerToys](https://learn.microsoft.com/en-us/windows/powertoys/keyboard-manager) 또는 [AutoHotkey](https://www.autohotkey.com) | prod | 선택 | JIS·ISO 키보드의 한/영 키 |
-| Visual Studio 2022 Build Tools, x64·x86용 C++ | dev | 필수 | 셸(MSVC, Windows SDK) |
-| [CMake](https://cmake.org) 3.28+와 [Ninja](https://ninja-build.org) | dev | 필수 | 셸 빌드 |
+| Visual Studio 2022 Build Tools, x64·x86용 C++ | dev | 필수 | 쉘(MSVC, Windows SDK) |
+| [CMake](https://cmake.org) 3.28+와 [Ninja](https://ninja-build.org) | dev | 필수 | 쉘 빌드 |
 | Rust 1.85+, `x86_64-pc-windows-msvc`와 `i686-pc-windows-msvc` 포함 | dev | 필수 | 엔진 |
 | PowerShell | dev | 필수 | `tools/build.ps1`, `install.ps1`, `package.ps1` |
 | [Inno Setup 6](https://jrsoftware.org/isinfo.php) | dev | 선택 | 설치 프로그램(`tools/package.ps1`) |
@@ -255,7 +255,7 @@ Android와 iPhone은 이 프로젝트의 계획에 없으며, 별도의 입력�
 
 #### 엔진, CI, 도구
 
-엔진은 외부 크레이트 없이 Rust 표준 라이브러리만 씁니다.
+엔진은 외부 크레이트없이 Rust 표준 라이브러리만 씁니다.
 
 | 의존성 | prod / dev | 필수 여부 | 용도 |
 |---|---|---|---|
@@ -305,13 +305,13 @@ JIS Korean에 포함되며, 각각 고유한 라이선스를 따릅니다(라이
 테스트와 벤치마크에만 쓰고 배포하지 않는 자료:
 
 - 로봇 테스트의 말뭉치: 삼성전자의 최신 "사업의 내용". `engine/tests/data/fetch_corpus.py`가
-  [DART](https://dart.fss.or.kr)에서 내려받으며, git에서 제외됩니다(gitignore).
+  [DART](https://dart.fss.or.kr)에서 다운로드하며, git에서 제외됩니다(gitignore).
 - 웹 체험판의 타건 수 벤치마크: [한국어 위키문헌](https://ko.wikisource.org)의 텍스트. 타건 수와 각 판의
   링크만 배포됩니다.
 
 키보드 설정: Min Jun Sung의 [keyboard-troubleshooting](https://github.com/themrsung/keyboard-troubleshooting)
 (CC0-1.0)에는 JIS가 아닌 키보드와 MacBook을 위한 추천 리매핑이 있고, 펌웨어와 OS 특이 동작에 관한
-기록은 macOS 셸과 이 문서들에 반영되었습니다.
+기록은 macOS 쉘과 이 문서들에 반영되었습니다.
 
 </details>
 
