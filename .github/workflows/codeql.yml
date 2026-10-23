@@ -1,0 +1,66 @@
+# CodeQL code scanning (advanced setup). The ruleset on main requires its results.
+#
+# Every language is scanned without a build except Swift: CodeQL has to watch the Swift compiler,
+# and its automatic build looks for an Xcode project or a Swift package, which the macOS shell
+# doesn't have (mac/Makefile builds it with swiftc). So Swift builds with `make`, as on a Mac.
+# The default setup has to stay off while this workflow exists: GitHub rejects advanced results
+# while it's on.
+name: CodeQL
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  schedule:
+    - cron: "17 4 * * 1"
+
+permissions:
+  contents: read
+
+jobs:
+  analyze:
+    name: Analyze (${{ matrix.language }})
+    runs-on: ${{ matrix.language == 'swift' && 'macos-latest' || 'ubuntu-latest' }}
+    permissions:
+      contents: read
+      security-events: write
+      actions: read
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - language: actions
+            build-mode: none
+          - language: c-cpp
+            build-mode: none
+          - language: java-kotlin
+            build-mode: none
+          - language: javascript-typescript
+            build-mode: none
+          - language: python
+            build-mode: none
+          - language: rust
+            build-mode: none
+          - language: swift
+            build-mode: manual
+    steps:
+      - uses: actions/checkout@v4
+      - uses: github/codeql-action/init@v4
+        with:
+          languages: ${{ matrix.language }}
+          build-mode: ${{ matrix.build-mode }}
+      # The macOS shell links the engine, a universal Rust static library, so Swift needs both
+      # Apple targets before `make` can compile it.
+      - if: matrix.build-mode == 'manual'
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-apple-darwin,x86_64-apple-darwin
+      - if: matrix.build-mode == 'manual'
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: engine
+      - if: matrix.build-mode == 'manual'
+        run: make -C mac
+      - uses: github/codeql-action/analyze@v4
+        with:
+          category: /language:${{ matrix.language }}
