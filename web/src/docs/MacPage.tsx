@@ -118,7 +118,12 @@ make PREDICT=0           # the lite build
         </li>
         <li>
           <Source path="docs/legacy-hhkb-us-as-jis/README.md">An HHKB Professional BT (US)</Source> with Karabiner's tap vs
-          hold.
+          hold, and a second Fn on right ◇ as on an HHKB JIS.
+        </li>
+        <li>
+          <Source path="docs/macbook-us-as-jis/README.md">A MacBook's built-in US keyboard</Source> with Karabiner: the
+          language keys and ろ on tap, ¥ and the HHKB Fn layer on 🌐 and right ⌥. Its type stays US ANSI, so it types as
+          printed whenever Karabiner isn't running.
         </li>
       </ul>
       <p>
