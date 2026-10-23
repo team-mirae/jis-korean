@@ -6,7 +6,7 @@ the way spec §8.2.1 recommends for JIS keyboards, with one key per language: �
 Korean, 英数 to English and かな to Japanese. The ANSI board has no ¥ or ろ key, and JIS Korean's
 backup Korean Key is F18. Both are on the Fn layer.
 
-It needs Karabiner-Elements, which turns the ANSI board into a JIS keyboard for macOS (step 1).
+macOS has to recognize the board as a JIS keyboard (step 1). No remapping software is needed.
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="layout-dark.png">
@@ -27,31 +27,51 @@ whichever layer is its default and any momentary layer for Fn.
 If you'd rather keep the board ANSI as it is, use Mode B (`2SetANSI`, spec §3.6) instead. It needs
 no remapping, but it has no JIS switch keys.
 
-## 1. Keep the board ANSI and send it through Karabiner's JIS virtual keyboard
+## 1. Have macOS recognize the board as JIS
 
-JIS Korean reads カタカナ only from keyboards macOS has stored as JIS (spec §8.2.1). Don't store the
-board itself as JIS. Leave it ANSI (type 40), which is what Keyboard Setup Assistant usually picks
-for it, and let Karabiner-Elements send its keys through its virtual keyboard, stored as JIS:
+JIS Korean reads カタカナ only from keyboards macOS has stored as JIS (spec §8.2.1), and macOS types
+¥ and ろ only on a JIS keyboard. Flash the keymap first (steps 2 and 3), since the setup below
+needs the board's ろ key. Then:
+
+1. Connect the board, and open System Settings → Keyboard → **Change Keyboard Type…** (Keyboard
+   Setup Assistant).
+2. Asked for the key right of the left Shift, press **Z**.
+3. Asked for the key left of the right Shift, press **Fn + the third key right of Space**. That's
+   ろ, which only JIS keyboards have, so macOS takes the board for JIS.
+4. If it asks something else, or doesn't settle on JIS: press any key, then **Skip**, and choose
+   **JIS** from the list.
+5. Restart JIS Korean so it picks the board up: `pkill -x JISKorean`. It relaunches on the next key
+   in a text field.
+
+To check, look up the board's `product-vendor-0` entry (`12292-14000-0` for the reference board):
+it should be 42.
+
+```sh
+defaults read /Library/Preferences/com.apple.keyboardtype
+```
+
+With the [diagnostic log](../troubleshooting/macos-katakana-and-eisu.md) on, a press of the
+bottom-left key logs `hardware key 0x88 down`. Fn+F6 (F18, step 3) works either way.
+
+### If that doesn't work: Karabiner's JIS virtual keyboard
+
+The fallback leaves the board recognized as US ANSI (40) and lets Karabiner-Elements pass its keys
+through its own virtual keyboard, stored as JIS:
 
 1. In Karabiner-Elements → Devices, find the board and turn on **Modify events** and **Ignore vendor
    events**.
 2. Store Karabiner's virtual keyboard (`593-1452-0`) as JIS (42). Karabiner's own "Virtual Keyboard:
-   JIS" setting doesn't do this. Check that the board itself is still 40, then restart JIS Korean:
+   JIS" setting doesn't do this. Then restart JIS Korean:
 
 ```sh
-defaults read /Library/Preferences/com.apple.keyboardtype        # the board (product-vendor-0) stays 40
 sudo defaults write /Library/Preferences/com.apple.keyboardtype keyboardtype -dict-add "593-1452-0" -int 42
-pkill -x JISKorean                                                 # relaunches on the next key in a text field
+pkill -x JISKorean
 ```
 
-The ANSI board's keys then reach macOS from a JIS keyboard. JIS Korean reads カタカナ there
-([#18](https://github.com/team-mirae/jis-korean/issues/18)), and ¥ and ろ type as JIS keys. Don't
-add Karabiner rules that remap `japanese_pc_katakana`, `international1` or `international3`.
-
-The reference board was tried stored as JIS too, without going through Karabiner, and it didn't
-work. Neither カタカナ nor ¥ and ろ worked, although Karabiner-EventViewer showed the board sending
-the right usages (0x88, 0x89 and 0x87). [Troubleshooting](../troubleshooting/macos-katakana-and-eisu.md)
-has the log lines to check. Fn+F6 (F18, below) works however the board is set up.
+The board's keys then reach macOS from a JIS keyboard, and JIS Korean reads カタカナ there
+([#18](https://github.com/team-mirae/jis-korean/issues/18)). Don't add Karabiner rules that remap
+`japanese_pc_katakana`, `international1` or `international3`. After changing Karabiner's device
+settings, restart JIS Korean again.
 
 ## 2. Layer 0 (base)
 
@@ -99,8 +119,8 @@ hand) is the board's own and can be anything.
 
 ## 4. What the ANSI caps type as JIS
 
-A JIS board sends the same key positions as ANSI wherever both have a key (spec §2). So once the
-board's keys come through the JIS virtual keyboard, a few caps type the JIS key in their place:
+A JIS board sends the same key positions as ANSI wherever both have a key (spec §2). So once macOS
+takes the board for JIS, a few caps type the JIS key in their place:
 
 | ANSI cap | JIS key | Canonical code |
 |---|---|---|
@@ -118,5 +138,28 @@ ones, not the ones on the caps: Shift+2 is `"`, for example.
 
 - With Apple's ABC enabled, 英数 selects ABC instead of JIS English. Use ABC – Extended as the plain
   layout instead ([#2](https://github.com/team-mirae/jis-korean/issues/2)).
-- If you change Karabiner's device settings, restart JIS Korean (`pkill -x JISKorean`) so it reads
-  the keyboards again.
+- After macOS's keyboard type changes for a board, restart JIS Korean (`pkill -x JISKorean`) so it
+  reads the keyboards again.
+
+## 6. Notes from setting up the reference board
+
+- **Stored as JIS by hand, it didn't work at first.** Setting `12292-14000-0` to 42 with `defaults
+  write` and restarting JIS Korean made it read the board's ¥, ろ and 英数 (`hardware key 0x89`,
+  `0x87`, `0x91`), but カタカナ never arrived, and macOS didn't type ¥ or ろ. Karabiner-EventViewer
+  showed the board sending the right usages all along (0x88, 0x89, 0x87). Karabiner's device
+  settings were switched during that test, which may have played a part.
+- **Then it worked, without Karabiner.** The one change before that: in VIA (usevia.app), the
+  keycap legend language was set to **Japanese**. That's the language of the legends drawn on the
+  keys, not of VIA's own interface. After that, Japanese Kana typed ー め ろ from the board's Fn keys, and
+  JIS Korean read カタカナ, with Karabiner not modifying it. VIA's legend language should only
+  change what VIA draws, so the cause isn't confirmed: it may have been the change, or a restart or
+  reconnect around the same time. If step 1 alone doesn't work, try the same setting.
+
+## 7. Alternatives
+
+- **ろ on the backtick key.** You can assign `KC_RO` to the `` ` ``/`~` key (the top-left key, left of 1)
+  on layer 0. Many katakana keycap sets come with an R1 keycap printed ロ for that spot. It works
+  fine, and gives you a kana key without holding Fn. This guide leaves it out on purpose: it puts ろ
+  under your left hand, while on a real JIS board ろ is at the right end of the bottom letter row.
+  If you plan to type on a JIS board too, that habit gets in the way. It isn't recommended, but it's
+  possible, and makes typing easier in the short term.

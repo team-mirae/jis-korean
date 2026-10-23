@@ -41,3 +41,8 @@ assistant started in an empty folder: it fetches the repository there first. See
 Platforms are built in this order: **macOS → Minecraft → Windows → iPadOS**.
 
 Android and iPhone aren't planned here; they'll be covered by a separate input method.
+
+---
+
+Want to try out JIS, but only have a US ANSI board?
+[Try out these remaps!](docs/mac-ansi-87-key-recommended/README.md)

@@ -151,8 +151,9 @@ user approves. Then, one change at a time:
   the Korean Key;
 - on a non-JIS board, optionally a key to **japanese_eisuu** (英数) for English;
 - for an ANSI board they want to use as JIS: follow
-  [the 87-key guide](../mac-ansi-87-key-recommended/README.md). The board stays ANSI and goes through
-  Karabiner's JIS virtual keyboard (`593-1452-0` stored as 42).
+  [the 87-key guide](../mac-ansi-87-key-recommended/README.md). Have macOS recognize the board as
+  JIS first, which needs no Karabiner. Karabiner's JIS virtual keyboard (`593-1452-0` stored as 42)
+  is the fallback if that doesn't work.
 
 Never remap `japanese_pc_katakana`. After changing Karabiner's device settings, restart JIS Korean
 (`pkill -x JISKorean`).
@@ -176,8 +177,9 @@ Say plainly that they own it: macOS and Karabiner updates can break their rules,
 - **Remappable firmware** (QMK, VIA, Vial, ZMK, the maker's app): put **F18** on a key for Korean. F18
   works whatever type macOS has stored for the keyboard. Firmware can also send 英数 (LANG2) and
   かな (LANG1). The [87-key guide](../mac-ansi-87-key-recommended/README.md) has a complete
-  two-layer keymap. On the reference board, カタカナ and ¥/ろ didn't work with the board stored as
-  JIS and no Karabiner, so offer F18 and Mode B for an ANSI board without Karabiner.
+  two-layer keymap. Its step 1 has macOS recognize the board as JIS with Keyboard Setup Assistant
+  (Z, then Fn+ろ), with no software remapping. If that doesn't work for their board, offer F18 for
+  Korean, and Mode B.
 - **JIS Korean's own setting:** the Korean Key can be any key code (`KoreanKey`, above). This isn't
   a remapper, just which key JIS Korean listens for.
 - **No remapping at all:** Ctrl+Space and the input menu.
