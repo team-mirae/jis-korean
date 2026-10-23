@@ -12,16 +12,17 @@
 </p>
 
 <p align="center">
-  <b>JIS 키보드를 위한 두벌식, 그리고 JIS에만 있는 키들.</b>
+  <b>JIS 키보드를 위해 설계된 두벌식 입력.</b>
 </p>
 
 <p align="center">
-  <sub>표준 두벌식 키는 모두 원래 입력하던 그대로 입력됩니다.<br>
-  추가 키에는 쌍자음, 겹모음, 한국어 문장부호, F6–F10 변환이 더해집니다.</sub>
+  <sub>기존 두벌식 입력 방식은 모두 유효합니다.<br>
+  숫자열과 JIS 전용 키로 확장된 한글 입력 영역은 쌍자·모음 등을 입력합니다.<br>
+  맥의 일본어 IME가 제공하는 F6-F10 문자변환도 지원됩니다.</sub>
 </p>
 
 <p align="center">
-  <sub>macOS &nbsp;·&nbsp; Windows &nbsp;·&nbsp; Minecraft &nbsp;·&nbsp; 웹 브라우저</sub>
+  <sub>macOS &nbsp;·&nbsp; Windows &nbsp;·&nbsp; Minecraft &nbsp;·&nbsp; 웹</sub>
 </p>
 
 <br>
@@ -29,22 +30,22 @@
 <table align="center">
   <tr>
     <td align="center" width="25%">
-      <h3><a href="https://jis-korean.sjun.me">체험하기</a></h3>
-      <sub>설치 없이 브라우저에서 바로.<br><a href="https://jis-korean.sjun.me">jis-korean.sjun.me</a></sub>
+      <h3><a href="https://jis-korean.sjun.me">써보기</a></h3>
+      <sub>설치 없이 체험해보세요.<br><a href="https://jis-korean.sjun.me">jis-korean.sjun.me</a></sub>
     </td>
     <td align="center" width="25%">
-      <h3><a href="#내려받기">내려받기</a></h3>
+      <h3><a href="#내려받기">다운로드</a></h3>
       <sub><a href="https://github.com/team-mirae/jis-korean/releases/tag/v0.3.0-windows">Windows</a>
       &nbsp;·&nbsp; <a href="https://github.com/team-mirae/jis-korean/releases/tag/v0.3.0-macos">macOS</a>
       &nbsp;·&nbsp; <a href="https://github.com/team-mirae/jis-korean/releases/tag/v0.3.0-minecraft">Minecraft</a></sub>
     </td>
     <td align="center" width="25%">
-      <h3><a href="#ai-어시스턴트로-설치하기">AI로 설치하기</a></h3>
-      <sub>코딩 어시스턴트에 붙여 넣는 프롬프트 하나.<br>출처를 확인하고, 실행하기 전에 먼저 묻습니다.</sub>
+      <h3><a href="#ai-어시스턴트로-설치하기">AI Agent로 설치</a></h3>
+      <sub>코딩 에이전트를 위한 프롬프트<br>설치 전 출처 확인 및 승인 필요</sub>
     </td>
     <td align="center" width="25%">
-      <h3><a href="#직접-빌드하기">빌드하기</a></h3>
-      <sub>엔진 하나, 셸 넷.<br><code>make</code>, <code>cargo test</code>, <code>./gradlew build</code></sub>
+      <h3><a href="#직접-빌드하기">Build</a></h3>
+      <sub>공용 엔진 1개 및 플랫폼별 쉘</sub>
     </td>
   </tr>
 </table>
