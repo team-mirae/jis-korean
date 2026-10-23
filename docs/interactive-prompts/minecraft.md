@@ -1,7 +1,9 @@
 # Set up JIS Korean for Minecraft
 
-You come here from [start.md](start.md) with the user's keyboards. [rules.md](rules.md) applies to
-every step: ask before each scan, and ask before each install or change, one at a time.
+You come here from [start.md](start.md), or from the end of another platform's prompt, with the
+session notes: official builds or their own, the operating system, and the keyboards.
+[rules.md](rules.md) applies to every step: ask before each scan, and ask before each install or
+change, one at a time.
 
 Facts come from [minecraft/README.md](../../minecraft/README.md). Read it before you explain
 anything, and follow it where this prompt is less precise. Skip start.md's remap question: the mod
@@ -19,9 +21,18 @@ profile...). A version outside that range can't load the mod: say so and stop th
 Read-only checks, each with permission or done by the user: the launcher's version list, and the
 instance's `mods` folder for `fabric-api-*.jar`.
 
-## 2. Build
+## 2. Get the jar
 
-There's no prebuilt release yet. Building needs, each asked about separately (rules.md section 2):
+### Official builds
+
+The newest release whose tag ends in `-minecraft` (start.md, "Official builds: the releases").
+Download `jis-korean-<version>.jar` and check its SHA-256 against the release's `digest`. That's
+the only check: the jar isn't signed.
+
+### Build it yourself
+
+The source is in a folder of its own (start.md section 6). Building needs, each asked about
+separately (rules.md section 2):
 1. **Java 25** (a JDK; Gradle also finds one through `gradle/gradle-daemon-jvm.properties`);
 2. **Rust** through rustup, with the `wasm32-unknown-unknown` target (the engine runs as
    WebAssembly inside the game).
@@ -33,7 +44,8 @@ Then `./gradlew build` in `minecraft/` makes `build/libs/jis-korean-<version>.ja
 These are changes: ask before each one, or walk the user through it.
 1. Fabric Loader for 26.3, if the instance doesn't have it (the Fabric installer or the launcher).
 2. Fabric API into the instance's `mods` folder, if it isn't there.
-3. The JIS Korean jar into the same `mods` folder.
+3. The JIS Korean jar into the same `mods` folder. To update, remove the old `jis-korean-*.jar`
+   first: Fabric won't start with two copies of the mod.
 
 ## 4. Using it
 

@@ -1,6 +1,7 @@
 # Set up JIS Korean on macOS
 
-You come here from [start.md](start.md) with the user's keyboards and remap answer.
+You come here from [start.md](start.md) with the session notes: official builds or their own,
+the keyboards, and the remap answer.
 [rules.md](rules.md) applies to every step: ask before each scan, and ask before each install or
 change, one at a time.
 
@@ -15,13 +16,14 @@ user to run.
 | To learn | Command |
 |---|---|
 | macOS version | `sw_vers -productVersion` |
-| Command Line Tools | `xcode-select -p` |
-| Rust | `rustup target list --installed` (or `cargo --version`) |
+| Command Line Tools (building only) | `xcode-select -p` |
+| Rust (building only) | `rustup target list --installed` (or `cargo --version`) |
 | Connected keyboards, and how they connect | `ioreg -r -c IOHIDInterface -l` (the entries with usage page 1 and usage 6: `Product`, `Transport`, `VendorID`, `ProductID`) |
 | The type macOS stored for each keyboard | `defaults read /Library/Preferences/com.apple.keyboardtype` (`product-vendor-0` = 40 ANSI, 41 ISO, 42 JIS) |
 | Karabiner-Elements running | `pgrep -fl Karabiner` |
-| JIS Korean already installed | `ls ~/Library/Input\ Methods/` |
-| Signing certificate | `security find-identity -v -p codesigning` |
+| JIS Korean already installed | `ls ~/Library/Input\ Methods/ ~/Library/LaunchAgents/ ~/Library/Keyboard\ Layouts/` |
+| An installed copy: version, and who signed it | `defaults read ~/Library/Input\ Methods/JISKorean.app/Contents/Info.plist CFBundleShortVersionString`, `codesign -dv ~/Library/Input\ Methods/JISKorean.app 2>&1 \| grep TeamIdentifier` |
+| Signing certificate (building only) | `security find-identity -v -p codesigning` |
 
 If the user chose to check things themselves, the clicks are: System Settings → General → About
 (version); System Settings → Keyboard → Keyboards (or System Information → Bluetooth / USB) for the
@@ -62,13 +64,14 @@ Then ask:
   - It's the English source 英数 selects, if ABC is swapped for ABC – Extended
     ([#2](https://github.com/team-mirae/jis-korean/issues/2)). Ctrl+Space switches between it and the
     last Korean mode.
-  - It comes with the `ENGLISH=1` build. That build also has the カタカナ and F18 switch keys, which
-    need Input Monitoring and Accessibility (step 5).
+  - It's in the official build, and in a self-built one with `ENGLISH=1`. That build also has the
+    カタカナ and F18 switch keys, which need Input Monitoring and Accessibility (step 5).
   - macOS keeps ABC (or ABC – Extended) either way, for password fields.
-- **2:** build with `ENGLISH=1`, but don't add JIS English as an input source. Tell them where it is
-  for later: System Settings → Keyboard → Input Sources → Edit → + → English → JIS English.
-- **3:** don't add JIS English. Still suggest `ENGLISH=1` if they want カタカナ or F18 to go to Korean:
-  those keys only come with that build, and they work from ABC too. 英数 then goes to ABC.
+- **2:** don't add JIS English as an input source yet (a self-built copy: build with `ENGLISH=1`).
+  Tell them where it is for later: System Settings → Keyboard → Input Sources → Edit → + → English
+  → JIS English.
+- **3:** don't add JIS English. The official build still has カタカナ and F18 to Korean, which work
+  from ABC too; for a self-built copy, suggest `ENGLISH=1` for them. 英数 then goes to ABC.
 - **4:** ask which one they use and how it's set up: the input source (a custom keyboard layout,
   Japanese Romaji, Google Japanese Input's alphanumeric mode, another input method), how they
   switch to it and back (英数, Ctrl+Space, a Karabiner rule, a Hammerspoon script, another tool), and
@@ -80,21 +83,67 @@ Then ask:
   - if their tool selects input sources by ID, JIS Korean's modes have stable IDs
     (`me.sjun.inputmethod.JISKorean.2Set` and so on, spec §8.2).
 
-## 3. Build and install
+## 3. Install
 
-There's no prebuilt release yet: JIS Korean is built from this repository. It needs:
+### Clean up an earlier copy first
+
+If step 1 found JIS Korean already installed, find out what it is before installing over it.
+An official build is signed with Team ID **UHQFCCB4DJ**; anything else (ad hoc, another Team ID) is
+a development or self-built copy. Copies share the bundle id `me.sjun.inputmethod.JISKorean`, so a
+leftover one can collide with the new one. For anything but an older official build, recommend
+cleaning up first, each step a change (rules.md section 3):
+
+1. Remove the old copy: `make uninstall` in its `mac/` folder if they built it, or else quit it
+   (`killall JISKorean`) and delete `~/Library/Input Methods/JISKorean.app`,
+   `~/Library/Keyboard Layouts/JISKorean.bundle` and
+   `~/Library/LaunchAgents/me.sjun.inputmethod.JISKorean.login.plist`.
+2. Remove every JIS Korean entry in System Settings → Keyboard → Input Sources → Edit.
+3. Log out and back in.
+
+The release notes have the current version of these steps: follow them where they differ.
+
+### Official builds
+
+The newest release whose tag ends in `-macos` (start.md, "Official builds: the releases"). It's one
+build: every Korean mode, the English modes, the switch keys and predictions (`make ENGLISH=1`).
+For the version without predictions (`PREDICT=0`), they build it themselves.
+
+1. **Download** the release's zip (`JISKorean-<version>-english.zip`) into a new, empty folder, and
+   check its SHA-256 against the release's `digest`.
+2. **Unzip** it there: `ditto -x -k JISKorean-<version>-english.zip .`
+3. **Check Apple's signature**, which doesn't depend on GitHub: `codesign --verify --strict
+   JISKorean.app` succeeds, and `codesign -dv JISKorean.app 2>&1 | grep TeamIdentifier` says
+   `TeamIdentifier=UHQFCCB4DJ`. Anything else: stop, delete it, and tell the user.
+4. **Clear the download quarantine.** The build is signed but not notarized, so macOS blocks a
+   quarantined copy: `xattr -dr com.apple.quarantine JISKorean.app`. That's a change: ask. A browser
+   download is quarantined; one made with `curl` isn't (`xattr -l JISKorean.app` shows
+   `com.apple.quarantine` if it is), and then this step isn't needed.
+5. **Install** it: move `JISKorean.app` into `~/Library/Input Methods/` (no administrator password).
+   Over an older official copy: quit it first (`killall JISKorean`), then replace it.
+6. **Start it at login** (optional, recommended for カタカナ and F18). `make install ENGLISH=1` adds a
+   login agent that starts JIS Korean in the background at login; the zip doesn't. Without it, the
+   switch keys do nothing after a login until JIS Korean has been selected once. To add it, it's a
+   change: fetch `mac/tools/login-agent.plist` from the same commit and save it as
+   `~/Library/LaunchAgents/me.sjun.inputmethod.JISKorean.login.plist`. Show the file first: it only
+   runs `open -g -b me.sjun.inputmethod.JISKorean`.
+7. **Log out and back in.**
+
+Signed with the official certificate, the permissions in step 5 survive updates.
+
+### Build it yourself
+
+The source is in a folder of its own (start.md section 6). It needs:
 1. **Command Line Tools** (`xcode-select --install`, Apple's, about 1 GB). No Xcode needed.
 2. **Rust** through rustup, with the `aarch64-apple-darwin` and `x86_64-apple-darwin` targets.
 
 Ask about each separately (rules.md section 2). Rust can come from rustup.rs or from Homebrew. If
 Homebrew isn't installed, it's a third question of its own: don't install it on the way to
-something else.
+something else. `cargo` lives in `~/.cargo/bin`, which may not be on `PATH` in a new shell.
 
 Pick the build:
 - `make install ENGLISH=1` for JIS English, or for the switch keys (カタカナ / F18 to Korean) with any
-  English source (step 2). It also installs a login agent that starts JIS Korean at login, so the
-  keys work right after logging in. **Recommend this one** unless they want neither, and switch
-  with Ctrl+Space or the input menu only.
+  English source (step 2). It also installs the login agent. **Recommend this one** unless they want
+  neither, and switch with Ctrl+Space or the input menu only. It's what the official build is.
 - `make install` for the Korean modes only, switched with Ctrl+Space or the input menu.
 - `PREDICT=0` with either one leaves out predictions (spec §10): smaller, fully deterministic.
 
@@ -122,11 +171,13 @@ These are changes: ask before each one, or walk the user through the clicks.
 
 Apps that were already open use the new input method after they're reopened.
 
-## 5. Permissions for the switch keys (`ENGLISH=1`)
+## 5. Permissions for the switch keys (official build, or `ENGLISH=1`)
 
 JIS Korean asks for **Input Monitoring** (to tell カタカナ from かな) and **Accessibility** (to catch
 F18 and カタカナ before apps do). Explain both before the prompts appear. The user grants them in
-System Settings → Privacy & Security. Never script these.
+System Settings → Privacy & Security. Never script these. If the prompts don't appear, or カタカナ
+acts as かな, the input menu has **Allow カタカナ and F18 Everywhere…**; after granting them, restart
+JIS Korean (`pkill -x JISKorean`).
 
 ## 6. Switch keys, by keyboard and remap answer
 
@@ -203,8 +254,13 @@ If something fails, turn on the diagnostic log (ask first: it's a change) and re
 ## 8. Wrap up
 
 List what was installed, what was changed, and how to undo each:
-- `make uninstall` in `mac/` removes JIS Korean and its login agent;
+- a self-built copy: `make uninstall` in `mac/` removes JIS Korean and its login agent;
+- the official build: quit it (`killall JISKorean`), then delete
+  `~/Library/Input Methods/JISKorean.app` and, if it was added,
+  `~/Library/LaunchAgents/me.sjun.inputmethod.JISKorean.login.plist`;
 - System Settings → Keyboard → Input Sources removes the modes;
 - Karabiner's rules and devices are undone in Karabiner-Elements, and the app has its own uninstaller;
 - a keyboard type goes back with Keyboard Setup Assistant or the same `defaults write` with the old
   value.
+
+Then offer the Minecraft mod, if they play Minecraft Java Edition ([minecraft.md](minecraft.md)).

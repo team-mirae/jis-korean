@@ -1,6 +1,7 @@
 # Set up JIS Korean on Windows
 
-You come here from [start.md](start.md) with the user's keyboards and remap answer.
+You come here from [start.md](start.md) with the session notes: official builds or their own,
+the keyboards, and the remap answer.
 [rules.md](rules.md) applies to every step: ask before each scan, and ask before each install or
 change, one at a time.
 
@@ -18,18 +19,49 @@ it to the user to run.
 | Windows version | `[Environment]::OSVersion.Version` or `winver` |
 | Keyboards | `Get-PnpDevice -Class Keyboard -PresentOnly \| Select FriendlyName, InstanceId` (the `VID_`/`PID_` part, and `BTHLE`/`BTHENUM` for Bluetooth) |
 | Languages and input methods | `Get-WinUserLanguageList` |
-| Build tools | `cmake --version`, `ninja --version`, `rustup target list --installed` |
-| Visual Studio Build Tools | `& "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe" -products * -format text` |
+| Build tools (building only) | `cmake --version`, `ninja --version`, `rustup target list --installed` |
+| Visual Studio Build Tools (building only) | `& "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe" -products * -format text` |
 | JIS Korean already installed | `Test-Path "$env:ProgramFiles\JIS Korean"` |
+| Installed by the installer (it's in Apps) | `Get-ItemProperty HKLM:\Software\Microsoft\Windows\CurrentVersion\Uninstall\*, HKLM:\Software\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall\* -ErrorAction SilentlyContinue \| Where-Object DisplayName -like "JIS Korean*" \| Select DisplayName, DisplayVersion` |
 | AutoHotkey or PowerToys running | `Get-Process AutoHotkey*, PowerToys* -ErrorAction SilentlyContinue` |
 
 If the user chose to check things themselves: Settings → System → About (version), Device Manager →
 Keyboards (keyboards), Settings → Time & language → Language & region (languages and keyboards).
 
-## 2. Build and install
+## 2. Install
 
-There's no prebuilt release yet: JIS Korean is built from this repository. It needs, each asked
-about separately (rules.md section 2):
+### An earlier copy
+
+The installer upgrades an older one, or a development install from `tools/install.ps1`, in place,
+and keeps the user's settings: no uninstall needed. Say that apps which were running keep the old
+DLL until they restart, and that signing out and back in restarts all of them. The release notes
+have the current version of this: follow them where they differ.
+
+### Official builds
+
+The newest release whose tag ends in `-windows` (start.md, "Official builds: the releases").
+
+1. **Download** `JISKorean-<version>-setup.exe` into a new, empty folder, and check its SHA-256
+   against the release's `digest` (`Get-FileHash`). This is the only check there is: the installer
+   isn't code-signed yet. Say so.
+2. **Run it.** That's an install, so ask first, and say what to expect:
+   - SmartScreen warns about an unsigned installer: **More info → Run anyway**. That's for this file
+     only; never turn SmartScreen off.
+   - It asks for **administrator rights (UAC)** once.
+   - The wizard asks **Full** (with predictions) or **Lite** (without), and, if they haven't picked
+     one before, the starting mode: A for JIS, B for US ANSI, C for UK ISO (start.md's mode table).
+   - It copies JIS Korean to Program Files, registers it for 64-bit and 32-bit apps, and adds it to
+     the user's Korean keyboards. If Korean isn't in their language list, it adds Korean, without
+     removing anything. Say this before they run it: it's a change to their language list.
+3. Pick **JIS Korean** with Win+Space, and **restart apps** that were open.
+
+The user runs the installer themselves (it needs their UAC answer). A silent install
+(`/VERYSILENT /VARIANT=full|lite /MODE=A|B|C`) is for admins deploying it, not for this.
+
+### Build it yourself
+
+The source is in a folder of its own (start.md section 6). Building needs, each asked about
+separately (rules.md section 2):
 1. **Visual Studio 2022 Build Tools** with C++ for x64 and x86 (Microsoft, several GB);
 2. **CMake** 3.28+;
 3. **Ninja**;
@@ -39,9 +71,12 @@ winget has all four. If the user prefers another source, use that.
 
 Then, in `windows/`:
 - `tools/build.ps1` builds x64 and x86 and runs the shell tests. `-Lite` leaves out predictions.
-- `tools/install.ps1` installs. It needs **administrator rights (UAC)**: say so before running it.
-  It copies to Program Files, registers the x64 and x86 DLLs, and adds JIS Korean to the Korean
-  language's keyboards. It adds the Korean language if it's missing: that's a change, so ask.
+- Either install it as a development copy, with `tools/install.ps1`. It needs **administrator
+  rights (UAC)**: say so before running it. It copies to Program Files, registers the x64 and x86
+  DLLs, and adds JIS Korean to the Korean language's keyboards. It adds the Korean language if it's
+  missing: that's a change, so ask. `tools/install.ps1 -Update` copies a rebuild in without UAC.
+- Or build the installer, as the official builds are: `tools/package.ps1` (needs Inno Setup 6,
+  another install to ask about), then run `build/dist/JISKorean-<version>-setup.exe` as above.
 
 Afterwards: pick **JIS Korean** with Win+Space, and **restart apps** that were open. They keep the
 old DLL, or none, until they restart.
@@ -111,7 +146,13 @@ log is `tools/install.ps1 -Log` (ask first: it's a change).
 ## 6. Wrap up
 
 List what was installed, what was changed, and how to undo each:
-- `tools/install.ps1 -Uninstall` (administrator) removes JIS Korean;
+- installed with the installer: Settings → Apps → Installed apps → JIS Korean → Uninstall, signed
+  in as the account that installed it (the uninstaller can only change the language list of the
+  account it runs as). Settings (`HKCU\Software\JIS Korean`) are kept, and so is
+  `%APPDATA%\JIS Korean` unless its box is ticked;
+- a development install: `tools/install.ps1 -Uninstall` (administrator);
 - the Korean language, if it was added, is removed in Settings → Time & language;
 - PowerToys and AutoHotkey mappings are undone in the tool, and the tools have their own uninstallers;
 - the build tools are removed in Settings → Apps or with winget.
+
+Then offer the Minecraft mod, if they play Minecraft Java Edition ([minecraft.md](minecraft.md)).
