@@ -8,6 +8,10 @@
 <h1 align="center">JIS Korean</h1>
 
 <p align="center">
+  <sub>English &nbsp;·&nbsp; <a href="README.ko-kr.md">한국어</a></sub>
+</p>
+
+<p align="center">
   <b>Korean 2-set (두벌식) for JIS keyboards, and the keys only JIS has.</b>
 </p>
 
@@ -85,14 +89,15 @@ release's published SHA-256.
 | | Release | What you get |
 |---|---|---|
 | **Windows** | [v0.3.0-windows](https://github.com/team-mirae/jis-korean/releases/tag/v0.3.0-windows) | `JISKorean-<version>-setup.exe`: a TSF input method for Windows 10 and 11, in 64-bit and 32-bit apps. The wizard asks Full (with predictions) or Lite, and your starting mode. |
-| **macOS** | [v0.3.0-macos](https://github.com/team-mirae/jis-korean/releases/tag/v0.3.0-macos) | `JISKorean.app`: an InputMethodKit input method for macOS 13 or later, universal. |
+| **macOS** | [v0.3.0-macos](https://github.com/team-mirae/jis-korean/releases/tag/v0.3.0-macos) | `JISKorean-<version>-english.zip`, with `JISKorean.app`: an InputMethodKit input method for macOS 13 or later, universal. |
 | **Minecraft** | [v0.3.0-minecraft](https://github.com/team-mirae/jis-korean/releases/tag/v0.3.0-minecraft) | A client-side Fabric mod for Minecraft Java Edition 26.3 (Fabric Loader 0.19.3+, Fabric API, Java 25). The engine runs inside the jar as WebAssembly, so there are no native libraries. |
 
 - **Windows:** after the wizard, pick JIS Korean with <kbd>Win</kbd>+<kbd>Space</kbd>. The installer
   isn't code-signed yet, so SmartScreen warns: **More info → Run anyway**, for this file only.
-- **macOS:** move the app into `~/Library/Input Methods/` and add it under **System Settings →
-  Keyboard → Input Sources → + → Korean**. The build is signed but not notarized, so a browser
-  download needs its quarantine cleared first: `xattr -dr com.apple.quarantine JISKorean.app`.
+- **macOS:** unzip it, move the app into `~/Library/Input Methods/`, log out and back in, and add it
+  under **System Settings → Keyboard → Input Sources → Edit → + → Korean → JIS Korean**. The build
+  is signed but not notarized, so a browser download needs its quarantine cleared first:
+  `xattr -dr com.apple.quarantine JISKorean.app`.
 - **Modes:** A, B and C are three input sources of the one input method on macOS, and a menu on the
   taskbar's 한글 / ABC indicator on Windows; the mod follows the desktop input method's mode.
 - **Browser:** nothing to download. [jis-korean.sjun.me](https://jis-korean.sjun.me) runs the same
@@ -100,14 +105,14 @@ release's published SHA-256.
 
 ### The layouts
 
-A **mode** is one keyboard's key map. Every mode keeps standard 2-set on the 26 letter keys,
+A **mode** is one keyboard's key map. Every Korean mode keeps standard 2-set on the 26 letter keys,
 Shift+Z as F10, F6–F10 and the Hangul automaton; a mode only says what the other keys type, and
 which stock keyboard sits under it ([spec §3.6](docs/spec.md#36-modes)).
 
 | Mode | For | What the other keys type |
 |---|---|---|
 | **A** | JIS | The original layout (above). Double consonants and compound vowels on the number row, Korean punctuation on the symbol keys, 한글 / 한자 / 두벌식 / 전각 / 반각 on F6–F10. |
-| **B** | US ANSI: HHKB US, MacBooks | The same number row and brackets, and every other key as US ANSI has it, by design. |
+| **B** | US ANSI: HHKB US, MacBook US | The same number row and brackets, and every other key as US ANSI has it, by design. |
 | **C** | UK ISO | Mode B's pattern on UK symbols, with the middle dot and the em dash on the extra key left of Z. Its three symbol keys can be turned off (**Dedicated Symbol Keys**) to get the UK characters back; the number row stays Korean. |
 
 **The core principle**, which no mode breaks ([spec §1](docs/spec.md#1-core-principle)): every valid

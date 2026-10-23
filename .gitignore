@@ -22,3 +22,6 @@ __pycache__/
 
 # Other repositories cloned alongside this one (e.g. keyboard-troubleshooting)
 /external/
+
+# Local backups of the README while it is being redesigned
+/README.bak.md
