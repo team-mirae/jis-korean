@@ -46,3 +46,6 @@ Android and iPhone aren't planned here; they'll be covered by a separate input m
 
 Want to try out JIS, but only have a US ANSI board?
 [Try out these remaps!](docs/mac-ansi-87-key-recommended/README.md)
+
+Have an HHKB US and wondering about an HHKB JIS?
+[Try kana and JIS Korean on it with Karabiner first!](docs/legacy-hhkb-us-as-jis/README.md)

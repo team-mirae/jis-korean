@@ -1,0 +1,272 @@
+{
+  "title": "HHKB Professional BT (US) as a JIS keyboard, for JIS Korean",
+  "rules": [
+    {
+      "description": "HHKB Pro BT (US) as JIS: カタカナ, 英数, かな and ろ on tap, ¥ on \\ [required]",
+      "manipulators": [
+        {
+          "type": "basic",
+          "description": "Left ⌥: tap カタカナ (to Korean), hold ⌥",
+          "from": {
+            "key_code": "left_option",
+            "modifiers": {
+              "optional": [
+                "any"
+              ]
+            }
+          },
+          "to": [
+            {
+              "key_code": "left_option"
+            }
+          ],
+          "to_if_alone": [
+            {
+              "key_code": "japanese_pc_katakana"
+            }
+          ],
+          "conditions": [
+            {
+              "type": "device_if",
+              "identifiers": [
+                {
+                  "vendor_id": 1278,
+                  "product_id": 514,
+                  "is_keyboard": true
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "type": "basic",
+          "description": "Left ⌘: tap 英数 (to English), hold ⌘",
+          "from": {
+            "key_code": "left_command",
+            "modifiers": {
+              "optional": [
+                "any"
+              ]
+            }
+          },
+          "to": [
+            {
+              "key_code": "left_command"
+            }
+          ],
+          "to_if_alone": [
+            {
+              "key_code": "japanese_eisuu"
+            }
+          ],
+          "conditions": [
+            {
+              "type": "device_if",
+              "identifiers": [
+                {
+                  "vendor_id": 1278,
+                  "product_id": 514,
+                  "is_keyboard": true
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "type": "basic",
+          "description": "Right ⌘: tap かな (to Japanese), hold ⌘",
+          "from": {
+            "key_code": "right_command",
+            "modifiers": {
+              "optional": [
+                "any"
+              ]
+            }
+          },
+          "to": [
+            {
+              "key_code": "right_command"
+            }
+          ],
+          "to_if_alone": [
+            {
+              "key_code": "japanese_kana"
+            }
+          ],
+          "conditions": [
+            {
+              "type": "device_if",
+              "identifiers": [
+                {
+                  "vendor_id": 1278,
+                  "product_id": 514,
+                  "is_keyboard": true
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "type": "basic",
+          "description": "Right Shift: tap ろ, hold Shift",
+          "from": {
+            "key_code": "right_shift",
+            "modifiers": {
+              "optional": [
+                "any"
+              ]
+            }
+          },
+          "to": [
+            {
+              "key_code": "right_shift"
+            }
+          ],
+          "to_if_alone": [
+            {
+              "key_code": "international1"
+            }
+          ],
+          "conditions": [
+            {
+              "type": "device_if",
+              "identifiers": [
+                {
+                  "vendor_id": 1278,
+                  "product_id": 514,
+                  "is_keyboard": true
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "type": "basic",
+          "description": "\\ (left of `): ¥",
+          "from": {
+            "key_code": "backslash",
+            "modifiers": {
+              "optional": [
+                "any"
+              ]
+            }
+          },
+          "to": [
+            {
+              "key_code": "international3"
+            }
+          ],
+          "conditions": [
+            {
+              "type": "device_if",
+              "identifiers": [
+                {
+                  "vendor_id": 1278,
+                  "product_id": 514,
+                  "is_keyboard": true
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "description": "HHKB Pro BT (US) as JIS: JIS ] (む) on Delete, Backspace on ` (as on an HHKB JIS) [recommended]",
+      "manipulators": [
+        {
+          "type": "basic",
+          "description": "Delete (right of ]): JIS ] (む in Kana)",
+          "from": {
+            "key_code": "delete_or_backspace",
+            "modifiers": {
+              "optional": [
+                "any"
+              ]
+            }
+          },
+          "to": [
+            {
+              "key_code": "backslash"
+            }
+          ],
+          "conditions": [
+            {
+              "type": "device_if",
+              "identifiers": [
+                {
+                  "vendor_id": 1278,
+                  "product_id": 514,
+                  "is_keyboard": true
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "type": "basic",
+          "description": "` (top right): Backspace",
+          "from": {
+            "key_code": "grave_accent_and_tilde",
+            "modifiers": {
+              "optional": [
+                "any"
+              ]
+            }
+          },
+          "to": [
+            {
+              "key_code": "delete_or_backspace"
+            }
+          ],
+          "conditions": [
+            {
+              "type": "device_if",
+              "identifiers": [
+                {
+                  "vendor_id": 1278,
+                  "product_id": 514,
+                  "is_keyboard": true
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "description": "HHKB Pro BT (US) as JIS: JIS ] (む) on `, Delete stays [alternative: keeps HHKB US Backspace habits]",
+      "manipulators": [
+        {
+          "type": "basic",
+          "description": "` (top right): JIS ] (む in Kana)",
+          "from": {
+            "key_code": "grave_accent_and_tilde",
+            "modifiers": {
+              "optional": [
+                "any"
+              ]
+            }
+          },
+          "to": [
+            {
+              "key_code": "backslash"
+            }
+          ],
+          "conditions": [
+            {
+              "type": "device_if",
+              "identifiers": [
+                {
+                  "vendor_id": 1278,
+                  "product_id": 514,
+                  "is_keyboard": true
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
