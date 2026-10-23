@@ -78,7 +78,7 @@ First, ask me whether I want the official builds (recommended) or to build JIS K
 ```
 
 이 프롬프트는 보안 확인 절차를 담고 있어 의도적으로 영어 원문 그대로 두었습니다. 에이전트는 어떤
-언어로 대화하든 본 절차를 따르기 때문에, 위 텍스트를 붙여넣은 뒤에 한국어로 이어서 안내해 달라고 하면 됩니다.
+언어로 대화하든 본 절차를 따르기 때문에, 위 텍스트를 붙여넣은 뒤에 한국어로 이어서 안내해달라고 하면 됩니다.
 
 에이전트는 먼저 이 프롬프트가 본 repo에서 추출된 것인지 확인한 다음, 공식 빌드 사용 여부, 사용할 운영체제,
 입력에 사용할 키보드를 사용자에게 질문합니다. 컴퓨터에 연결된 장치·설치된 프로그램 등 정보를 확인하기 전 또는
@@ -96,22 +96,22 @@ First, ask me whether I want the official builds (recommended) or to build JIS K
 | **macOS** | [v0.3.0-macos](https://github.com/team-mirae/jis-korean/releases/tag/v0.3.0-macos) | `JISKorean-<version>-english.zip`(안에 `JISKorean.app`): macOS 13 이상용 InputMethodKit 입력기. 유니버설 빌드. |
 | **Minecraft** | [v0.3.0-minecraft](https://github.com/team-mirae/jis-korean/releases/tag/v0.3.0-minecraft) | Minecraft Java Edition 26.3용 클라이언트 측 Fabric 모드(Fabric Loader 0.19.3+, Fabric API, Java 25). 엔진이 jar 내부에서 WebAssembly로 실행되기 때문에 네이티브 라이브러리가 필요하지 않습니다. |
 
-- **Windows:** 설치 마법사 완료 후 <kbd>Win</kbd>+<kbd>Space</kbd>로 JIS Korean을 선택하세요. 설치
-  파일에 아직 코드 서명이 없기 때문에 SmartScreen 경고가 표시되며, **추가 정보 → 실행**을 누르면 본
+- **Windows:** 설치 마법사 완료 후 <kbd>Win</kbd>+<kbd>Space</kbd>로 JIS Korean을 선택하세요.
+  인스톨러에 아직 코드 서명이 없기 때문에 SmartScreen 경고가 표시되며, **추가 정보 → 실행**을 누르면 본
   파일에 한해 실행이 허용됩니다.
 - **macOS:** 압축 해제 후 앱을 `~/Library/Input Methods/`로 이동하고, 로그아웃 및 재로그인 후
   **시스템 설정 → 키보드 → 입력 소스 → 편집 → + → 한국어 → JIS Korean**에서 추가하세요. 서명은 되어
-  있으나 공증(notarization)은 받지 않은 빌드이기 때문에, 브라우저로 다운로드한 경우 먼저 격리 속성을
+  있으나 공증(notarization)은 받지 않은 빌드이기 때문에, 브라우저로 다운로드한 경우 먼저 격리 속성(quarantine)을
   제거해야 합니다: `xattr -dr com.apple.quarantine JISKorean.app`.
 - **모드:** macOS에서는 A·B·C가 하나의 입력기 내 입력 소스 3개로 표시되며, Windows에서는 작업
   표시줄의 한글 / ABC 표시기 메뉴에서 선택합니다. Minecraft용 JIS Korean은 데스크톱 입력기에서 선택한
   모드를 따릅니다.
-- **브라우저:** 다운로드 불필요. [jis-korean.sjun.me](https://jis-korean.sjun.me)에서 WebAssembly로
+- **브라우저:** 다운로드 불요. [jis-korean.sjun.me](https://jis-korean.sjun.me)에서 WebAssembly로
   컴파일된 동일한 엔진이 동작합니다.
 
 ### 배열
 
-**모드**는 키보드 1종에 맞춘 키 배치입니다. 모든 한국어 모드는 26개 글자 키의 표준 두벌식, F10 역할의
+**모드**는 하나의 키보드 레이아웃(JIS·US ANSI·ISO)에 맞춘 키 배치입니다. 모든 한국어 모드는 26개 글자 키의 표준 두벌식, F10 역할의
 Shift+Z, F6–F10 및 한글 오토마타를 그대로 유지하며, 모드별로 정의되는 것은 나머지 키의 입력값과 기본
 키보드뿐입니다([spec §3.6](docs/spec.md#36-modes)).
 
@@ -165,58 +165,58 @@ JIS 키보드 MacBook을 쓰고 있나요?
 [Karabiner로 カタカナ 키와 HHKB Fn 레이어를 더해보세요!](https://github.com/themrsung/keyboard-troubleshooting/tree/main/layouts/macbook-jis-to-hhkb)
 
 위 리매핑은 모두 [keyboard-troubleshooting](https://github.com/themrsung/keyboard-troubleshooting) repo에
-있으며, JIS Korean용 키보드 설정 과정에서 확인된 펌웨어·OS 특이 동작도 함께 정리되어 있습니다.
+있으며, JIS Korean용 키보드 설정 과정에서 확인된 펌웨어·OS 특이 동작도 함께 정리되어있습니다.
 
 ### Build
 
-모든 동작은 공용 엔진 1개에 포함되어 있으며, 플랫폼별로 본 엔진을 감싸는 얇은 쉘이 있습니다.
+모든 로직은 공유되는 엔진 1개에 포함되어있으며, 플랫폼별로 이를 제공하는 경량(lightweight) 쉘이 있습니다.
 
-| 경로 | 내용 | 빌드 |
+| 디렉토리 | 내용 | 빌드 |
 |---|---|---|
-| [`docs/spec.md`](docs/spec.md) | 명세: 모든 키, 오토마타, F6–F10, 모드. 모든 동작의 기준. | |
+| [`docs/spec.md`](docs/spec.md) | 기술명세: 모든 키, 오토마타, F6–F10, 모드. 모든 인터랙션 표준. | |
 | [`engine/`](engine) | 모든 플랫폼이 공용으로 사용하는 핵심 엔진. Rust, 외부 크레이트 없음. | `cargo test` |
-| [`mac/`](mac) | macOS 입력기(InputMethodKit). Xcode 불필요. | `make`, `make install` |
-| [`windows/`](windows) | Windows 입력기(TSF)와 설치 프로그램. | `tools/build.ps1`, `tools/install.ps1` |
-| [`minecraft/`](minecraft) | Minecraft Fabric 모드. 엔진은 WebAssembly로 동작. | `./gradlew build` |
-| [`web/`](web) | 브라우저 체험판. [jis-korean.sjun.me](https://jis-korean.sjun.me)에 배포. | `npm run dev` |
+| [`mac/`](mac) | macOS 입력기(InputMethodKit). Xcode 불요. | `make`, `make install` |
+| [`windows/`](windows) | Windows 입력기(TSF) 및 인스톨러. | `tools/build.ps1`, `tools/install.ps1` |
+| [`minecraft/`](minecraft) | Minecraft Fabric 모드. 엔진은 WebAssembly로 동작함. | `./gradlew build` |
+| [`web/`](web) | 브라우저 체험판. [jis-korean.sjun.me](https://jis-korean.sjun.me)에 배포됨. | `npm run dev` |
 
-플랫폼 개발 순서는 **macOS → Minecraft → Windows**입니다.
+플랫폼 개발·지원 우선순위는 **macOS → Minecraft → Windows**입니다.
 Android 및 iPhone은 본 프로젝트의 범위에 포함되지 않으며, 별도의 입력기에서 지원할 예정입니다.
 
 자세한 내용은 폴더별 README를 참고하세요: [mac](mac/README.md), [windows](windows/README.md),
-[minecraft](minecraft/README.md), [web](web/README.md). 빌드에 사용되는 버전은 아래 의존성 항목에
-정리되어 있습니다.
+[minecraft](minecraft/README.md), [web](web/README.md). 빌드에 사용되는 버전은 아래 디펜던시 항목에
+정리되어있습니다.
 
-### 의존성
+### 디펜던시
 
 | | 실행 시 필요 | 빌드 시 필요 |
 |---|---|---|
-| **macOS** | macOS 13 이상, Apple silicon 또는 Intel. 선택: 키보드에 없는 키 추가용 [Karabiner-Elements](https://karabiner-elements.pqrs.org), かな 입력용 macOS 일본어 입력 소스. | Command Line Tools for Xcode(Xcode 본체는 불필요), Rust 1.85+. |
-| **Windows** | Windows 10 또는 11, 64비트. 선택: JIS·ISO 키보드의 한/영 키 지정용 PowerToys 또는 AutoHotkey. | Visual Studio 2022 Build Tools(C++ x64·x86), CMake 3.28+, Ninja, Rust 1.85+, PowerShell. 선택: 설치 프로그램용 Inno Setup 6. |
+| **macOS** | macOS 13 이상, Apple silicon 또는 Intel. 선택: 키보드에 없는 키 추가용 [Karabiner-Elements](https://karabiner-elements.pqrs.org), かな 입력용 macOS 일본어 입력 소스. | Command Line Tools for Xcode(Xcode 본체 불요), Rust 1.85+. |
+| **Windows** | Windows 10 또는 11, 64비트. 선택: JIS·ISO 키보드의 한/영 키 지정용 PowerToys 또는 AutoHotkey. | Visual Studio 2022 Build Tools(C++ x64·x86), CMake 3.28+, Ninja, Rust 1.85+, PowerShell. 선택: 인스톨러용 Inno Setup 6. |
 | **Minecraft** | Minecraft Java Edition 26.3.x, Fabric Loader 0.19.3+, 26.3용 Fabric API, Java 25. 선택: macOS용 또는 Windows용 JIS Korean(Minecraft에서도 해당 입력기의 모드를 따름). | Gradle 래퍼(Gradle 9.7.1, Fabric Loom 1.18.4), `wasm32-unknown-unknown`을 포함한 Rust 1.85+. |
 | **Web** | WebAssembly 지원 브라우저. | Node.js 및 npm, `wasm32-unknown-unknown`을 포함한 Rust 1.85+. |
 | **Engine** | 위 모든 플랫폼에 포함. 외부 크레이트없이 Rust 표준 라이브러리만 사용. | Rust 1.85+(stable). |
 
 <details>
-<summary>플랫폼별 전체 의존성: prod·dev, 필수·선택 여부 및 버전</summary>
+<summary>플랫폼별 전체 디펜던시: prod·dev, 필수·선택 여부 및 버전</summary>
 
 **prod**는 JIS Korean 실행 시, **dev**는 소스 빌드 시 필요한 항목이며, 각 항목은 **필수** 또는
 **선택**으로 표시됩니다. 버전은 본 릴리스 빌드에 사용된 버전입니다.
 
 #### JIS Korean for macOS
 
-| 의존성 | prod / dev | 필수 여부 | 용도 |
+| 디펜던시 | prod / dev | 필수 여부 | 용도 |
 |---|---|---|---|
 | macOS 13 이상, Apple silicon 또는 Intel | prod, dev | 필수 | 입력기(InputMethodKit). 앱은 유니버설 빌드. |
 | [Karabiner-Elements](https://karabiner-elements.pqrs.org) | prod | 선택 | 키보드에 없는 키(カタカナ, F18, ¥, ろ): [keyboard-troubleshooting](https://github.com/themrsung/keyboard-troubleshooting/tree/main/layouts) 참고 |
 | macOS 일본어 입력 소스 | prod | 선택 | かな → 일본어 |
-| Command Line Tools for Xcode(`swiftc`, `clang`, `lipo`, `codesign`, `make`) | dev | 필수 | 앱 빌드. Xcode 본체는 불필요. |
+| Command Line Tools for Xcode(`swiftc`, `clang`, `lipo`, `codesign`, `make`) | dev | 필수 | 앱 빌드. Xcode 본체 불요. |
 | [Rust](https://www.rust-lang.org) 1.85+, `aarch64-apple-darwin`과 `x86_64-apple-darwin` 포함 | dev | 필수 | 엔진 |
 | Apple Development 인증서 | dev | 선택 | 서명. 재빌드 시에도 입력 모니터링 및 손쉬운 사용 권한 유지(없는 경우 ad hoc 서명) |
 
 #### JIS Korean for Windows
 
-| 의존성 | prod / dev | 필수 여부 | 용도 |
+| 디펜던시 | prod / dev | 필수 여부 | 용도 |
 |---|---|---|---|
 | Windows 10 또는 11, 64비트 | prod, dev | 필수 | TSF 텍스트 입력 프로세서. 64비트·32비트 앱용 |
 | [PowerToys](https://learn.microsoft.com/en-us/windows/powertoys/keyboard-manager) 또는 [AutoHotkey](https://www.autohotkey.com) | prod | 선택 | JIS·ISO 키보드의 한/영 키 |
@@ -224,12 +224,12 @@ Android 및 iPhone은 본 프로젝트의 범위에 포함되지 않으며, 별�
 | [CMake](https://cmake.org) 3.28+와 [Ninja](https://ninja-build.org) | dev | 필수 | 쉘 빌드 |
 | Rust 1.85+, `x86_64-pc-windows-msvc`와 `i686-pc-windows-msvc` 포함 | dev | 필수 | 엔진 |
 | PowerShell | dev | 필수 | `tools/build.ps1`, `install.ps1`, `package.ps1` |
-| [Inno Setup 6](https://jrsoftware.org/isinfo.php) | dev | 선택 | 설치 프로그램(`tools/package.ps1`) |
-| [SignTool](https://learn.microsoft.com/en-us/windows/win32/seccrypto/signtool)과 코드 서명 인증서 | dev | 선택 | DLL과 설치 프로그램 서명 |
+| [Inno Setup 6](https://jrsoftware.org/isinfo.php) | dev | 선택 | 인스톨러(`tools/package.ps1`) |
+| [SignTool](https://learn.microsoft.com/en-us/windows/win32/seccrypto/signtool) 및 코드 서명 인증서 | dev | 선택 | DLL 및 인스톨러 서명 |
 
 #### JIS Korean for Minecraft
 
-| 의존성 | prod / dev | 필수 여부 | 용도 |
+| 디펜던시 | prod / dev | 필수 여부 | 용도 |
 |---|---|---|---|
 | Windows, macOS 또는 Linux(Minecraft Java Edition이 실행되는 모든 OS) | prod, dev | 필수 | |
 | Minecraft Java Edition 26.3.x | prod, dev | 필수 | 26.3부터 SDL로 키 입력을 읽으며, 모드가 이를 사용 |
@@ -245,7 +245,7 @@ Android 및 iPhone은 본 프로젝트의 범위에 포함되지 않으며, 별�
 
 #### 웹 체험판([jis-korean.sjun.me](https://jis-korean.sjun.me))
 
-| 의존성 | prod / dev | 필수 여부 | 용도 |
+| 디펜던시 | prod / dev | 필수 여부 | 용도 |
 |---|---|---|---|
 | WebAssembly를 지원하는 브라우저 | prod | 필수 | |
 | [React](https://react.dev) 19.3.1과 react-dom | prod(번들), dev | 필수 | 페이지 |
@@ -259,7 +259,7 @@ Android 및 iPhone은 본 프로젝트의 범위에 포함되지 않으며, 별�
 
 엔진은 외부 크레이트없이 Rust 표준 라이브러리만 사용합니다.
 
-| 의존성 | prod / dev | 필수 여부 | 용도 |
+| 디펜던시 | prod / dev | 필수 여부 | 용도 |
 |---|---|---|---|
 | Rust 1.85+(stable, 엔진은 edition 2024) | dev | 필수 | `engine/`에서 `cargo test` |
 | Python 3 | dev | 선택 | `engine/dict/build_dict.py`(`hanja.tsv` 재생성), `engine/tests/data/fetch_corpus.py`(로봇 테스트의 말뭉치) |

@@ -175,7 +175,7 @@ All behavior lives in one engine; each platform is a thin shell around it.
 | [`minecraft/`](minecraft) | Minecraft Fabric mod. The engine runs as WebAssembly. | `./gradlew build` |
 | [`web/`](web) | The browser playground, deployed at [jis-korean.sjun.me](https://jis-korean.sjun.me). | `npm run dev` |
 
-Platforms are built in this order: **macOS → Minecraft → Windows**.
+Platforms are supported in this priority, from highest to lowest: **macOS → Minecraft → Windows**.
 Android and iPhone aren't planned here; they'll be covered by a separate input method.
 
 Each folder's README has the details: [mac](mac/README.md), [windows](windows/README.md),
