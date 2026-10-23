@@ -44,10 +44,10 @@ Android and iPhone aren't planned here; they'll be covered by a separate input m
 ---
 
 Want to try out JIS, but only have a US ANSI board?
-[Try out these remaps!](docs/mac-ansi-87-key-recommended/README.md)
+[Try out these remaps!](https://github.com/themrsung/keyboard-troubleshooting/tree/main/layouts/us-ansi-87-key-to-jis)
 
 Have an HHKB US and wondering about an HHKB JIS?
-[Try kana and JIS Korean on it with Karabiner first!](docs/legacy-hhkb-us-as-jis/README.md)
+[Try kana and JIS Korean on it with Karabiner first!](https://github.com/themrsung/keyboard-troubleshooting/tree/main/layouts/hhkb-pro-bt-us-to-jis)
 
 Typing on a MacBook with a US keyboard?
-[Give it JIS's keys with Karabiner!](docs/macbook-us-as-jis/README.md)
+[Give it JIS's keys with Karabiner!](https://github.com/themrsung/keyboard-troubleshooting/tree/main/layouts/macbook-us-to-jis)

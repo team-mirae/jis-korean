@@ -119,5 +119,5 @@ remap answer.
 | JIS | Mode A, the original layout |
 | US ANSI | Mode B, US ANSI symbols kept |
 | UK ISO, or another ISO country | Mode C |
-| ANSI, remappable, and the user wants the JIS keys | Mode A on a board remapped as JIS: on macOS, [the 87-key guide](../mac-ansi-87-key-recommended/README.md) |
+| ANSI, remappable, and the user wants the JIS keys | Mode A on a board remapped as JIS: on macOS, [the 87-key guide](https://github.com/themrsung/keyboard-troubleshooting/tree/main/layouts/us-ansi-87-key-to-jis) |
 | Several keyboards of different layouts | Add a mode for each. The mode follows the keyboard, so switch modes when you switch keyboards. |
