@@ -22,6 +22,20 @@ onto UK ISO keyboards ([spec §3.6](docs/spec.md#36-modes)); adding a mode of yo
 - `ipados/`: iPadOS (stub)
 - `web/`: browser playground, deployed at [jis-korean.sjun.me](https://jis-korean.sjun.me)
 
+## Install with an AI assistant
+
+Open this repository in a coding assistant such as Claude Code and say:
+
+```
+Read docs/interactive-prompts/start.md and follow it.
+```
+
+It asks which platform and keyboards you have and which remap tools are OK with you, then walks you
+through the setup. It asks before looking at anything on your computer and before installing each
+tool. Without the repository, paste [start.md](docs/interactive-prompts/start.md) into a coding
+assistant started in an empty folder: it fetches the repository there first. See
+[docs/interactive-prompts](docs/interactive-prompts/README.md).
+
 ## Build order
 
 Platforms are built in this order: **macOS → Minecraft → Windows → iPadOS**.
