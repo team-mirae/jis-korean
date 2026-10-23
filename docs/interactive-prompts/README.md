@@ -29,7 +29,7 @@ In a chat assistant without access to your computer, paste [start.md](start.md) 
 | [macos.md](macos.md) | macOS: the input method, its modes and switch keys, remapping |
 | [windows.md](windows.md) | Windows: the TSF input method, 한/영, remapping |
 | [minecraft.md](minecraft.md) | Minecraft: the Fabric mod |
-| [other.md](other.md) | iPadOS (not available yet), the web playground, and platforms out of scope |
+| [other.md](other.md) | The web playground, and platforms out of scope |
 
 ## Writing a prompt
 

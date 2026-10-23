@@ -61,8 +61,7 @@ nothing gets scanned, installed or changed without asking first.
 > 1. macOS
 > 2. Windows
 > 3. Minecraft (Java Edition, with Fabric)
-> 4. iPadOS
-> 5. Something else, or just try it first
+> 4. Something else, or just try it first
 
 More than one is fine. Set up one at a time, starting with the one they choose first.
 
@@ -90,7 +89,7 @@ space bar.
 
 ## 3. Remap tools
 
-Ask this only on macOS and Windows. Minecraft reads keys itself, and iPadOS isn't available yet.
+Ask this only on macOS and Windows. Minecraft reads keys itself.
 
 > JIS Korean works without any remapping. Remapping helps when a keyboard lacks a key you want, such
 > as a key to switch to Korean, or ¥ and ろ on a non-JIS board. Which software remapping is OK
@@ -108,7 +107,7 @@ Ask this only on macOS and Windows. Minecraft reads keys itself, and iPadOS isn'
 | macOS | [macos.md](macos.md) |
 | Windows | [windows.md](windows.md) |
 | Minecraft | [minecraft.md](minecraft.md) |
-| iPadOS, trying it first, anything else | [other.md](other.md) |
+| Trying it first, anything else | [other.md](other.md) |
 
 Bring the answers along. Each prompt picks the mode from the keyboards and the switch keys from the
 remap answer.

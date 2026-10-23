@@ -1,6 +1,5 @@
 import type { ReactNode } from "react";
 import { EnginePage } from "./EnginePage";
-import { IPadOSPage } from "./IPadOSPage";
 import { MacPage } from "./MacPage";
 import { MinecraftPage } from "./MinecraftPage";
 import { WebPage } from "./WebPage";
@@ -12,7 +11,6 @@ export const DOC_PAGES: { id: string; title: string; folder: string; summary: st
   { id: "macos", title: "macOS", folder: "mac/", summary: "Input method and public API", render: () => <MacPage /> },
   { id: "minecraft", title: "Minecraft", folder: "minecraft/", summary: "Fabric mod", render: () => <MinecraftPage /> },
   { id: "windows", title: "Windows", folder: "windows/", summary: "TSF text input processor", render: () => <WindowsPage /> },
-  { id: "ipados", title: "iPadOS", folder: "ipados/", summary: "Planned", render: () => <IPadOSPage /> },
   { id: "web", title: "Web", folder: "web/", summary: "Playground and its engine API", render: () => <WebPage /> },
 ];
 

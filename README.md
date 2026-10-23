@@ -1,6 +1,6 @@
 # JIS Korean
 
-A Korean 2-set (두벌식) input method for JIS keyboards, for macOS, Minecraft, Windows and iPadOS, with a
+A Korean 2-set (두벌식) input method for JIS keyboards, for macOS, Minecraft and Windows, with a
 browser playground.
 
 **Try it in your browser: [jis-korean.sjun.me](https://jis-korean.sjun.me)**
@@ -19,7 +19,6 @@ onto UK ISO keyboards ([spec §3.6](docs/spec.md#36-modes)); adding a mode of yo
 - `mac/`: macOS input method
 - `minecraft/`: Minecraft (Fabric mod)
 - `windows/`: Windows input method (TSF)
-- `ipados/`: iPadOS (stub)
 - `web/`: browser playground, deployed at [jis-korean.sjun.me](https://jis-korean.sjun.me)
 
 ## Install with an AI assistant
@@ -38,7 +37,7 @@ assistant started in an empty folder: it fetches the repository there first. See
 
 ## Build order
 
-Platforms are built in this order: **macOS → Minecraft → Windows → iPadOS**.
+Platforms are built in this order: **macOS → Minecraft → Windows**.
 
 Android and iPhone aren't planned here; they'll be covered by a separate input method.
 

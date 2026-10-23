@@ -27,11 +27,10 @@ still compose. The sanctioned exceptions are listed in spec §1: the implied ㅇ
 | `/mac` | macOS input method (InputMethodKit, Swift) that wraps the engine. Built with `make` (no Xcode needed). |
 | `/windows` | Windows TSF text input processor that wraps the engine. |
 | `/minecraft` | Minecraft (Fabric mod) that runs the engine inside the game. |
-| `/ipados` | iPadOS. Stub for now. |
-
-Build order: macOS → Minecraft → Windows → iPadOS. Android and iPhone are out of scope (a separate input method).
 | `/web` | React playground that runs the engine in the browser so people can try it before installing. |
 | `/docs` | Spec and design notes. |
+
+Build order: macOS → Minecraft → Windows. Android and iPhone are out of scope (a separate input method).
 
 ## Architecture rules
 
