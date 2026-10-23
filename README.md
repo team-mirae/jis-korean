@@ -49,3 +49,6 @@ Want to try out JIS, but only have a US ANSI board?
 
 Have an HHKB US and wondering about an HHKB JIS?
 [Try kana and JIS Korean on it with Karabiner first!](docs/legacy-hhkb-us-as-jis/README.md)
+
+Typing on a MacBook with a US keyboard?
+[Give it JIS's keys with Karabiner!](docs/macbook-us-as-jis/README.md)
