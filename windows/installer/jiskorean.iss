@@ -58,6 +58,9 @@ SignedUninstaller=yes
 Name: "en"; MessagesFile: "compiler:Default.isl"
 
 [Messages]
+; Not the default "close all other applications": apps can stay open, and restart afterwards.
+WelcomeLabel2=This will install [name/ver] on your computer.%n%nYou don't need to close other apps. Apps that are open keep the old version, or none, until they restart.
+ConfirmUninstall=Remove JIS Korean from this PC and from your keyboards?
 FinishedHeadingLabel=JIS Korean is installed
 FinishedLabelNoIcons=Restart the apps that were open: they keep the old version, or none, until they restart.%n%nPress Win+Space and pick JIS Korean.%n%nRight-click the 한글 / ABC indicator in the taskbar to choose Mode A (JIS), Mode B (US ANSI) or Mode C (UK ISO).
 FinishedLabel=Restart the apps that were open: they keep the old version, or none, until they restart.%n%nPress Win+Space and pick JIS Korean.%n%nRight-click the 한글 / ABC indicator in the taskbar to choose Mode A (JIS), Mode B (US ANSI) or Mode C (UK ISO).
@@ -253,16 +256,15 @@ begin
   end;
 end;
 
-{ The uninstaller's one question: whether to remove the user's own files too. }
-function InitializeUninstall: Boolean;
+{ After the uninstaller's own "remove JIS Korean?" (ConfirmUninstall): whether to delete the user's own
+  files too. Unticked by default. }
+procedure AskAboutUserData;
 var
   Form: TSetupForm;
   Text: TNewStaticText;
   Box: TNewCheckBox;
-  Ok, Cancel: TNewButton;
+  Ok: TNewButton;
 begin
-  Result := True;
-  if UninstallSilent then Exit;
   Form := CreateCustomForm(ScaleX(400), ScaleY(150), False, True);
   try
     Form.Caption := 'Uninstall JIS Korean';
@@ -272,33 +274,26 @@ begin
     Text.Top := ScaleY(16);
     Text.Width := Form.ClientWidth - ScaleX(32);
     Text.WordWrap := True;
-    Text.Caption := 'JIS Korean will be removed from this PC and from your keyboards.';
+    Text.Caption := 'Your training file and learned weights stay on this PC, for when you ' +
+      'install JIS Korean again.';
     Box := TNewCheckBox.Create(Form);
     Box.Parent := Form;
     Box.Left := ScaleX(16);
     Box.Top := Text.Top + Text.Height + ScaleY(16);
     Box.Width := Form.ClientWidth - ScaleX(32);
     Box.Height := ScaleY(34);
-    Box.Caption := 'Also delete my training file and learned weights (%APPDATA%\JIS Korean)';
+    Box.Caption := 'Delete them too (%APPDATA%\JIS Korean)';
     Ok := TNewButton.Create(Form);
     Ok.Parent := Form;
-    Ok.Caption := 'Uninstall';
+    Ok.Caption := 'Continue';
     Ok.ModalResult := mrOk;
     Ok.Default := True;
+    Ok.Cancel := True;
     Ok.Width := ScaleX(80);
     Ok.Height := ScaleY(24);
     Ok.Top := Form.ClientHeight - Ok.Height - ScaleY(12);
-    Cancel := TNewButton.Create(Form);
-    Cancel.Parent := Form;
-    Cancel.Caption := 'Cancel';
-    Cancel.ModalResult := mrCancel;
-    Cancel.Cancel := True;
-    Cancel.Width := Ok.Width;
-    Cancel.Height := Ok.Height;
-    Cancel.Top := Ok.Top;
-    Cancel.Left := Form.ClientWidth - Cancel.Width - ScaleX(16);
-    Ok.Left := Cancel.Left - Ok.Width - ScaleX(8);
-    Result := Form.ShowModal = mrOk;
+    Ok.Left := Form.ClientWidth - Ok.Width - ScaleX(16);
+    Form.ShowModal;
     RemoveUserData := Box.Checked;
   finally
     Form.Free;
@@ -311,6 +306,7 @@ var
   I: Integer;
 begin
   if CurUninstallStep = usUninstall then begin
+    if not UninstallSilent then AskAboutUserData;
     RunKeyboards('-Remove');
     for I := 0 to 1 do begin
       if I = 0 then Arch := 'x64' else Arch := 'x86';

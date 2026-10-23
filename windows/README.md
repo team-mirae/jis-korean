@@ -38,7 +38,10 @@ Korean if it isn't there, without removing anything), and registers an uninstall
 features. Running a newer installer over an older one, or over a development install, upgrades
 it in place and keeps the user's settings. The mode page only shows for a user with no `Mode`
 yet. The uninstaller keeps `%APPDATA%\JIS Korean` unless its box is ticked, and leaves
-`HKCU\Software\JIS Korean` (the settings) as the script does. Silent installs:
+`HKCU\Software\JIS Korean` (the settings) as the script does. Setup changes the language list
+as the user who ran it; the uninstaller can only do it as the account it was elevated as, so a
+user who uninstalls with another administrator's password keeps a dead entry in their list.
+Silent installs:
 `JISKorean-<version>-setup.exe /VERYSILENT /VARIANT=lite /MODE=B` (`/VARIANT=full|lite`,
 `/MODE=A|B|C`).
 
