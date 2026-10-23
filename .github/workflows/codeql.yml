@@ -59,8 +59,11 @@ jobs:
         uses: Swatinem/rust-cache@v2
         with:
           workspaces: engine
+      # /usr/bin/swiftc is an xcrun launcher that macOS protects (SIP), and macOS drops the library
+      # CodeQL injects to trace the build before running it, so CodeQL would see no Swift at all.
+      # The toolchain's own swiftc, first on PATH, keeps the tracer.
       - if: matrix.build-mode == 'manual'
-        run: make -C mac
+        run: PATH="$(dirname "$(xcrun -f swiftc)"):$PATH" make -C mac
       - uses: github/codeql-action/analyze@v4
         with:
           category: /language:${{ matrix.language }}
