@@ -374,7 +374,7 @@ they are.
 - **Dvorak**: the four JIS symbol keys its letters displace go to its punctuation slots: `, <` on
   W, `. >` on E, `; +` on Z, and `/ ?` on Q, where Dvorak has `' "` (JIS types those on Shift+7 and
   Shift+2).
-- **Colemak**: `; +` goes to P, Colemak's semicolon. Caps Lock stays JIS Korean's switch (§8.2.1);
+- **Colemak**: `; +` goes to P, Colemak's semicolon. Caps Lock stays Caps Lock (§8.2.1);
   Colemak's Backspace on Caps Lock isn't adopted.
 - **⌘ and ⌥ use JIS English's keys**, so shortcuts stay where they are on JIS QWERTY: ⌘C is the
   key JIS English types c on, whichever letter the mode types there. ⌥ types what it does in JIS
@@ -1154,6 +1154,11 @@ same language, whatever is selected:
 
 Each key has one direction: 英数 to English, カタカナ (or F18) to Korean, かな to Japanese. The English modes take no shortcut of their own on a letter key (Shift+X was tried and
 dropped: it costs a capital letter for a switch F18 already does).
+
+A Mac JIS keyboard (a MacBook's built-in one) has 英数 and かな but no カタカナ. The recommended
+setup remaps plain Caps Lock to カタカナ with Karabiner-Elements, which JIS Korean then reads like any
+カタカナ; Caps Lock with a modifier (Shift or ⌥) stays Caps Lock
+([docs/macbook-jis](macbook-jis/README.md)). JIS Korean itself leaves Caps Lock alone.
 
 **ABC stays.** macOS always keeps at least one plain keyboard layout enabled (ABC, or a country
 layout), and an input method's modes don't count as one, so Apple's ABC can't be removed from the

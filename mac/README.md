@@ -123,6 +123,9 @@ keep that configured as JIS and don't remap `japanese_pc_katakana`, and カタ�
 Karabiner on or off (tested with an HHKB Hybrid Type-S JIS and an HHKB Studio). If カタカナ acts as
 かな, the keyboard (or Karabiner's virtual keyboard) is probably stored as ANSI: see
 [docs/troubleshooting/macos-katakana-and-eisu.md](../docs/troubleshooting/macos-katakana-and-eisu.md).
+A Mac JIS keyboard (a MacBook's built-in one) has no カタカナ: the recommended setup makes plain
+Caps Lock カタカナ with Karabiner and keeps Caps Lock on Shift or ⌥ + Caps Lock
+([docs/macbook-jis](../docs/macbook-jis/README.md)).
 To set up a remappable ANSI 87-key keyboard as a JIS board (カタカナ, 英数, かな, ¥ and ろ on two
 layers), see
 [keyboard-troubleshooting](https://github.com/themrsung/keyboard-troubleshooting)'s

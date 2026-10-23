@@ -111,6 +111,11 @@ make PREDICT=0           # the lite build
         </li>
       </ul>
       <p>
+        A Mac JIS keyboard (a MacBook's built-in one) has no カタカナ: the recommended setup makes plain Caps Lock カタカナ
+        with Karabiner-Elements, and Shift or ⌥ + Caps Lock stays Caps Lock (
+        <Source path="docs/macbook-jis/README.md">docs/macbook-jis</Source>).
+      </p>
+      <p>
         Other keyboards set up as JIS boards (an ANSI 87-key board, an HHKB Professional BT US, a MacBook's built-in US
         keyboard) are in{" "}
         <a href="https://github.com/themrsung/keyboard-troubleshooting/tree/main/layouts" target="_blank" rel="noreferrer">
