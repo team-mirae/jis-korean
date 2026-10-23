@@ -1,7 +1,8 @@
 # macOS: typing commits bare jamo instead of syllables (Chrome and other apps)
 
-Investigated and fixed 2026-10-23 on macOS 27.0 (Darwin 27.0.0). Fix committed in `d8d9577`
-("re-sync the app's keyboard layout, not just the engine, to the current mode"). The behavior it
+Investigated 2026-10-23 on macOS 27.0 (Darwin 27.0.0). Two causes: a per-app layout desync, fixed
+in `d8d9577`, and the switch keys selecting the mode around the app's session instead of through
+it, which kept the bug alive after that ("Second cause" below). The behavior it
 documents for password fields and old Chrome is in spec §8.1; this file is the diagnosis and the
 fix, and how to tell the fixable case from the two that aren't.
 
@@ -56,7 +57,41 @@ Three selection races made the mode itself drift, which fed the same mechanism:
 - `current` started at **Mode A** at launch regardless of the source actually selected — and an
   install restarts the input method, so right after an update it could be wrong.
 
-## The fix (`d8d9577`)
+## Second cause, found after `d8d9577` (2026-10-23, 16:18): the switch itself cut Chrome off
+
+`d8d9577` didn't end it. With the log on, the user switched Chrome to Korean with カタカナ and typed:
+Chrome's caret moved by several characters (its own `TUINSCursorUIController` log: x 1208 → 1281
+between 16:18:28 and 16:18:36) and the input method logged **no `key in …` line at all**, not even
+for ¥ (`hardware key 0x89`), which the engine always consumes in Korean. Every `key in` line in the
+log was from an English mode. So after the switch into Korean, Chrome no longer sent keys to the
+input method and typed them through the Korean layout itself. Switching into English (英数) didn't
+break delivery: keys right after it were logged.
+
+The switch keys selected the target mode with `TISSelectInputSource`, **from the input method's own
+process**. The code already knew this could go wrong ("selecting it from inside handle(_:client:)
+can cut the open session off (Terminal then gets the keys itself)") and only moved the call after
+the key. IMK has a call for exactly this, `-[IMKTextInput selectInputMode:]` (Swift
+`selectMode(_:)`, `IMKInputSession.h`: "allows an input method to change its mode directly"),
+which switches through the app's session rather than around it. JIS Korean never used it.
+
+The same log shows a race: after カタカナ, a late "macOS selected A_QWERTY" notice (of the 英数
+switch before it) arrived before the async select ran, and since `pending` was only set inside that
+async block, the mode bounced A → A_QWERTY → A.
+
+Fix (the commit after `a311669`):
+
+- With one of JIS Korean's modes selected and the field's session at hand (英数, カタカナ, F18 in a
+  JIS Korean field), the mode is selected through the session: `client.selectMode(sourceID)`.
+  `TISSelectInputSource` is kept only for coming from another input source (ABC, Japanese), where
+  there is no session of ours, and for the public API.
+- `InputModes.expect(mode)` records the pending selection synchronously, when the field switches,
+  so a notice of an earlier selection can't put the mode back.
+- A line `selected <mode> in the session in <app>` is logged for each such switch.
+
+Confirmed 2026-10-23 by typing in Chrome after カタカナ: `selected A in the session in com.google.Chrome`,
+then `key in com.google.Chrome: consumed true, engine mode 0, …` for every key, no bare jamo.
+
+## The first fix (`d8d9577`)
 
 - **`syncMode` re-names the field's mode's layout** when the app's last-named layout differs, engine
   mode or not. `KeyboardViewerLayout` now tracks the named layout **per app** and forgets it on

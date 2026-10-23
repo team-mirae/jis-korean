@@ -365,7 +365,7 @@ final class JKInputController: IMKInputController {
             // In a Korean mode it selects that mode again: macOS shows the input source under the
             // caret, confirming Korean. Nothing unconfirmed is committed then.
             if !inEnglish {
-                if !event.isARepeat { selectLater(InputModes.current) }
+                if !event.isARepeat { selectLater(InputModes.current, client) }
                 return true
             }
             target = InputModes.lastKorean
@@ -383,7 +383,7 @@ final class JKInputController: IMKInputController {
             // round trip; macOS is told afterwards, for the menu bar and the next field.
             flush(client)
             applyMode(target, client: client)
-            selectLater(target)
+            selectLater(target, client)
         }
         return true
     }
@@ -394,20 +394,21 @@ final class JKInputController: IMKInputController {
     func koreanKeyFromTap() {
         guard let client = client() as IMKTextInput? else { return }
         if InputModes.current.korean && modeID == InputModes.current.id {
-            selectLater(InputModes.current)
+            selectLater(InputModes.current, client)
             return
         }
         // English, or this field's engine didn't follow an earlier switch: Korean, in place.
         let target = InputModes.current.korean ? InputModes.current : InputModes.lastKorean
         guard InputModes.isEnabled(target) else { return }
         applyMode(target, client: client)
-        selectLater(target)
+        selectLater(target, client)
     }
 
     /// Selects `mode`'s input source once the key being handled is done: selecting it from inside
     /// handle(_:client:) can cut the open session off (Terminal then gets the keys itself).
-    private func selectLater(_ mode: InputModes.Mode) {
-        DispatchQueue.main.async { InputModes.select(mode) }
+    private func selectLater(_ mode: InputModes.Mode, _ client: IMKTextInput?) {
+        InputModes.expect(mode)
+        DispatchQueue.main.async { InputModes.select(mode, in: client) }
     }
     #endif
 

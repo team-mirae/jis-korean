@@ -1086,7 +1086,12 @@ that go back to Korean go to the Korean mode used last.
   one input method stays in the same process and the same session with the app, which is how
   Japanese switches between Kana and Romaji.
 - **Selecting is asynchronous.** The field switches in place first (its engine and its app's
-  layout), then macOS is asked to select the mode's input source. Until macOS reports that, it
+  layout), then the mode is selected: through the field's own session (`selectInputMode:`, IMK's
+  way for an input method to change its mode) when one of JIS Korean's modes is selected, and with
+  `TISSelectInputSource` only when coming from another input source. Selected through TIS from the
+  input method's own process, Chrome's session was cut off and Chrome typed every key through the
+  layout itself, as bare jamo. The selection counts as made from the moment of the switch: until
+  macOS reports it, it
   still names the old source, so a field activated meanwhile (Chrome activates its fields out of
   order) counts the selection as made instead of reverting to the old mode, which every other field
   would then follow. macOS's notice of a selection is taken even while the input method's

@@ -1,4 +1,5 @@
 import Carbon
+import InputMethodKit
 import Cocoa
 
 /// JIS Korean's modes (spec §3.6) as macOS input modes: one input source per engine mode, the way
@@ -65,18 +66,34 @@ enum InputModes {
         return ([last].compactMap { $0 } + english).first { !$0.korean && isEnabled($0) }
     }
 
-    /// Selects a mode's input source, as the input menu would: `noErr`, `paramErr` if it isn't added
-    /// in System Settings, or macOS's own error (logged).
+    /// Notes that JIS Korean is about to select `mode`: until macOS reports it, selectedNow() still
+    /// names the source being left, and `selected()` answers with the target instead. Call it when
+    /// the switch happens, not when the selection is sent: a notice of an earlier selection that
+    /// arrives in between would otherwise put the mode back.
+    static func expect(_ mode: Mode) {
+        if pending?.target.sourceID == mode.sourceID, let pending, Date() <= pending.until { return }
+        pending = (target: mode, from: selectedNow()?.sourceID, until: Date().addingTimeInterval(2))
+    }
+
+    /// Selects a mode's input source: `noErr`, `paramErr` if it isn't added in System Settings, or
+    /// macOS's own error (logged). With one of ours selected and the session of the field being
+    /// typed in, the session switches (`selectInputMode`, IMK's way for an input method to change
+    /// its own mode). Selecting through TIS from the input method's own process can cut the app's
+    /// session off: the app then types the keys itself, through the Korean layout, as bare jamo
+    /// (docs/troubleshooting/macos-bare-jamo-in-chrome.md). TIS is for coming from another source.
     @discardableResult
-    static func select(_ mode: Mode) -> OSStatus {
+    static func select(_ mode: Mode, in client: IMKTextInput? = nil) -> OSStatus {
         let query = [kTISPropertyInputSourceID as String: mode.sourceID] as CFDictionary
         guard let source = (TISCreateInputSourceList(query, false)?.takeRetainedValue() as? [TISInputSource])?.first else {
             DiagnosticLog.note("selecting \(mode.letter) failed: not added in System Settings")
             return OSStatus(paramErr)
         }
-        // Remember the source we're leaving: until macOS reports the switch, selectedNow() still
-        // names it, and `selected()` answers with the target instead.
-        pending = (target: mode, from: selectedNow()?.sourceID, until: Date().addingTimeInterval(2))
+        expect(mode)
+        if let client, selectedNow() != nil {
+            client.selectMode(mode.sourceID)
+            DiagnosticLog.note("selected \(mode.letter) in the session in \(client.bundleIdentifier() ?? "?")")
+            return noErr
+        }
         let status = TISSelectInputSource(source)
         if status != noErr {
             pending = nil
