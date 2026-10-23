@@ -25,12 +25,13 @@ For a keyboard whose firmware can be remapped, see
 | Left ◇ (⌥) | カタカナ (`japanese_pc_katakana`) → Korean | ⌥ |
 | Left ◆ (⌘) | 英数 (`japanese_eisuu`) → English | ⌘ |
 | Right ◆ (⌘) | かな (`japanese_kana`) → Japanese, handled by macOS | ⌘ |
+| Right ◇ (⌥) | | Fn, a second one, where an HHKB JIS has it |
 | Right Shift | ろ (`international1`), where JIS has it: right of / | Shift |
 | `\` (top row, left of `` ` ``) | ¥ (`international3`), where JIS has it: left of Backspace | |
 | Delete (right of `]`) | JIS ] (`backslash`): ] in Mode A, む in Kana | |
 | `` ` `` (top right) | Backspace, where an HHKB JIS has it | |
 
-A tap is a press and release with no other key in between. F6–F10 are the HHKB's own Fn+6 to Fn+0.
+A tap is a press and release with no other key in between. F6–F10 are Fn+6 to Fn+0, with either Fn.
 
 **Backspace and む swap places.** An HHKB US has no key for JIS's ] (む in Kana), so it takes
 Delete's place, and Backspace moves to the top-right key. That's where both are on an HHKB JIS, and
@@ -45,6 +46,28 @@ of the recommended one. It's easy to switch back and forth.
 The other caps type the JIS key at their position, as on any ANSI board seen as JIS: the HHKB's
 `[` `]` type JIS's @ [, `=` types ^, and `'` types :. See section 4 of
 [the 87-key guide](../mac-ansi-87-key-recommended/README.md#4-what-the-ansi-caps-type-as-jis).
+
+## The Fn layer
+
+The HHKB's Fn layer is in its firmware: Fn never reaches the computer, and Fn+6 arrives as a plain
+F6. Right ◇ becomes a second Fn key, where an HHKB JIS has its Fn. Karabiner can't use the HHKB's
+firmware layer, so the rule sends each of the HHKB US Fn layer's keys itself:
+
+| Fn + | Sends |
+|---|---|
+| 1 … 0, -, = | F1 … F12 (F6–F10: 한글, 한자, 두벌식, 전각, 반각) |
+| `\` / `` ` `` | Insert / forward Delete |
+| Tab | Caps Lock |
+| I / O / P | Print Screen / Scroll Lock / Pause, or with the Mac extras ⌘⇧4 / Scroll Lock / Play/Pause |
+| [ ; ' / | ↑ ← → ↓ |
+| K L , . | Home, Page Up, End, Page Down |
+| H J N M | keypad * / + − |
+| Return | keypad Enter |
+| A S D F | volume down, volume up, mute, eject |
+
+The rule file has two versions: **[Fn: standard]**, the HHKB's own keys, and **[Fn: Mac extras]**,
+with ⌘⇧4 (a screenshot of a selection) on I and Play/Pause on P, since macOS mostly ignores Print
+Screen and Pause. Enable one, not both. Fn+Esc (power) is left out.
 
 ## Setup
 
@@ -61,10 +84,15 @@ The other caps type the JIS key at their position, as on any ANSI board seen as 
 
 3. **The rules.** Copy [hhkb-pro-bt-as-jis.json](hhkb-pro-bt-as-jis.json) to
    `~/.config/karabiner/assets/complex_modifications/`, then Karabiner-Elements → Complex
-   Modifications → Add predefined rule. Enable the **[required]** rule, and one of the two
-   others: **[recommended]** (JIS ] on Delete, Backspace on `` ` ``) or **[alternative]** (JIS ] on
-   `` ` ``, Delete stays Backspace). Never both. They only act on the HHKB Pro BT (vendor 1278,
-   product 514).
+   Modifications → Add predefined rule. Enable:
+   - the **[required]** rule;
+   - **[recommended]** (JIS ] on Delete, Backspace on `` ` ``) or **[alternative]** (JIS ] on
+     `` ` ``, Delete stays Backspace), not both;
+   - **[Fn: standard]** or **[Fn: Mac extras]**, not both, **above** the others in the list.
+     Karabiner uses the first rule that matches, so below them Fn+`` ` `` and Fn+`\` would type
+     Backspace and ¥.
+
+   They only act on the HHKB Pro BT (vendor 1278, product 514).
 4. **Karabiner → Devices:** turn on **Modify events** for the HHKB Pro BT.
 5. Restart JIS Korean so it reads the keyboards again: `pkill -x JISKorean`.
 

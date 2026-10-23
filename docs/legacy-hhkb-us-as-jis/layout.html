@@ -411,7 +411,7 @@ footer {
 <main>
   <header>
     <h1>JIS Korean on an HHKB US</h1>
-    <p class="lede">Mode A, JIS Korean's original layout, on an HHKB Professional BT (US) seen as a JIS keyboard through Karabiner-Elements: カタカナ, 英数, かな and ろ on a tap of the modifiers, ¥ and JIS's ] on the keys the HHKB has to spare, and Backspace top right as on an HHKB JIS (README.md).</p>
+    <p class="lede">Mode A, JIS Korean's original layout, on an HHKB Professional BT (US) seen as a JIS keyboard through Karabiner-Elements: カタカナ, 英数, かな and ろ on a tap of the modifiers, ¥ and JIS's ] on the keys the HHKB has to spare, and Backspace top right and a second Fn on right ◇, as on an HHKB JIS (README.md).</p>
   </header>
 
   <section class="mode" aria-labelledby="base">
@@ -435,21 +435,28 @@ footer {
       <div><dt>¥ and JIS's ]</dt><dd>The HHKB's <kbd>\</kbd> is ¥ (— and ^), left of Backspace as on JIS. Delete is JIS's ] (] and 」, む in Kana), the key an HHKB US lacks.</dd></div>
       <div><dt>Backspace top right</dt><dd>On <kbd>`</kbd>, as on an HHKB JIS. Fn+<kbd>`</kbd> is still forward Delete. An alternative rule keeps Delete as Backspace and puts ] on <kbd>`</kbd>.</dd></div>
       <div><dt>The caps move by one</dt><dd>JIS has @ [ where ANSI has [ ], so the HHKB's <kbd>[</kbd> <kbd>]</kbd> type Mode A's ' " and [ 「, and <kbd>'</kbd> types JIS's : key.</dd></div>
-      <div><dt>F6–F10</dt><dd>The HHKB's own Fn+6 to Fn+0: 한글, 한자, 두벌식, 전각, 반각. Shift+Z is F10 too.</dd></div>
+      <div><dt>Right ◇ is Fn</dt><dd>Held, it's a second Fn key, where an HHKB JIS has one. F6–F10 (한글, 한자, 두벌식, 전각, 반각) are Fn+6 to Fn+0, and Shift+Z is F10 too.</dd></div>
     </dl>
   </section>
 
   <section class="mode" aria-labelledby="fn">
     <div class="mode-head">
       <span class="eyebrow">Fn</span>
-      <h2 id="fn">The HHKB's Fn layer</h2>
-      <span class="subtitle">Unchanged; only what JIS Korean uses is drawn</span>
+      <h2 id="fn">Fn layer</h2>
+      <span class="subtitle">Hold the HHKB's Fn, or right ◇</span>
     </div>
     <div class="board"><div class="plate" id="board-fn" role="img" aria-label="The HHKB's Fn layer"></div></div>
     <div class="swatches">
       <span class="swatch"><i class="fn"></i>Function keys</span>
-      <span class="swatch"><i class="blank"></i>The HHKB's own (arrows, media, Caps Lock)</span>
+      <span class="swatch"><i class="sym"></i>Navigation, keypad and media</span>
+      <span class="swatch"><i class="blank"></i>Nothing</span>
+      <span>I and P: the Mac extras version (the standard one in small: Print Screen, Pause)</span>
     </div>
+    <dl class="notes">
+      <div><dt>Two Fn keys</dt><dd>The HHKB's own Fn is in its firmware. Right ◇ is a second one, made by Karabiner, where an HHKB JIS has its Fn. It sends the same keys as the HHKB US Fn layer, so the layer doesn't depend on the firmware.</dd></div>
+      <div><dt>Mac extras, or standard</dt><dd>One version of the rule puts ⌘⇧4 on I and Play/Pause on P; the other keeps Print Screen and Pause, which macOS mostly ignores.</dd></div>
+      <div><dt>F6–F10</dt><dd>한글, 한자, 두벌식, 전각 and 반각 on Fn+6 to Fn+0, from either Fn.</dd></div>
+    </dl>
   </section>
 
   <footer>From docs/spec.md §2, §3, §6 and §8.2.1, and hhkb-pro-bt-as-jis.json.</footer>
@@ -479,18 +486,22 @@ const base = [
     ["ㅜ", null, "N"], ["ㅡ", null, "M"], [",", null, ",", "sym"], [".", null, ".", "sym"],
     ["·", null, "/", "sym"], ["ろ", "Shift", "", "switch", 1.75], S("Fn")],
   [1.5, ["カタカナ", "⌥", "", "switch"], ["英数", "⌘", "", "switch", 1.5], S("Space", 6),
-    ["かな", "⌘", "", "switch", 1.5], S("⌥")],
+    ["かな", "⌘", "", "switch", 1.5], ["Fn", "hold", "", "switch"]],
 ];
 
 const F = (n, label) => ["F" + n, label, "F" + n, "fn"];
+const N = (label, small = null) => [label, small, "", "sym"];
 const fnLayer = [
   [B(), F(1), F(2), F(3), F(4), F(5), F(6, "한글"), F(7, "한자"), F(8, "두벌식"), F(9, "전각"), F(10, "반각"), F(11), F(12),
-    B(), ["Del", null, "", "stock mod"]],
-  [B(1.5), ...Array(12).fill(0).map(() => B()), B(1.5)],
-  [B(1.75), ...Array(11).fill(0).map(() => B()), B(2.25)],
-  [B(2.25), ...Array(10).fill(0).map(() => B()), B(1.75), ["Fn", null, "", "switch"]],
-  [1.5, B(), B(1.5), B(6), B(1.5), B()],
+    N("Ins"), N("Del")],
+  [N("Caps", null), B(), B(), B(), B(), B(), B(), B(), N("⌘⇧4", "PrtSc"), N("ScrLk"), N("▶︎❚❚", "Pause"), N("↑"), B(), B(1.5)],
+  [B(1.75), N("Vol−"), N("Vol+"), N("Mute"), N("⏏"), B(), N("*"), N("/"), N("Home"), N("PgUp"), N("←"), N("→"), N("Enter", "keypad")],
+  [B(2.25), B(), B(), B(), B(), B(), N("+"), N("−"), N("End"), N("PgDn"), N("↓"), B(1.75), ["Fn", null, "", "switch"]],
+  [1.5, B(), B(1.5), B(6), B(1.5), ["Fn", null, "", "switch"]],
 ];
+// Tab is 1.5 units and Return 2.25: give those two keys their widths.
+fnLayer[1][0].push(1.5);
+fnLayer[2][fnLayer[2].length - 1].push(2.25);
 
 function span(cls, text) {
   const s = document.createElement("span");
