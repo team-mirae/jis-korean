@@ -163,3 +163,10 @@ ones, not the ones on the caps: Shift+2 is `"`, for example.
   under your left hand, while on a real JIS board ろ is at the right end of the bottom letter row.
   If you plan to type on a JIS board too, that habit gets in the way. It isn't recommended, but it's
   possible, and makes typing easier in the short term.
+- **The number row shifted one key to the left.** On layer 0, `` ` `` sends 1, 1 sends 2, and so on:
+  9 sends 0, 0 sends `-` (JIS −) and `-` sends `=` (JIS ^). That frees the `=` key, left of
+  Backspace, for ¥ (`KC_JYEN`), where JIS boards have it. In Japanese Kana it types ー, and in Mode A
+  — and ^. This guide leaves it out on purpose too. It only matches a MacBook JIS keyboard, whose
+  number row starts at 1 with no key to its left. Windows JIS boards have 半角/全角 there, and other
+  layouts have their digits one key further right, so you'd reach for the wrong key when typing
+  numbers on them. Possible, but not recommended.
