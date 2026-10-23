@@ -392,6 +392,6 @@ Where the platform behavior in the code and docs comes from.
 </p>
 
 <p align="center">
-  <sub>JIS Korean is a project of <b>Mirae Research</b>, a business, which holds its copyright.<br>
+  <sub>JIS Korean is a project of <b>Mirae Research</b>, a business.<br>
   <b>Min Jun Sung</b> is the project's lead developer.</sub>
 </p>
