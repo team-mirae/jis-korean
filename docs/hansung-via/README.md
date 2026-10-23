@@ -27,13 +27,28 @@ keymap commands, the same ones Hansung's driver uses, so both keep working on th
 Actuation, Rapid Trigger, DKS, calibration, ModTap/Toggle keys, polling rate, and firmware
 updates. VIA doesn't know Hansung's commands for them.
 
-## What VIA adds
+## What VIA adds, and what the firmware does with it
 
-VIA's key picker has every QMK keycode, including the ones Hansung's picker leaves out: カタカナ
-(`KC_INT2`), ¥ (`KC_INT3`), ろ (`KC_INT1`), and **Any** for typing a keycode such as
-`LT(1,KC_F18)` or `LGUI_T(KC_LNG2)` (tap 英数, hold ⌘). Whether the firmware acts on each of them
-isn't known yet: it's Hansung's own firmware on a Nuvoton chip, not QMK, and it may store a keycode
-it doesn't act on. Hansung's driver offers `LT` from firmware 4.4, so layer-tap should work;
-mod-tap (`MT`, `LGUI_T`) and the International keys need testing on the board.
+VIA's key picker has every QMK keycode, including the ones Hansung's picker leaves out, and **Any**
+for typing a keycode. The keyboard stores any of them. Hansung's firmware isn't QMK, though (it runs
+on a Nuvoton chip), and acts on some of them differently. Tested on the XF:
 
-Tested on firmware 5.9.2 (read with Hansung's version command, 0xF0), which reports 4 layers.
+| Keycode | Result |
+|---|---|
+| Plain keys, `LGUI(LSFT(KC_4))` (⌘⇧4) and other modifier combos | Work |
+| `LT(1,KC_KANA)` (tap カタカナ, hold Fn) | Works |
+| `MO(1)` | Works |
+| `KC_INT1` ろ, `KC_INT2` カタカナ, `KC_INT3` ¥ | Work (with macOS seeing the board as JIS) |
+| `KC_LNG1` (かな), `KC_LNG2` (英数) | Work |
+| `KC_INT4` 変換, `KC_INT5` 無変換, `KC_LNG3`–`KC_LNG5` | Sent, but macOS turns none of them into 英数 |
+| **`MT()` / `LGUI_T()` and the other mod-taps** | **Broken.** Held, they add right Shift to the modifier (`LGUI_T` + Tab is ⌘⇧Tab, `LCTL_T` + Tab is ⌃⇧Tab). Tapped, the tap key goes out with the modifier still held (tapping `LCTL_T(KC_Z)` sends ⌃Z). |
+
+The mod-tap behaviour fits the firmware reading the keycode's upper byte (0x20–0x3F) as a raw USB
+modifier byte, where 0x20 is right Shift, and pressing the modifier as soon as the key goes down.
+Making macOS ignore right Shift from the keyboard (`hidutil`, with the keyboard's own right Shift
+set to left Shift) fixes the hold, but not the tap, so there's no workaround in firmware. Use
+layer-tap for tap vs hold, or plain keys; for a key that taps 英数 and holds ⌘, use Karabiner, as
+in [the HHKB](../legacy-hhkb-us-as-jis/README.md) and [MacBook](../macbook-us-as-jis/README.md)
+guides.
+
+All of this was on firmware 5.9.2 (read with Hansung's version command, 0xF0), with 4 layers.
