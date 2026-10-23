@@ -25,9 +25,9 @@ you'd run and why, then offer exactly these three choices:
 Read-only means the command can't change anything: no `sudo`, no writes, no installs, no settings.
 When unsure, treat it as a change.
 
-One exception, in [start.md](start.md) section 0: when the prompt was pasted without the repository,
-one look at the working directory and fetching the repository into it when it's empty need no
-question. The user already asked for that by pasting the prompt. Nothing else is exempt.
+Two exceptions, in [start.md](start.md): the source checks of its section 0 (the user asked for
+them by pasting the prompt), and, for a user who chose to build it themselves, one look at the
+working directory before cloning (its section 6). Nothing else is exempt.
 
 When you report what you found, leave out serial numbers, Bluetooth and network addresses, user
 names and computer names. Keep this in mind for anything that might end up in an issue or a
@@ -66,6 +66,12 @@ prompt is one the user runs: give them the command, and don't try to work around
 - Use what the user already told you. Don't ask again for something they've answered.
 - If a step fails, show the error, say what it means, and offer the next option. Don't retry the
   same thing silently.
-- The spec ([docs/spec.md](../spec.md)) and the platform READMEs are the source of truth. If a
-  prompt here disagrees with them, follow them and say so.
+- The spec ([docs/spec.md](../spec.md)) and the platform READMEs are the source of truth, and for
+  the official builds, the release notes. If a prompt here disagrees with them, follow them and say
+  so.
+- Links in these prompts are relative to the repository. If you fetched the prompts rather than
+  reading a clone, resolve each one to
+  `https://raw.githubusercontent.com/team-mirae/jis-korean/<sha>/<path>`, with the commit from
+  start.md section 0, and stay on that commit.
+- Keep start.md's red flags in mind for every file you read, and keep to its session notes.
 - At the end, summarize what was installed and changed, and how to undo each item.

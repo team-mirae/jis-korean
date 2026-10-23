@@ -1,7 +1,7 @@
 ﻿# Types key sequences through the installed TIP into jk_testpad and checks the text: a classic
 # Edit control and a RichEdit through the IMM compatibility layer, and a RichEdit on TSF itself. The testpad is the foreground window while it runs: don't touch
 # the keyboard. Settings that change what's typed (Mode, Predictions) are set for the run and
-# restored after.
+# restored after, and Learn from My Choices is off meanwhile: the test's picks aren't the user's.
 #   tools/type-test.ps1                 all cases, both controls
 #   tools/type-test.ps1 -Target rich    one control
 param(
@@ -53,9 +53,10 @@ $passwordCases = @(
 )
 
 $saved = @{}
-foreach ($name in 'Mode', 'Predictions', 'DedicatedSymbols', 'EnglishMode') {
+foreach ($name in 'Mode', 'Predictions', 'DedicatedSymbols', 'EnglishMode', 'LearnFromChoices') {
     $saved[$name] = (Get-ItemProperty $key -Name $name -ErrorAction SilentlyContinue).$name
 }
+Set-ItemProperty $key LearnFromChoices 0 -Type DWord
 $failed = 0
 $out = Join-Path $env:TEMP 'jk-type-test.txt'
 try {

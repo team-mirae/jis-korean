@@ -19,3 +19,9 @@ node_modules
 # Imported by minecraft/tools/mirae (see its README).
 /minecraft/tools/mirae/data
 __pycache__/
+
+# Other repositories cloned alongside this one (e.g. keyboard-troubleshooting)
+/external/
+
+# Local backups of the README while it is being redesigned
+/README.bak.md

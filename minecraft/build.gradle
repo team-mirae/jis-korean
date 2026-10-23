@@ -112,6 +112,11 @@ jar {
 	from("../engine/predict/LICENSE-wordnet.txt")
 	// …and on colloquial corpora and business term lists (word counts only).
 	from("../engine/predict/LICENSE-corpora.txt")
+	// The hanja readings come partly from Unicode's Unihan database.
+	from("../engine/dict/LICENSE-unicode.txt")
+	// Chicory (bundled, Apache-2.0) and the Mirae plugin's commands (MIT). ATTRIBUTIONS.md, in
+	// src/main/resources, lists everything the jar carries.
+	from("licenses")
 }
 
 // In-game tests: boots the real client, opens chat in a test world and has a robot type through

@@ -23,7 +23,40 @@ so each process maps one copy from the image. It links the static CRT: it loads 
 and can't count on a VC++ runtime being installed. The engine is built with its `english` feature,
 for ABC's English layouts (spec §8.4).
 
-## Install
+## Installer
+
+```powershell
+tools/package.ps1             # builds x64 + x86, full and lite, then build/dist/JISKorean-<version>-setup.exe
+tools/package.ps1 -SkipBuild  # package what's in build/ already
+```
+
+The installer users download: one wizard (Welcome, Licence, Full or Lite, the starting mode,
+progress, Finish) that does what `tools/install.ps1` does and nothing more. It asks for UAC once,
+copies both DLLs to `Program Files\JIS Korean` (moving a DLL a running app holds aside, as the
+script does), registers them, adds JIS Korean to the installing user's Korean keyboards (adding
+Korean if it isn't there, without removing anything), and registers an uninstaller in Apps &
+features. Running a newer installer over an older one, or over a development install, upgrades
+it in place and keeps the user's settings. The mode page only shows for a user with no `Mode`
+yet. The uninstaller keeps `%APPDATA%\JIS Korean` unless its box is ticked, and leaves
+`HKCU\Software\JIS Korean` (the settings) as the script does. Setup changes the language list
+as the user who ran it; the uninstaller can only do it as the account it was elevated as, so a
+user who uninstalls with another administrator's password keeps a dead entry in their list.
+Silent installs:
+`JISKorean-<version>-setup.exe /VERYSILENT /VARIANT=lite /MODE=B` (`/VARIANT=full|lite`,
+`/MODE=A|B|C`).
+
+It's [Inno Setup 6](https://jrsoftware.org/isinfo.php) (`installer/jiskorean.iss`): free,
+builds from the command line (`winget install JRSoftware.InnoSetup`), and its wizard pages, the
+uninstall question and the steps that must run as the user rather than elevated (the language
+list, `installer/keyboards.ps1`) are a few lines of script each, where an MSI would need custom
+actions for all of them. The version comes from the engine's `Cargo.toml`, as in `CMakeLists.txt`.
+
+**Signing** is off by default. Set `JK_SIGN_CERT` to a `.pfx` file (and `JK_SIGN_PASSWORD`, and
+`JK_SIGN_TIMESTAMP` to change the timestamp server) and `package.ps1` signs the DLLs, the
+installer and its uninstaller with `signtool`. Unsigned installers get a SmartScreen warning
+("Windows protected your PC" → More info → Run anyway).
+
+## Development install
 
 ```powershell
 tools/install.ps1             # admin (UAC): copy to Program Files\JIS Korean, register x64 + x86,
@@ -145,7 +178,8 @@ What the shell does differently from what TSF's documentation suggests, and why,
 | `src/registration.*`, `src/dllmain.cpp` | COM and TSF registration (`regsvr32`) |
 | `src/guids.h` | **Permanent** GUIDs: they end up in users' registries and language lists. Never change them |
 | `tests/main.cpp`, `tests/testpad.cpp` | Shell tests, and the test window |
-| `tools/` | `build.ps1`, `install.ps1`, `type-test.ps1`, `dev.ps1` (a VS developer shell), `make-icons.py` |
+| `installer/` | The installer (`jiskorean.iss`) and its per-user step (`keyboards.ps1`) |
+| `tools/` | `build.ps1`, `package.ps1`, `install.ps1`, `type-test.ps1`, `dev.ps1` (a VS developer shell), `make-icons.py` |
 
 ## Passwords and screen recording
 
