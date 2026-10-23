@@ -40,8 +40,11 @@ the Rust library or the Swift binary and no model in the bundle (about 140 KB sm
 Requirements: Rust with the `aarch64-apple-darwin` and `x86_64-apple-darwin` targets.
 
 After the first `make install`, add it in **System Settings → Keyboard → Input Sources → Edit →
-+ → Korean → JIS Korean**. After later installs it reloads by itself, since `make install`
-quits the running copy. If it doesn't show up in the list, log out and back in once.
++ → Korean → JIS Korean**. After later installs, newly opened apps use the new build at once, but
+apps that were already running keep talking to the old one until you remove JIS Korean there and
+add it back, quit and reopen the app, or log out and back in
+([why](../docs/troubleshooting/macos-input-method-not-launching.md)). If it doesn't show up in the
+list, log out and back in once.
 
 ## Modes and the public API (spec §3.6, §8.2)
 
@@ -105,7 +108,11 @@ key repeats it. In terminals ⌥ goes to the app untouched.
 Switching stays inside JIS Korean: 英数 always goes to English; **カタカナ** (the Windows JIS key
 right of the space bar) and **F18** always go to Korean, from any app or input source. JIS Korean
 asks for **Input Monitoring** (macOS turns カタカナ into かな, so it reads the keyboard itself) and
-**Accessibility** (to catch the keys before apps such as iTerm, which keeps F-keys). The input
+**Accessibility** (to catch the keys before apps such as iTerm, which keeps F-keys). The keys are
+caught inside JIS Korean's own process, so `make install ENGLISH=1` also installs a login agent
+(`~/Library/LaunchAgents/me.sjun.inputmethod.JISKorean.login.plist`) that starts it in the
+background at login; without it they'd do nothing after a login until JIS Korean was selected once.
+The input
 menu's **Korean Key (Back to Korean)** picks F13–F19 or none, or any key code with
 `defaults write me.sjun.inputmethod.JISKorean KoreanKey -int <code>`. Every other key types as on
 ABC, Shift+Z, Shift+X, F9, F10 and Caps Lock included. かな is left to macOS, which selects Japanese.

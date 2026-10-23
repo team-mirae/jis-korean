@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!-- Starts JIS Korean in the background at login (installed by `make install ENGLISH=1`). The カタカナ
+     and Korean Key (F18) tap runs in the input method's process, which macOS otherwise starts only
+     once JIS Korean is selected in some app, so after a login the keys would do nothing until then.
+     `open -b` launches it the way the text system does, through LaunchServices. -->
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>me.sjun.inputmethod.JISKorean.login</string>
+    <key>ProgramArguments</key>
+    <array>
+        <string>/usr/bin/open</string>
+        <string>-g</string>
+        <string>-b</string>
+        <string>me.sjun.inputmethod.JISKorean</string>
+    </array>
+    <key>RunAtLoad</key>
+    <true/>
+</dict>
+</plist>

@@ -5,6 +5,7 @@
 #                        JIS Colemak; spec §3.6.2, §3.6.4):
 #                        build/full-english/JISKorean.app (combines with PREDICT=0: lite-english)
 #   make install         copy it to ~/Library/Input Methods, register it, and restart it
+#                        (with ENGLISH=1, also a login agent that starts it at login)
 #   make dist            build/<variant>/JISKorean-<version>[-lite].zip for a release
 
 # 1: with prediction (engine `predict` feature, spec §10). 0: the lean deterministic engine only.
@@ -36,6 +37,7 @@ BUILD      := build/$(VARIANT)
 APP        := $(BUILD)/JISKorean.app
 TARGET_DIR := $(ENGINE)/target/mac-$(VARIANT)
 INSTALL_TO := $(HOME)/Library/Input Methods
+LOGIN_AGENT := $(HOME)/Library/LaunchAgents/me.sjun.inputmethod.JISKorean.login.plist
 MIN_MACOS  := 13.0
 SOURCES    := $(wildcard Sources/*.swift)
 CARGO      := $(shell command -v cargo || echo $(HOME)/.cargo/bin/cargo)
@@ -191,12 +193,20 @@ install: $(APP)
 		$(LSREGISTER) -u "$(CURDIR)/$$app" 2>/dev/null || true; done
 	$(LSREGISTER) -f "$(INSTALL_TO)/JISKorean.app"
 	swift tools/register.swift "$(INSTALL_TO)/JISKorean.app"
+ifeq ($(ENGLISH),1)
+	@# Start it at login: the カタカナ / F18 tap lives in its process, which macOS otherwise starts only
+	@# once JIS Korean is selected somewhere (tools/login-agent.plist).
+	mkdir -p "$(dir $(LOGIN_AGENT))"
+	cp tools/login-agent.plist "$(LOGIN_AGENT)"
+else
+	rm -f "$(LOGIN_AGENT)"
+endif
 
 # To reinstall, run install alone: uninstall first leaves the input source broken in running apps
 # until it is removed and re-added in System Settings.
 uninstall:
 	@killall JISKorean 2>/dev/null || true
-	rm -rf "$(INSTALL_TO)/JISKorean.app" "$(LAYOUTS_TO)/JISKorean.bundle"
+	rm -rf "$(INSTALL_TO)/JISKorean.app" "$(LAYOUTS_TO)/JISKorean.bundle" "$(LOGIN_AGENT)"
 
 VERSION := $(shell plutil -extract CFBundleShortVersionString raw Info.plist)
 
