@@ -1,8 +1,8 @@
 # CodeQL code scanning (advanced setup). The ruleset on main requires its results.
 #
-# Every language is scanned without a build except Swift: CodeQL has to watch the Swift compiler,
-# and its automatic build looks for an Xcode project or a Swift package, which the macOS shell
-# doesn't have (mac/Makefile builds it with swiftc). So Swift builds with `make`, as on a Mac.
+# Every language is scanned without a build except Swift, which CodeQL traces only through
+# `xcodebuild` or `swift build`. The Makefile calls swiftc, so Swift builds the macOS shell's
+# sources as a Swift package (mac/Package.swift), for one architecture, as GitHub recommends.
 # The default setup has to stay off while this workflow exists: GitHub rejects advanced results
 # while it's on.
 name: CodeQL
@@ -45,12 +45,8 @@ jobs:
             build-mode: manual
     steps:
       - uses: actions/checkout@v4
-      - uses: github/codeql-action/init@v4
-        with:
-          languages: ${{ matrix.language }}
-          build-mode: ${{ matrix.build-mode }}
-      # The macOS shell links the engine, a universal Rust static library, so Swift needs both
-      # Apple targets before `make` can compile it.
+      # Swift links the engine, a Rust static library. It's built before CodeQL starts, so the
+      # Rust build isn't traced.
       - if: matrix.build-mode == 'manual'
         uses: dtolnay/rust-toolchain@stable
         with:
@@ -59,12 +55,14 @@ jobs:
         uses: Swatinem/rust-cache@v2
         with:
           workspaces: engine
-      # /usr/bin/swiftc is an xcrun launcher that macOS protects (SIP), and macOS drops the library
-      # CodeQL injects to trace the build before running it, so CodeQL would see no Swift at all.
-      # The toolchain's own swiftc, first on PATH, keeps the tracer. It doesn't get the SDK the
-      # launcher would pass it, so SDKROOT names it.
       - if: matrix.build-mode == 'manual'
-        run: SDKROOT="$(xcrun --sdk macosx --show-sdk-path)" PATH="$(dirname "$(xcrun -f swiftc)"):$PATH" make -C mac
+        run: make -C mac ENGLISH=1 build/full-english/libjis_korean.a
+      - uses: github/codeql-action/init@v4
+        with:
+          languages: ${{ matrix.language }}
+          build-mode: ${{ matrix.build-mode }}
+      - if: matrix.build-mode == 'manual'
+        run: swift build --package-path mac --arch arm64
       - uses: github/codeql-action/analyze@v4
         with:
           category: /language:${{ matrix.language }}

@@ -4,6 +4,7 @@ node_modules
 /web/src/engine.wasm
 .DS_Store
 /mac/build
+/mac/.build
 /engine/tests/data/samsung-business.txt
 /web/public/hanja.tsv
 /hhkb-migration
