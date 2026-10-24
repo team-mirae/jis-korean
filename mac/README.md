@@ -157,6 +157,7 @@ English modes under English.
 
 | File | What |
 |---|---|
+| `Package.swift` | The shell as a Swift package, for CodeQL only (code scanning traces Swift through `swift build`); it makes no app. Build with `make`. |
 | `Sources/main.swift` | Starts the `IMKServer`. |
 | `Sources/InputController.swift` | One controller and engine per text client: key events in, insert/marked text out, focus-loss commit, the "Enter commits" menu item. |
 | `Sources/KeyMap.swift` | macOS virtual key codes → engine key ids (spec §2). |
