@@ -185,6 +185,11 @@ fn english_word_with_a_particle_is_one_reading() {
     assert_eq!(top(&keys("RLHF", "KeyP")), ("RLHF에".into(), Kind::Mixed));
     assert_eq!(top(&keys("server", "KeyF KeyM KeyF")), ("server를".into(), Kind::Mixed));
     assert_eq!(top(&keys("server", "KeyM KeyF")), ("server을".into(), Kind::Mixed));
+    // An acronym before 를: the ending takes the ㄹ key too (API를, not APIf을), though 를 and f을
+    // are both one syllable.
+    for word in ["API", "ID", "GPU", "OS", "UI", "PDF", "USB"] {
+        assert_eq!(top(&keys(word, "KeyF KeyM KeyF")), (format!("{word}를"), Kind::Mixed), "{word}를");
+    }
 }
 
 #[test]

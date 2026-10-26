@@ -9,6 +9,7 @@
 //! same keystrokes under two key-trigram models (English spelling vs JIS Korean typing), trained by
 //! `minecraft/tools/build_ranker.py` into `engine/predict/ranker.bin`.
 
+use std::cmp::Reverse;
 use std::collections::{HashMap, HashSet};
 
 use crate::Dictionary;
@@ -746,10 +747,11 @@ impl Predictor {
             .iter()
             .filter(|s| self.is_ending(&s.korean))
             .filter(|s| s.english.chars().all(|c| c.is_ascii_alphabetic()) && s.english.len() >= 2)
-            .map(|s| (-self.start_margin(&s.english), s.korean.chars().count(), format!("{}{}", s.english, s.korean)))
+            .map(|s| (-self.start_margin(&s.english), Reverse(s.english.len()), format!("{}{}", s.english, s.korean)))
             .filter(|(start, _, _)| *start >= 99.0 || (*start >= SPLIT_START && *start - whole >= SPLIT_EDGE))
             // Among starts that are surely English (capitals: API를 against APIf을), the longer
-            // ending explains more of the keys.
+            // ending explains more of the keys. Counted in keys, not syllables: 를 and f을 are both
+            // one syllable.
             .max_by(|a, b| a.0.min(99.0).total_cmp(&b.0.min(99.0)).then(a.1.cmp(&b.1)))
             .map(|(start, _, text)| Prediction { text, kind: Kind::Mixed, score: start.max(english_score) + PARTICLE })
     }
