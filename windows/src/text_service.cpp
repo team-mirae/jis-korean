@@ -765,9 +765,8 @@ void TextService::ApplySettings() {
     const bool on = settings::ReadDword(L"Predictions", 1) != 0 &&
                     settings::AppPredicting(settings::ExeName());
     // Before the first key the predictor may still be loading (EnsureData sets it then).
-    const JkPredictor* predictor = on && data_ready_ ? training::Predictor() : nullptr;
-    jk_set_predictor(engine_, predictor);
-    predicting_ = predictor != nullptr;
+    predicting_ = on && data_ready_ && training::SetPredictor(engine_);
+    if (!predicting_) jk_set_predictor(engine_, nullptr);
     for (std::uint32_t id = 0; id < std::size(kWeightNames); ++id) {
         const std::wstring name = std::wstring(L"Weight.") + kWeightNames[id];
         if (auto value = settings::ReadString(name.c_str())) {

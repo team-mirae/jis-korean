@@ -124,17 +124,31 @@ bool Changed() {
     return exists ? applied != std::to_wstring(time) : applied.has_value();
 }
 
-const JkPredictor* Predictor() {
-    static std::mutex mutex;
-    static std::wstring words;  // the words `personal` was built with
-    static JkPredictor* personal = nullptr;
+namespace {
+
+std::mutex g_mutex;
+std::wstring g_words;  // the words `g_personal` was built with
+JkPredictor* g_personal = nullptr;
+
+}  // namespace
+
+bool SetPredictor(JkEngine* engine) {
     const std::wstring korean = settings::ReadString(kKoreanWords).value_or(L"");
     const std::wstring english = settings::ReadString(kEnglishWords).value_or(L"");
     const std::wstring avoidKorean = settings::ReadString(kKoreanAvoid).value_or(L"");
     const std::wstring avoidEnglish = settings::ReadString(kEnglishAvoid).value_or(L"");
-    if (korean.empty() && english.empty() && avoidKorean.empty() && avoidEnglish.empty()) return SharedPredictor();
+    if (korean.empty() && english.empty() && avoidKorean.empty() && avoidEnglish.empty()) {
+        // The shared predictor lives as long as the DLL.
+        const JkPredictor* shared = SharedPredictor();
+        jk_set_predictor(engine, shared);
+        return shared != nullptr;
+    }
     const std::wstring key = korean + L'\0' + english + L'\0' + avoidKorean + L'\0' + avoidEnglish;
-    std::lock_guard<std::mutex> lock(mutex);
+    // Set on the engine (which clones its reference) under the lock: another thread rebuilding
+    // the personal predictor frees the old one, and mustn't do it in between.
+    std::lock_guard<std::mutex> lock(g_mutex);
+    JkPredictor*& personal = g_personal;
+    std::wstring& words = g_words;
     if (!personal || key != words) {
         const std::string k = Narrow(korean), e = Narrow(english);
         JkPredictor* built = jk_predictor_with_words(
@@ -154,7 +168,16 @@ const JkPredictor* Predictor() {
         personal = built;
         words = key;
     }
-    return personal ? personal : SharedPredictor();
+    const JkPredictor* predictor = personal ? personal : SharedPredictor();
+    jk_set_predictor(engine, predictor);
+    return predictor != nullptr;
+}
+
+void Release() {
+    std::lock_guard<std::mutex> lock(g_mutex);
+    if (g_personal) jk_predictor_free(g_personal);
+    g_personal = nullptr;
+    g_words.clear();
 }
 
 void ApplyIfChanged(JkEngine* engine) {
@@ -218,7 +241,7 @@ void ApplyIfChanged(JkEngine* engine) {
     const json::Value* examples = json->Get("examples");
     if (examples && examples->type == json::Value::Type::kArray && !examples->array.empty()) {
         settings::WriteDword(L"LearnFromChoices", 1);
-        jk_set_predictor(engine, Predictor());
+        SetPredictor(engine);
         jk_set_learning(engine, 1);
         size_t n = 0;
         for (const json::Value& example : examples->array) {
