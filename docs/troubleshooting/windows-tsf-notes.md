@@ -80,6 +80,13 @@ Parsing the embedded hanja dictionary takes 80–110 ms and the predictor 16–3
 (measured). Both now load on a thread-pool thread when JIS Korean activates; the first key waits
 only if they aren't ready yet.
 
+Since 2026-10-27 that's only where predictions are on in the program: predictions read hanja
+readings from the dictionary, and the learned ranker uses them. Elsewhere (predictions off, the lite
+build) the dictionary is parsed at the first F7, on the UI thread (78 ms measured, once per
+process), so programs that never see F7 don't hold its 50 MB. Checked in the log: no "hanja
+dictionary loaded" line for `KeyG KeyK KeyS Space` with predictions off, one at the first F7, and one
+from the preload with predictions on.
+
 ## A key-down tested twice ran the engine twice (#5)
 
 **Symptom (reproduced).** `jk_testpad --peek 1 --probe 1` (a message loop that peeks each key and

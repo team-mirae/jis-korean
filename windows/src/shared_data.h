@@ -1,6 +1,7 @@
 // The hanja dictionary and the predictor, parsed once per process from the DLL's resources and
 // shared by every engine (they're immutable). Parsing takes about 100 ms (measured), so Preload
-// starts it on a thread-pool thread when JIS Korean activates; the getters wait for it if needed.
+// starts it on a thread-pool thread when JIS Korean activates, if predictions are on in this
+// program; the getters wait for it if needed. Otherwise the dictionary is parsed at the first F7.
 #pragma once
 
 #include "jis_korean.h"

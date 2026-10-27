@@ -149,8 +149,13 @@ TextService::TextService() : engine_(jk_new()) { DllAddRef(); }
 void TextService::EnsureData() {
     if (data_ready_) return;
     data_ready_ = true;
-    jk_set_dictionary(engine_, SharedDictionary());  // waits only if Preload hasn't finished
-    ApplySettings();                                 // the predictor, now that it's there
+    ApplySettings();  // the predictor (and with it the dictionary); waits only if Preload hasn't finished
+}
+
+void TextService::EnsureDictionary() {
+    if (dictionary_set_) return;
+    dictionary_set_ = true;
+    jk_set_dictionary(engine_, SharedDictionary());  // parsed now if nothing needed it before
 }
 
 TextService::~TextService() {
@@ -543,6 +548,7 @@ void TextService::HandleKey(ITfContext* context, unsigned vk, std::uint32_t key,
                             std::uint32_t mods, BOOL* eaten) {
     Settle();  // a queued session's refusal, before the engine sees the next key
     CheckOrphan();
+    if (key == JK_KEY_F7) EnsureDictionary();  // the first F7 in this program parses it
 #ifdef JK_PREDICT
     if (HandleList(context, vk, key, mods)) {
         *eaten = TRUE;
@@ -767,6 +773,7 @@ void TextService::ApplySettings() {
     // Before the first key the predictor may still be loading (EnsureData sets it then).
     predicting_ = on && data_ready_ && training::SetPredictor(engine_);
     if (!predicting_) jk_set_predictor(engine_, nullptr);
+    if (predicting_) EnsureDictionary();  // predictions read hanja readings from it
     for (std::uint32_t id = 0; id < std::size(kWeightNames); ++id) {
         const std::wstring name = std::wstring(L"Weight.") + kWeightNames[id];
         if (auto value = settings::ReadString(name.c_str())) {

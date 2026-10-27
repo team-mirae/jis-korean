@@ -69,15 +69,20 @@ bool RunInBackground(void (*job)()) {
 }
 
 void Preload() {
+#ifdef JK_PREDICT
     static std::once_flag once;
     std::call_once(once, [] {
+        // With predictions on in this program the dictionary is part of predicting (hanja
+        // readings, the learned ranker). Otherwise it's parsed at the first F7 (most programs
+        // never see one): 50 MB of text, about 100 ms, not in every process.
         RunInBackground([] {
-            SharedDictionary();
-#ifdef JK_PREDICT
-            if (settings::ReadDword(L"Predictions", 1)) SharedPredictor();
-#endif
+            if (settings::ReadDword(L"Predictions", 1) && settings::AppPredicting(settings::ExeName())) {
+                SharedPredictor();
+                SharedDictionary();
+            }
         });
     });
+#endif
 }
 
 const JkDict* SharedDictionary() {

@@ -111,7 +111,8 @@ private:
     void Flush(ITfContext* context);
     void ApplySettings();
     void Activated();  // settings, then a changed training file (spec §10.12)
-    void EnsureData();  // the dictionary and predictor, before the first key
+    void EnsureData();  // the predictor, before the first key
+    void EnsureDictionary();  // the hanja dictionary: at the first F7, or with predictions
     void SetMode(unsigned mode);  // by engine id (spec §3.6.1); an id this build doesn't have: Mode A
 
 #ifdef JK_PREDICT
@@ -191,7 +192,8 @@ private:
     bool private_ = false;     // the focused field is a password field: keys pass through
     bool app_off_ = false;     // JIS Korean is off in this program (settings::AppOff)
     std::wstring last_scopes_;  // for the log
-    bool data_ready_ = false;  // the shared dictionary and predictor are set on the engine
+    bool data_ready_ = false;  // the shared predictor may be set on the engine
+    bool dictionary_set_ = false;  // the shared dictionary is set on the engine
 #ifdef JK_PREDICT
     std::vector<std::wstring> predictions_;
     std::optional<size_t> chosen_;     // the row chosen with ↓ / Tab
