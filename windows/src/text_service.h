@@ -148,6 +148,8 @@ private:
     JkEngine* engine_;
     bool active_ = false;   // between ActivateEx and Deactivate: queued sessions check it
     bool refused_ = false;  // an edit session inserted the preedit as plain text (Settle)
+    bool in_update_ = false;       // inside UpdateText's RunEditSession
+    ULONGLONG updated_tick_ = 0;   // when UpdateText's last session returned
     Microsoft::WRL::ComPtr<ITfThreadMgr> thread_mgr_;
     TfClientId client_id_ = TF_CLIENTID_NULL;
     DWORD thread_sink_cookie_ = TF_INVALID_COOKIE;

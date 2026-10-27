@@ -1080,6 +1080,13 @@ STDMETHODIMP TextService::OnCompositionTerminated(TfEditCookie ec, ITfCompositio
     // The app ended the composition (a click elsewhere, ...): its text stays as it is shown, and
     // the engine starts fresh.
     if (composition_ && composition == composition_.Get()) {
+        // How soon after the shell's own update apps end it (#6): logged once per program.
+        static bool logged = false;
+        if (!logged) {
+            log::Write(L"composition terminated %s%llu ms after update", in_update_ ? L"during the update, " : L"",
+                       GetTickCount64() - updated_tick_);
+        }
+        logged = true;
         ComPtr<ITfRange> range;
         if (composition_context_ && SUCCEEDED(composition->GetRange(&range)) &&
             CaretInside(ec, composition_context_.Get(), range.Get())) {
@@ -1129,7 +1136,10 @@ bool TextService::UpdateText(ITfContext* context, const std::wstring& commit,
         return self->EditText(ec, context_ref.Get(), expected.Get(), commit, preedit, attribute);
     };
     bool async = false;
+    in_update_ = true;
     const HRESULT hr = RunEditSession(context, client_id_, edit, &async);
+    in_update_ = false;
+    updated_tick_ = GetTickCount64();
     if (FAILED(hr)) log::Write(L"edit session failed %#lx", hr);
     if (async) {
         // The key may reach the app before this text does (Chromium holds the lock while it
@@ -1297,6 +1307,9 @@ HRESULT TextService::EditText(TfEditCookie ec, ITfContext* context, ITfCompositi
     if (FAILED(hr) || !started) {
         // The app refused a composition: the preedit goes in as plain text, and Settle (after
         // the session, outside it) commits it in the engine.
+        static bool logged = false;
+        if (!logged) log::Write(L"composition refused hr=%#lx", hr);
+        logged = true;
         refused_ = true;
         return InsertAtSelection(ec, context, preedit);
     }
