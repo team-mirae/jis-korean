@@ -12,6 +12,7 @@ worked example.
 **The file holds:**
 - **weights:** where the sliders sit;
 - **vocabulary:** words you use that the built-in lists may not know;
+- **avoid:** words you never mean, so they stop coming out on top;
 - **examples:** what you meant when you typed something, optionally with the keys;
 - **typos:** recorded for later, not used yet;
 - **preferences:** a record of what an agent asked you and how it set the weights.
@@ -36,6 +37,7 @@ first.
     "korean": [{ "word": "데이터센터", "count": 50, "confidence": "confirmed" }],
     "english": [{ "word": "paradox" }]
   },
+  "avoid": [{ "word": "god", "language": "english" }],
   "examples": [{ "text": "기준입니다" }, { "text": "산이", "keys": "KeyT KeyK KeyS KeyL", "count": 2 }],
   "typos": [{ "intended": "질문", "typed": "질분", "class": "Q", "count": 1 }],
   "preferences": [
@@ -89,6 +91,22 @@ keeps its final (spec §10.3).
   - With neither, the word counts as very common (1000).
   - A word the lists already know keeps the larger of the two counts.
 
+### `avoid` (optional)
+
+Words you never mean, in either language. Use it when a wrong reading keeps coming out on top: the
+keys `g o d` read as **god** above 행, and god을 above 행을. Adding 행 to `vocabulary` only fixes the
+bare word; one `avoid` entry for god fixes it with every particle.
+
+- Each entry is `{ "word", "language", "strength"? }`.
+  - **language:** `korean` (Hangul, no spaces) or `english` (Latin letters).
+  - **strength:** `soft` (the default) pushes the word down by 4 bits, as if it were 16 times less
+    likely. `strong` also keeps it off the top whatever the scores, the way hanja are kept off it.
+- It covers the word alone and followed by a particle (god, god을, god에서; 마리, 마리가).
+- It's still listed lower down, so you can pick it on purpose.
+- English ignores case, but keys you start with Shift are taken as meant (God typed with Shift+G).
+- A word in both `vocabulary` and `avoid` is avoided.
+- At most 5,000 entries.
+
 ### `examples` (optional)
 
 Words as you meant them, one word each (no spaces), optionally with the keys you pressed. Each one is
@@ -123,14 +141,16 @@ sits where it does.
 ## Applying it
 
 - **Web playground:** open "Tune predictions" and drop the file on the drop zone, or choose it.
-  - The weights move the sliders. The vocabulary is kept in this browser until you clear it.
+  - The weights move the sliders. The vocabulary and the avoided words are kept in this browser
+    until you clear them.
   - Examples feed the learner, which is forgotten after 24 hours like all learned choices there.
   - A summary shows what was applied.
 - **macOS:** put the file at `~/Library/Application Support/JIS Korean/training.json`. You can drag
   it there in Finder; the input menu's "Open Training Folder" opens that folder.
   - It's read the next time you switch to JIS Korean, and again whenever its content changes
     (saving it unchanged, or touching it, applies nothing again).
-  - Weights go to the `Weight.<Scenario>` preferences, the vocabulary is kept on your Mac, and
+  - Weights go to the `Weight.<Scenario>` preferences, the vocabulary and avoided words are kept on
+    your Mac, and
     examples feed the learner even with "Learn from My Choices" off.
 - **Undo:**
   - Web: Reset in Tune predictions, and "Forget what it learned" or "Forget training words".
@@ -157,6 +177,8 @@ conversation. Follow these rules.
    - Don't paste whole paragraphs: one word per example, up to 2,000.
 5. **Typos:** copy them into `typos` with their class. Don't put the typo spelling into vocabulary or
    examples.
+   **Avoid:** only words the person says they never mean, or that the data shows them correcting
+   away from again and again. Prefer `soft`; use `strong` when they ask for it.
 6. **Privacy:** no personal names, addresses, or private text. Words and short examples only. Keep
    the file local.
 7. **Validate** against `docs/training-contract.schema.json`, then tell the person how to apply it

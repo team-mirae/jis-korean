@@ -89,13 +89,13 @@ fn optional_keys_type_stock_when_off_and_nothing_else_changes() {
             for shift in [false, true] {
                 let off = output_with(mode, false, Layout::JisKorean, key, shift);
                 if mode.optional_keys().contains(&key) {
-                    // Off, an optional key types the stock keyboard's character, as F8 would.
+                    // Off, an optional key types the stock keyboard's character.
                     assert_eq!(off, output_in(mode, Layout::Escaped, key, shift), "{mode:?} {key:?}");
                     assert!(matches!(off, Some(Out::Char(_))), "{mode:?} {key:?} has no stock character");
                 } else {
                     assert_eq!(off, output_in(mode, Layout::JisKorean, key, shift), "{mode:?} {key:?}");
                 }
-                // The F8 escape is the stock keyboard either way.
+                // The stock keyboard is the same either way (English readings use it).
                 assert_eq!(output_with(mode, false, Layout::Escaped, key, shift), output_in(mode, Layout::Escaped, key, shift));
             }
         }
@@ -170,9 +170,10 @@ fn mode_b_shift_z_is_f10() {
 }
 
 #[test]
-fn mode_b_escape_is_standard_two_set_on_us_keys() {
-    let e = mode_b("F8 KeyG KeyK S-Digit2 BracketLeft");
-    assert_eq!(e.preedit(), "하@[");
+fn mode_b_reads_english_on_us_keys() {
+    // Shift+2 types 2 in Mode B; the English reading is the stock US key's @.
+    let e = mode_b("KeyG KeyK S-Digit2");
+    assert_eq!(e.english(), "gk@");
 }
 
 #[test]
@@ -250,9 +251,8 @@ fn mode_c_symbol_keys_off_type_uk() {
 }
 
 #[test]
-fn mode_c_shift_z_is_f10_and_escape_is_uk() {
+fn mode_c_shift_z_is_f10() {
     assert_eq!(mode_c("KeyG KeyK KeyS S-KeyZ", true).preedit(), "gks");
-    assert_eq!(mode_c("F8 KeyG KeyK S-Digit3 IntlBackslash BracketLeft", true).preedit(), "하£\\[");
 }
 
 #[test]

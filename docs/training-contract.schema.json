@@ -28,6 +28,23 @@
         "english": { "type": "array", "maxItems": 5000, "items": { "$ref": "#/$defs/word", "properties": { "word": { "pattern": "^[A-Za-z]+$" } } } }
       }
     },
+    "avoid": {
+      "type": "array",
+      "maxItems": 5000,
+      "items": {
+        "type": "object",
+        "required": ["word", "language"],
+        "properties": {
+          "word": { "type": "string", "minLength": 1, "maxLength": 40 },
+          "language": { "enum": ["korean", "english"] },
+          "strength": { "enum": ["soft", "strong"] }
+        },
+        "allOf": [
+          { "if": { "properties": { "language": { "const": "korean" } } }, "then": { "properties": { "word": { "pattern": "^[가-힣]+$" } } } },
+          { "if": { "properties": { "language": { "const": "english" } } }, "then": { "properties": { "word": { "pattern": "^[A-Za-z]+$" } } } }
+        ]
+      }
+    },
     "examples": {
       "type": "array",
       "maxItems": 2000,

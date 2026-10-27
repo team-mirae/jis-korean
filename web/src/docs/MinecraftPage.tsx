@@ -89,7 +89,7 @@ export function MinecraftPage() {
           ["Space / Enter / Tab", "Commit the ranked reading"],
           ["F6", "Force Korean (the engine's F6, which commits)"],
           ["F7", "Force English, in place of the engine's hanja"],
-          ["F8 / Shift+F8, F9, F10", "As in JIS Korean"],
+          ["F8 (reserved), F9, F10", "As in JIS Korean"],
           ["Backspace", "Edits the staging area by jamo, or deletes in the field when it's empty"],
           ["Escape", "Drops the staging area, then closes the screen"],
         ]}

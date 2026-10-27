@@ -86,8 +86,9 @@ fn f7_without_a_match_or_dictionary_does_nothing() {
     assert_eq!((out.preedit.as_str(), out.candidates.is_none()), ("나", true));
     let (_, out) = run(&mut Engine::new(), "KeyG KeyK KeyS F7");
     assert_eq!((out.preedit.as_str(), out.candidates.is_none()), ("한", true));
+    // With nothing unconfirmed, F7 goes to the app (spec §6).
     let (_, out) = run(&mut engine(), "F7");
-    assert!(out.consumed && out.candidates.is_none());
+    assert!(!out.consumed && out.candidates.is_none());
 }
 
 #[test]

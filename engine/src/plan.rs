@@ -4,7 +4,7 @@
 //! and checks after every character that the screen (committed + unconfirmed text) shows exactly
 //! the text so far. Keys come from the engine's own layout tables, not a copy. It plays the layout
 //! the way a fluent typist would: dedicated keys, the implied ㅇ, Shift+vowel and the double press
-//! where they save keystrokes, F8 for symbols only stock JIS has, F10 or an input-source switch for
+//! where they save keystrokes, F10 or an input-source switch for
 //! Latin words, and F7 for hanja. Where several plans work it takes the cheapest (Shift counts as
 //! a press).
 //!
@@ -127,7 +127,7 @@ pub fn cheapest_route(text: &str) -> Option<(Effort, Vec<Press>)> {
     robot.metric = Metric::Travel;
     robot.type_text(text);
     let report = &robot.report;
-    (report.failures.is_empty() && report.pasted == 0 && report.escapes == 0)
+    (report.failures.is_empty() && report.pasted == 0)
         .then(|| (Effort { presses: report.presses, travel: report.travel }, robot.log.clone()))
 }
 
@@ -267,7 +267,6 @@ pub struct Report {
     pub latin_switches: usize,
     /// Syllables started with Shift+vowel.
     pub shift_vowels: usize,
-    pub escapes: usize,
     /// Estimated presses for the same text on standard 2-set with stock JIS symbols.
     pub baseline: usize,
     /// Characters the robot couldn't type, with what was on screen.
@@ -298,7 +297,6 @@ impl fmt::Display for Report {
         writeln!(f, "Shift+vowel       {}", self.shift_vowels)?;
         writeln!(f, "Latin via F10     {}", self.latin_words)?;
         writeln!(f, "Latin via switch  {}", self.latin_switches)?;
-        writeln!(f, "F8 escapes        {}", self.escapes)?;
         writeln!(f, "off the keyboard  {} (×{OFF_LEGEND} presses)", self.pasted)?;
         writeln!(f, "failures          {}", self.failures.len())?;
         if !self.dropped.is_empty() {
@@ -582,14 +580,10 @@ impl Robot {
         found.into_iter().map(|(_, r)| r).collect()
     }
 
-    /// How a character other than Hangul and Latin letters is typed on JIS Korean: its key, or the
-    /// F8 escape's key (pressed as F8, the key, Shift+F8). None: no key types it.
+    /// How a character other than Hangul and Latin letters is typed on JIS Korean: its key. None:
+    /// no key types it.
     pub fn symbol_presses(&self, c: char) -> Option<Vec<Press>> {
-        if let Some(p) = self.keymap.char_press(Layout::JisKorean, c) {
-            return Some(vec![p]);
-        }
-        let p = self.keymap.char_press(Layout::Escaped, c)?;
-        Some(vec![Press::new(Key::F8), p, Press { key: Key::F8, shift: true }])
+        self.keymap.char_press(Layout::JisKorean, c).map(|p| vec![p])
     }
 
     pub fn can_type(&self, c: char) -> bool {
@@ -599,7 +593,6 @@ impl Robot {
             || c == '\n'
             || (is_compat_jamo(c) && !self.keymap.jamo_ways(Layout::JisKorean, c).is_empty())
             || self.keymap.char_press(Layout::JisKorean, c).is_some()
-            || self.keymap.char_press(Layout::Escaped, c).is_some()
             || (is_hanja(c) && self.readings.contains_key(&c))
     }
 
@@ -645,7 +638,7 @@ impl Robot {
     }
 
     fn layout(&self) -> Layout {
-        if self.screen.engine.is_escaped() { Layout::Escaped } else { Layout::JisKorean }
+        Layout::JisKorean
     }
 
     /// Presses keys for real and counts them.
@@ -757,24 +750,13 @@ impl Robot {
         } else if c == '\n' {
             self.press_all(&[Press::new(Key::Enter)]);
         } else {
-            match (self.keymap.char_press(Layout::JisKorean, c), self.keymap.char_press(Layout::Escaped, c)) {
-                (Some(p), _) => {
+            // Not on the JIS Korean legends (% @ …): a flat OFF_LEGEND presses, as for any
+            // symbol a layout lacks.
+            match self.keymap.char_press(Layout::JisKorean, c) {
+                Some(p) => {
                     self.press_all(&[p]);
                 }
-                (None, Some(p)) => {
-                    // Not on the JIS Korean legends (( ) % @ …): a flat OFF_LEGEND presses, as for
-                    // any symbol a layout lacks. Typed through the F8 escape so the screen check
-                    // still holds, but those keys aren't counted, and the escape ends right away.
-                    let escape = Press::new(Key::F8);
-                    let back = Press { key: Key::F8, shift: true };
-                    for press in [escape, p, back] {
-                        self.screen.press(press);
-                        self.log.push(press);
-                    }
-                    self.report.presses += OFF_LEGEND;
-                    self.report.escapes += 1;
-                }
-                (None, None) => self.paste(c),
+                None => self.paste(c),
             }
         }
         if self.screen.text() != want {

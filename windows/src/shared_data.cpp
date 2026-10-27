@@ -71,6 +71,18 @@ const JkPredictor* SharedPredictor() {
             predictor = jk_predictor_new(model.data, model.size, en.data, en.size, ko.data,
                                          ko.size, nouns.data, nouns.size);
         }
+#ifdef JK_LEARNED
+        // The learned ranker (spec §10.13); without its model the rules rank.
+        const Bytes learned = Resource(IDR_LEARNED);
+        if (predictor && learned.data) {
+            if (JkPredictor* ranked = jk_predictor_with_learned(predictor, learned.data, learned.size)) {
+                jk_predictor_free(predictor);
+                predictor = ranked;
+            } else {
+                log::Write(L"learned ranker unavailable: the rules rank");
+            }
+        }
+#endif
         if (!predictor) log::Write(L"predictor unavailable");
         log::Write(L"predictor loaded in %llu ms", GetTickCount64() - start);
     });

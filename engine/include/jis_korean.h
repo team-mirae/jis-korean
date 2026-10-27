@@ -101,10 +101,16 @@ JkEngine *jk_new(void);
 void jk_free(JkEngine *engine);
 
 /* Returns 1 if the key was consumed, 0 to pass it on to the app. */
+/* Returns 1 if consumed, 0 to pass the key on, JK_RESULT_ERROR if the engine failed (taken, nothing
+ * to apply). Hosts that test != 0 take it. */
+#define JK_RESULT_ERROR 2
 uint32_t jk_key(JkEngine *engine, uint32_t key, uint32_t mods);
+/* 1 if the key commits the unconfirmed text as it stands (Space, Enter, Esc, arrows, shortcuts, keys
+ * outside the mode's map): while a prediction shows, send it with jk_key_after_prediction. */
+uint32_t jk_key_commits(JkEngine *engine, uint32_t key, uint32_t mods);
 /* Commits everything unconfirmed: focus loss, app switch, IME switch. */
 void jk_flush(JkEngine *engine);
-/* The IME was switched back to: leaves any F8 escape. */
+/* The IME was switched back to. Nothing to reset since the F8 escape was retired (spec §6.1). */
 void jk_activate(JkEngine *engine);
 void jk_set_enter_commits(JkEngine *engine, uint32_t on);
 /* The mode, by id (spec §3.6.1): 0 = Mode A (JIS, the default), 1 = Mode B (US ANSI),
@@ -207,6 +213,10 @@ enum {
 JkPredictor *jk_predictor_new(const uint8_t *model, size_t model_len, const uint8_t *english_words,
                               size_t english_len, const uint8_t *korean_words, size_t korean_len,
                               const uint8_t *english_nouns, size_t nouns_len); /* nouns may be NULL */
+/* The learned ranker (spec §10.13): a new predictor ranking with predict/learned.bin (the base
+ * stays). NULL if the model is malformed; the legacy build (`legacy-predict`) ignores the model and
+ * returns a copy of the base. Without it, the rules rank (§10.3). */
+JkPredictor *jk_predictor_with_learned(const JkPredictor *base, const uint8_t *model, size_t model_len);
 void jk_predictor_free(JkPredictor *predictor);
 void jk_set_predictor(JkEngine *engine, const JkPredictor *predictor); /* NULL: lite */
 size_t jk_predict(JkEngine *engine); /* ranks the staged text; returns the count */
@@ -256,6 +266,9 @@ void jk_learner_reset(JkEngine *engine);
  * words added (lines of `word` or `word<TAB>count`; the base stays as it is): */
 JkPredictor *jk_predictor_with_words(const JkPredictor *base, const uint8_t *korean, size_t korean_len,
                                      const uint8_t *english, size_t english_len);
+/* A predictor with words the user never means (lines of `word` or `word<TAB>strong`; the base stays): */
+JkPredictor *jk_predictor_with_avoided(const JkPredictor *base, const uint8_t *korean, size_t korean_len,
+                                       const uint8_t *english, size_t english_len);
 /* Learns from an example: keys as KeyboardEvent.code names, "S-" for Shift (null/empty: the cheapest
  * keys for the text). Returns its place among the predictions (0 = top), -1 not listed, -2 bad input. */
 int32_t jk_learn_example(JkEngine *engine, const uint8_t *text, size_t text_len, const uint8_t *keys,

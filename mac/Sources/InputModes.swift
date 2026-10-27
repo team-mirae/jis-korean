@@ -66,6 +66,41 @@ enum InputModes {
         return ([last].compactMap { $0 } + english).first { !$0.korean && isEnabled($0) }
     }
 
+    /// The Korean mode the Korean Key goes to (spec §8.2.1): the one used last, or if it isn't added
+    /// in System Settings, the first Korean mode that is. Nil: none is.
+    static var koreanTarget: Mode? {
+        ([lastKorean] + all.filter(\.korean)).first(where: isEnabled)
+    }
+
+    /// The Korean mode カタカナ goes to (spec §8.2.1): a key only JIS keyboards have goes to the JIS
+    /// mode, JIS Korean (Mode A), if it's added; else where the Korean Key goes.
+    static var katakanaTarget: Mode? {
+        isEnabled(defaultMode) ? defaultMode : koreanTarget
+    }
+
+    /// The English mode 英数 goes to (spec §8.2.1): a key only JIS keyboards have goes to a JIS
+    /// English mode (`A_…`): the one used last if it's one, else JIS English (`A_QWERTY`), else any
+    /// other added; with none added, where `englishTarget` goes. Nil: no English mode is added.
+    static var eisuTarget: Mode? {
+        let last = UserDefaults.standard.string(forKey: lastEnglishKey).flatMap(mode(sourceID:))
+        let jis = english.filter { $0.letter.hasPrefix("A_") }
+        let ordered = [last].compactMap { $0 }.filter { $0.letter.hasPrefix("A_") }
+            + jis.filter { $0.letter == "A_QWERTY" } + jis
+        return ordered.first { !$0.korean && isEnabled($0) } ?? englishTarget
+    }
+
+    /// Which of JIS Korean's modes are added in System Settings, by input source ID: one query for all.
+    static func enabledSourceIDs() -> Set<String> {
+        guard let bundle = Bundle.main.bundleIdentifier else { return [] }
+        let query = [kTISPropertyBundleID as String: bundle] as CFDictionary
+        let sources = (TISCreateInputSourceList(query, false)?.takeRetainedValue() as? [TISInputSource]) ?? []
+        return Set(sources.compactMap { source in
+            TISGetInputSourceProperty(source, kTISPropertyInputSourceID).map {
+                Unmanaged<CFString>.fromOpaque($0).takeUnretainedValue() as String
+            }
+        })
+    }
+
     /// Notes that JIS Korean is about to select `mode`: until macOS reports it, selectedNow() still
     /// names the source being left, and `selected()` answers with the target instead. Call it when
     /// the switch happens, not when the selection is sent: a notice of an earlier selection that
@@ -207,10 +242,10 @@ enum PublicAPI {
             handleSetMode(note.userInfo?["mode"] as? String)
         }
         center.addObserver(forName: resolveKeyCodeInput, object: nil, queue: .main) { note in
-            reply(resolveKeyCodeInput, note.userInfo, resolveInput(note.userInfo ?? [:]))
+            enqueue(resolveKeyCodeInput, note.userInfo)
         }
         center.addObserver(forName: resolveKeyCodeFromOutput, object: nil, queue: .main) { note in
-            reply(resolveKeyCodeFromOutput, note.userInfo, resolveOutput(note.userInfo ?? [:]))
+            enqueue(resolveKeyCodeFromOutput, note.userInfo)
         }
         // A mode selected from outside (the input menu, Ctrl+Space, Karabiner) is the current one
         // even when macOS doesn't tell the open session: the fields follow it on their next key.
@@ -341,6 +376,41 @@ enum PublicAPI {
         let json = Data(resolved(engine).utf8)
         let combinations = (try? JSONSerialization.jsonObject(with: json)) as? [[String]] ?? []
         return facts.merging(["combinations": combinations]) { $1 }
+    }
+
+    /// Requests waiting to be resolved, oldest first. Resolving runs on the main thread, which also
+    /// serves every key typed in every app, and any local program can post requests (#13): they're
+    /// answered one per turn of the run loop, each after a pause as long as the one before took, so
+    /// keys get through in between. Past `maxWaiting`, the latest wins: the oldest is answered with
+    /// an error.
+    private static var waiting: [(request: Notification.Name, info: [AnyHashable: Any])] = []
+    private static let maxWaiting = 8
+    private static var resolving = false
+    private static var lastTook: TimeInterval = 0
+
+    private static func enqueue(_ request: Notification.Name, _ info: [AnyHashable: Any]?) {
+        waiting.append((request, info ?? [:]))
+        if waiting.count > maxWaiting {
+            let dropped = waiting.removeFirst()
+            reply(dropped.request, dropped.info, ["error": "Too many requests at once: a later one replaced this one. Try again."])
+        }
+        resolveNext()
+    }
+
+    private static func resolveNext() {
+        guard !resolving, !waiting.isEmpty else { return }
+        resolving = true
+        DispatchQueue.main.asyncAfter(deadline: .now() + min(lastTook, 1)) {
+            let (request, info) = waiting.removeFirst()
+            let started = Date()
+            reply(request, info, request == resolveKeyCodeInput ? resolveInput(info) : resolveOutput(info))
+            lastTook = Date().timeIntervalSince(started)
+            if lastTook > 0.1 {
+                DiagnosticLog.note(String(format: "a resolve request took %.0f ms", lastTook * 1000))
+            }
+            resolving = false
+            resolveNext()
+        }
     }
 
     private static func reply(_ request: Notification.Name, _ info: [AnyHashable: Any]?, _ answer: [String: Any]) {

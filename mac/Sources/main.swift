@@ -29,7 +29,7 @@ let sharedPredictor: OpaquePointer? = {
     guard let model = data("ranker", "bin"), let english = data("common-en", "txt"), let korean = data("common-ko", "txt")
     else { return nil }
     let nouns = data("english-nouns", "txt") ?? Data()
-    return model.withUnsafeBytes { m in
+    let base: OpaquePointer? = model.withUnsafeBytes { m in
         english.withUnsafeBytes { e in
             korean.withUnsafeBytes { k in
                 nouns.withUnsafeBytes { n in
@@ -42,13 +42,23 @@ let sharedPredictor: OpaquePointer? = {
             }
         }
     }
+    // The learned ranker (spec §10.13). Without its model (or in the legacy build, which ignores
+    // it), the rules rank.
+    guard let base, let learned = data("learned", "bin") else { return base }
+    let ranked = learned.withUnsafeBytes { l in
+        jk_predictor_with_learned(base, l.bindMemory(to: UInt8.self).baseAddress, l.count)
+    }
+    guard let ranked else { return base }
+    jk_predictor_free(base)
+    return ranked
 }()
 #endif
 
 DiagnosticLog.note("launched from \(Bundle.main.bundlePath)")
 PublicAPI.start()
 #if ENGLISH
-KoreanKeyTap.start()
+// Only if it's of use and already allowed: it never asks for permissions at launch.
+KoreanKeyTap.check()
 #endif
 let server = IMKServer(name: connectionName, bundleIdentifier: Bundle.main.bundleIdentifier)
 _ = server

@@ -22,13 +22,16 @@ const MAX_FAILURES: &[(&str, usize)] = &[("mixed-script-1-business.txt", 0), ("k
 const AI_WEIGHT: f64 = 0.25;
 
 /// Failed words allowed in all of extended/ together, with the default ranker.
-const MAX_AI_FAILURES: usize = 3;
+const MAX_AI_FAILURES: usize = 2;
 
 fn predictor() -> Arc<Predictor> {
     let dir = concat!(env!("CARGO_MANIFEST_DIR"), "/predict/");
     let read = |f: &str| std::fs::read_to_string(format!("{dir}{f}")).unwrap();
     let model = std::fs::read(format!("{dir}ranker.bin")).unwrap();
-    Arc::new(Predictor::parse(&model, &read("common-en.txt"), &read("common-ko.txt"), &read("english-nouns.txt")).unwrap())
+    let learned = std::fs::read(format!("{dir}learned.bin")).unwrap();
+    // The learned ranker (spec §10.13); the legacy build ignores it and ranks by the rules.
+    let p = Predictor::parse(&model, &read("common-en.txt"), &read("common-ko.txt"), &read("english-nouns.txt")).unwrap();
+    Arc::new(p.with_learned(&learned).unwrap())
 }
 
 fn dictionary() -> Arc<Dictionary> {
@@ -123,7 +126,11 @@ fn ai_extended_texts_weigh_less() {
 /// for doubles, two keys for compound vowels), and mixes of the valid ways per syllable (의 as 9,
 /// d9 or dml; 당신이 as ekdtlsL, ekdtlsll or ekdtlsdl). Failed words allowed in extended/ per
 /// style, with the default ranker; the owner's texts allow none in any style.
-const STYLES: &[(Style, usize)] = &[(Style::EveryJamo, 2), (Style::Mixed(1), 5), (Style::Mixed(2), 5), (Style::Mixed(3), 5)];
+#[cfg(feature = "legacy-predict")]
+const STYLES: &[(Style, usize)] = &[(Style::EveryJamo, 1), (Style::Mixed(1), 5), (Style::Mixed(2), 5), (Style::Mixed(3), 4)];
+/// The learned ranker (spec §10.13), tighter where it does better.
+#[cfg(not(feature = "legacy-predict"))]
+const STYLES: &[(Style, usize)] = &[(Style::EveryJamo, 1), (Style::Mixed(1), 4), (Style::Mixed(2), 4), (Style::Mixed(3), 4)];
 
 #[test]
 fn every_typing_style_works() {

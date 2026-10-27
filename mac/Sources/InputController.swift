@@ -20,8 +20,9 @@ private let predictionsDefault = "Predictions"
 /// Learning from the user's choices (spec §10.11): opt-in, stays on this Mac.
 private let learningDefault = "LearnFromChoices"
 /// What was learned: one line of counts, no text or keys.
-private let learnedDefault = "Learned"
-private let weightNames = ["Korean", "English", "Implied", "Mixed", "TwoSet", "KeepFinals", "Hanja", "ImpliedL"]
+let learnedDefault = "Learned"
+/// The scenarios' names (`Weight.<name>`), by engine id.
+let weightNames = ["Korean", "English", "Implied", "Mixed", "TwoSet", "KeepFinals", "Hanja", "ImpliedL"]
 #endif
 
 /// One controller per text input client; each owns its own engine. All behavior is in the engine
@@ -121,7 +122,7 @@ final class JKInputController: IMKInputController {
         }
         // A key that commits takes the reading on screen, not the Korean one underneath, and then
         // does to it what it does to any text (Space adds a space, Shift+Enter only commits).
-        if shown != nil && commits(event) {
+        if shown != nil && jk_key_commits(engine, engineKey(event.keyCode), mods) != 0 {
             let consumed = jk_key_after_prediction(engine, chosen ?? 0, engineKey(event.keyCode), mods)
             chosen = nil
             apply(to: client)
@@ -135,17 +136,20 @@ final class JKInputController: IMKInputController {
         #if PREDICT
         saveLearned()
         #endif
-        noteKey(consumed: consumed != 0, client)
+        noteKey(consumed: consumed != 0, event, client)
         return consumed != 0
     }
 
     /// One line per key, without the key: whether the engine took it, and the state that decides
     /// what the app types when it didn't. Shows whether keys reach the input method at all (an app
     /// can type through the layout without asking it).
-    private func noteKey(consumed: Bool, _ client: IMKTextInput) {
+    /// Also the keyboard type, as the event carries it and as macOS's global has it (`typingOnISO`
+    /// reads the global): whether the event's can replace it on Macs with several kinds of keyboard (#12).
+    private func noteKey(consumed: Bool, _ event: NSEvent, _ client: IMKTextInput) {
         guard DiagnosticLog.isOn else { return }
         let app = client.bundleIdentifier()
-        DiagnosticLog.note("key in \(app ?? "?"): consumed \(consumed), engine mode \(modeID.map(String.init) ?? "none"), layout \(KeyboardViewerLayout.named(to: app) ?? "none"), current \(InputModes.current.letter)")
+        let eventType = event.cgEvent.map { String($0.getIntegerValueField(.keyboardEventKeyboardType)) } ?? "none"
+        DiagnosticLog.note("key in \(app ?? "?"): consumed \(consumed), engine mode \(modeID.map(String.init) ?? "none"), layout \(KeyboardViewerLayout.named(to: app) ?? "none"), current \(InputModes.current.letter), keyboard type \(eventType) (event) \(LMGetKbdType()) (global)")
     }
 
     /// A key that held the app for long: logged with its time.
@@ -173,13 +177,18 @@ final class JKInputController: IMKInputController {
         applyMode(mode, client: sender as? IMKTextInput)
         #if PREDICT
         applyPredictionsSetting()
-        // A new or changed training file (docs/training-contract.md): applied, then settings again.
-        Training.applyIfChanged(to: engine)
-        saveLearned()
+        // A new or changed training file (docs/training-contract.md): its weights and words now,
+        // then settings again; its examples in the background (trainingApplied).
+        Training.applyIfChanged()
         applyPredictionsSetting()
         #endif
         jk_set_enter_commits(engine, UserDefaults.standard.bool(forKey: enterCommitsDefault) ? 1 : 0)
         applySymbolKeysSetting()
+        #if ENGLISH
+        // A keyboard configured as JIS or a permission granted since launch: the key tap starts
+        // now (at most one check every 30 s, after this call).
+        DispatchQueue.main.async { KoreanKeyTap.checkSoon() }
+        #endif
     }
 
     private func applySymbolKeysSetting() {
@@ -348,10 +357,11 @@ final class JKInputController: IMKInputController {
         UserDefaults.standard.set(code, forKey: switchKeyDefault)
     }
 
-    /// 英数 and the Korean Key (spec §8.2.1): 英数 always goes to English, the Korean Key always to
-    /// Korean (the last Korean mode), inside this input method. Nil: not a switch key here, or the mode to switch to isn't
-    /// added in System Settings (then the key goes on as usual, and macOS may act on it). かな is left
-    /// to macOS, which selects Japanese.
+    /// 英数 and the Korean Key (spec §8.2.1), when they reach the input method (without the key tap,
+    /// or in apps that pass them on): 英数 always goes to English (JIS English, `eisuTarget`), the
+    /// Korean Key always to Korean (the last Korean mode), inside this input method. Nil: not a
+    /// switch key here, or the mode to switch to isn't added in System Settings (then the key goes on
+    /// as usual, and macOS may act on it). かな is left to macOS, which selects Japanese.
     private func handleSwitchKey(_ event: NSEvent, _ client: IMKTextInput) -> Bool? {
         let mods = modifiers(event.modifierFlags)
         guard !InputModes.english.isEmpty, mods & UInt32(JK_MOD_CTRL | JK_MOD_ALT | JK_MOD_META) == 0
@@ -368,11 +378,11 @@ final class JKInputController: IMKInputController {
                 if !event.isARepeat { selectLater(InputModes.current, client) }
                 return true
             }
-            target = InputModes.lastKorean
+            target = InputModes.koreanTarget
         } else if code == kVK_JIS_Eisu {
-            // Already English: nothing to do, and ABC isn't wanted.
-            if inEnglish { return true }
-            target = InputModes.englishTarget
+            target = InputModes.eisuTarget
+            // Already there: nothing to do, and ABC isn't wanted.
+            if let target, target.sourceID == InputModes.current.sourceID { return true }
         } else {
             return nil
         }
@@ -388,17 +398,17 @@ final class JKInputController: IMKInputController {
         return true
     }
 
-    /// The Korean Key caught by the key tap (KoreanKeyTap, spec §8.2.1), in the field this
-    /// controller types into: from an English mode to the last Korean mode, in place; in a Korean
-    /// mode that mode again, so macOS shows it under the caret.
-    func koreanKeyFromTap() {
+    /// A key caught by the key tap (KoreanKeyTap, spec §8.2.1: the Korean Key, カタカナ, 英数), in the
+    /// field this controller types into: to `target`, in place. Already in it, the mode is selected
+    /// again, so macOS shows it under the caret, and nothing unconfirmed is committed.
+    func switchFromTap(to target: InputModes.Mode) {
         guard let client = client() as IMKTextInput? else { return }
-        if InputModes.current.korean && modeID == InputModes.current.id {
-            selectLater(InputModes.current, client)
+        if InputModes.current.sourceID == target.sourceID && modeID == target.id {
+            selectLater(target, client)
             return
         }
-        // English, or this field's engine didn't follow an earlier switch: Korean, in place.
-        let target = InputModes.current.korean ? InputModes.current : InputModes.lastKorean
+        // Another mode, or this field's engine didn't follow an earlier switch: in place.
+        // applyMode commits what the old mode left unconfirmed.
         guard InputModes.isEnabled(target) else { return }
         applyMode(target, client: client)
         selectLater(target, client)
@@ -506,6 +516,15 @@ final class JKInputController: IMKInputController {
         jk_set_learning(engine, defaults.bool(forKey: learningDefault) ? 1 : 0)
     }
 
+    /// A training file's examples were learned (Training, in the background): the field being typed
+    /// in loads what they taught now; the others when they're activated.
+    static func trainingApplied() {
+        focused?.applyPredictionsSetting()
+        if let keyed, keyed !== focused {
+            keyed.applyPredictionsSetting()
+        }
+    }
+
     /// Stores what was learned when it changed: counts only, no text or keys.
     private func saveLearned() {
         guard jk_learner_changed(engine) != 0 else { return }
@@ -537,14 +556,6 @@ final class JKInputController: IMKInputController {
         }
         refresh(client)
         return true
-    }
-
-    /// Keys whose engine handling commits the staged text.
-    private func commits(_ event: NSEvent) -> Bool {
-        let shortcut = modifiers(event.modifierFlags) & UInt32(JK_MOD_CTRL | JK_MOD_ALT | JK_MOD_META) != 0
-        let committing: Set<Int> = [kVK_Space, kVK_Return, kVK_ANSI_KeypadEnter, kVK_Tab, kVK_Escape,
-                                    kVK_LeftArrow, kVK_RightArrow, kVK_UpArrow, kVK_DownArrow]
-        return shortcut || committing.contains(Int(event.keyCode)) || engineKey(event.keyCode) == UInt32(JK_KEY_OTHER)
     }
 
     private func commitPrediction(_ index: Int, to client: IMKTextInput) {

@@ -75,7 +75,7 @@ Its key map (spec §3.6) is Mode B's pattern on UK stock symbols, plus the extra
 with Shift). It's the first mode with an option: the **Dedicated symbol keys** setting
 (`Engine::set_dedicated_symbols`, `jk_set_dedicated_symbols`, on by default) turns off the keys in
 `Mode::optional_keys` ([, ] and the extra key), which then type the mode's stock (UK ISO)
-characters, as in the F8 escape. The mode tests
+characters. The mode tests
 and the 2-set baseline run with it on and off. Only UK stock symbols are built; other ISO countries
 can be their own modes or forks.
 
@@ -113,7 +113,7 @@ All of it lives in `engine/src/layout.rs`, on the `Mode` enum:
 | Id | the discriminant | A free number in the mode's range (spec §3.6.1). Ids are saved in settings and passed over the C ABI (`jk_set_mode`), so never renumber or reuse one. |
 | Name | `Mode::name` | What a settings menu shows, e.g. "JIS Korean for UK ISO". Unique. |
 | Key table | `Mode::korean` → `<keyboard>_korean(key)` | What each non-letter key types: `(unshifted, shifted)`, each `Out::Jamo` (goes into the automaton) or `Out::Char` (goes in as-is). Return `None` for keys the mode leaves out: they commit and pass through to the app. |
-| Stock table | `Mode::stock` → `stock_<keyboard>(key)` | The characters the keyboard's own layout prints on those keys. It drives the F8 escape, the English reading and the standard 2-set prediction, so a mode never suggests a symbol from another keyboard. It must cover every key the key table maps to a `Char`. |
+| Stock table | `Mode::stock` → `stock_<keyboard>(key)` | The characters the keyboard's own layout prints on those keys. It drives the English reading and the standard 2-set prediction, so a mode never suggests a symbol from another keyboard. It must cover every key the key table maps to a `Char`. |
 | Korean or not | `Mode::is_korean` | `true` for a 2-set mode. An English mode's key table is its stock table (`Mode::korean` returns the stock characters for it). |
 | Optional keys | `Mode::optional_keys` | The symbol keys the **Dedicated symbol keys** setting turns off, to type their stock characters. Empty for most modes; Mode C's are [, ] and the extra key. |
 | Moved keys | `Mode::qwerty_key` → `dvorak(key)`, `colemak(key)` | English modes that move letters: which JIS English key each physical key types as. Its letters and symbols both follow it (`Mode::letter`, `Mode::stock`); ⌘ and ⌥ don't. Other modes return the key as it is. |
@@ -138,8 +138,7 @@ matching id. `tests/header.rs` fails until the two agree.
 - each mode name is upper-case snake case, with its id in its namespace's range (spec §3.6.1);
 - id 2 and the letter C belong to the ISO mode;
 - over the C ABI, `jk_mode_id_at` lists the modes and `jk_set_mode` refuses an unknown id;
-- in every Korean mode, the letter keys type standard 2-set, in the mode's layout and in its F8
-  escape, with its optional keys on and off; off, an optional key types its stock character and
+- in every Korean mode, the letter keys type standard 2-set, with its optional keys on and off; off, an optional key types its stock character and
   nothing else changes;
 - the stock table has a character for every key the key table maps to a character;
 - the control keys (Space, Enter, Backspace, F-keys, Esc) aren't in either table.
@@ -147,7 +146,7 @@ matching id. `tests/header.rs` fails until the two agree.
 `tests/baseline.rs` also types the whole 2-set baseline in every Korean mode.
 
 Add a Korean mode's own examples next to Mode B's and Mode C's in `tests/modes.rs` (what a few keys
-type, what they read as in English, and one F8 example), and one prediction example in
+type, and what they read as in English), and one prediction example in
 `tests/predict.rs` if the stock symbols differ from an existing mode's. An English mode's go in
 `tests/english.rs`: its id and mode name, what it types, that keys pass through, and the ⌥ +
 letter variants of the letter it types.

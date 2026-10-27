@@ -16,7 +16,10 @@ fn predictor() -> Arc<Predictor> {
     let dir = concat!(env!("CARGO_MANIFEST_DIR"), "/predict/");
     let read = |f: &str| std::fs::read_to_string(format!("{dir}{f}")).unwrap();
     let model = std::fs::read(format!("{dir}ranker.bin")).unwrap();
-    Arc::new(Predictor::parse(&model, &read("common-en.txt"), &read("common-ko.txt"), &read("english-nouns.txt")).unwrap())
+    let learned = std::fs::read(format!("{dir}learned.bin")).unwrap();
+    // The learned ranker (spec §10.13); the legacy build ignores it and ranks by the rules.
+    let p = Predictor::parse(&model, &read("common-en.txt"), &read("common-ko.txt"), &read("english-nouns.txt")).unwrap();
+    Arc::new(p.with_learned(&learned).unwrap())
 }
 
 fn dictionary() -> Arc<Dictionary> {
@@ -154,6 +157,25 @@ fn a_manual_weight_wins_over_the_learned_one_and_regret_counts() {
     }
     e.commit_prediction(0);
     let before = e.learner().clone();
+    e.key(Key::Backspace, Mods::NONE);
+    assert_ne!(*e.learner(), before);
+}
+
+#[test]
+fn deleting_only_the_space_after_an_accepted_word_is_no_regret() {
+    let mut e = Engine::new();
+    e.set_predictor(Some(predictor()));
+    e.set_learning(true);
+    for c in "dkssud".chars() {
+        e.key(Key::from_code(&format!("Key{}", c.to_ascii_uppercase())), Mods::NONE);
+    }
+    // Space takes the top prediction and adds a space.
+    assert!(e.key_after_prediction(0, Key::Space, Mods::NONE).commit.ends_with(' '));
+    let before = e.learner().clone();
+    // The first Backspace only deletes the space…
+    e.key(Key::Backspace, Mods::NONE);
+    assert_eq!(*e.learner(), before);
+    // …the next one goes into the word: that's regret.
     e.key(Key::Backspace, Mods::NONE);
     assert_ne!(*e.learner(), before);
 }

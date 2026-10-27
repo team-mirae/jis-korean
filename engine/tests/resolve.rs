@@ -38,7 +38,7 @@ fn a_key_after_context_shows_the_whole_field() {
     assert_eq!(key_input_after(&e, "한", "Space").as_deref(), Some("한 "));
     assert_eq!(key_input_after(&e, "한", "F10").as_deref(), Some("gks"));
     assert_eq!(key_input_after(&e, "한", "Nope"), None);
-    assert_eq!(key_input_after(&in_mode(Mode::B), "한", "F8").as_deref(), Some("한"));
+    assert_eq!(key_input_after(&in_mode(Mode::B), "한", "F8").as_deref(), Some("한")); // reserved
 }
 
 #[test]
@@ -63,16 +63,17 @@ fn keys_for_a_word_within_the_range() {
 
 #[test]
 fn keys_depend_on_the_mode() {
-    // " is the F8 escape's Shift+2 on JIS; @ on US ANSI.
-    assert!(has(&keys_for_output(&in_mode(Mode::A), "\"", 2, 2), "F8 S-Digit2"));
-    assert!(has(&keys_for_output(&in_mode(Mode::B), "@", 2, 2), "F8 S-Digit2"));
-    assert!(!has(&keys_for_output(&in_mode(Mode::B), "\"", 2, 2), "F8 S-Digit2"));
+    // " is Shift+@ in Mode A, Shift+' on US ANSI in Mode B.
+    assert!(has(&keys_for_output(&in_mode(Mode::A), "\"", 1, 1), "S-BracketLeft"));
+    assert!(has(&keys_for_output(&in_mode(Mode::B), "\"", 1, 1), "S-Quote"));
+    assert!(!has(&keys_for_output(&in_mode(Mode::B), "\"", 1, 1), "S-BracketLeft"));
 }
 
 #[test]
 fn every_combination_types_the_text() {
-    for e in [in_mode(Mode::A), in_mode(Mode::B)] {
-        for text in ["까", "와", "읽", "한 ", "ㅠㅠ", "1", "가!"] {
+    // ! is the − key in Mode A; Mode B keeps US ANSI's symbols, where ? is Shift+/.
+    for (e, symbol) in [(in_mode(Mode::A), "가!"), (in_mode(Mode::B), "가?")] {
+        for text in ["까", "와", "읽", "한 ", "ㅠㅠ", "1", symbol] {
             let found = keys_for_output(&e, text, 1, 4);
             assert!(!found.is_empty(), "{text}");
             for route in found {

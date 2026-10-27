@@ -23,7 +23,8 @@ impl Out {
 pub enum Layout {
     /// The mode's own layout.
     JisKorean,
-    /// F8: standard 2-set on the stock keys (JIS, US ANSI in Mode B, UK ISO in Mode C).
+    /// Standard 2-set on the stock keys (JIS, US ANSI in Mode B, UK ISO in Mode C): the English and
+    /// standard 2-set readings. Once the F8 escape (retired, spec §6.1); the name stayed.
     Escaped,
 }
 
@@ -168,7 +169,7 @@ impl Mode {
     }
 
     /// The symbol keys the Dedicated symbol keys setting turns off (spec §3.6): with it off they
-    /// type the stock keyboard's characters ([`Mode::stock`]), as F8 would. Empty for modes without
+    /// type the stock keyboard's characters ([`Mode::stock`]). Empty for modes without
     /// the setting.
     pub fn optional_keys(self) -> &'static [Key] {
         match self {
@@ -197,8 +198,8 @@ impl Mode {
         }
     }
 
-    /// The stock keyboard's characters on the non-letter keys: the F8 escape (standard 2-set on
-    /// the stock keys) and the English reading of every key (predictions, F9/F10's symbols).
+    /// The stock keyboard's characters on the non-letter keys: standard 2-set on the stock keys
+    /// and the English reading of every key (predictions, F9/F10's symbols).
     /// It must cover every key [`Mode::korean`] maps.
     fn stock(self, key: Key) -> Option<(char, char)> {
         match self {
@@ -431,7 +432,7 @@ fn colemak(key: Key) -> Key {
     }
 }
 
-/// The stock UK ISO characters (PC legends) on the non-letter keys: Mode C's F8 escape and English
+/// The stock UK ISO characters (PC legends) on the non-letter keys: Mode C's stock keyboard and English
 /// UK ISO for a `CJ_` mode (spec §3.6.1): designed for ISO, also supports JIS. A JIS board has ¥
 /// and ろ, which ISO lacks, and lacks the ISO extra key and the key left of 1 (a JIS board's
 /// 半角/全角): ろ types the extra key's characters and ¥ those of the key left of 1, so every UK
@@ -476,7 +477,7 @@ fn stock_uk(key: Key) -> Option<(char, char)> {
     Some(pair)
 }
 
-/// The stock US ANSI characters on the non-letter keys: Mode B's F8 escape and English readings.
+/// The stock US ANSI characters on the non-letter keys: Mode B's stock keyboard and English readings.
 fn stock_us(key: Key) -> Option<(char, char)> {
     use Key::*;
     let pair = match key {
@@ -506,7 +507,7 @@ fn stock_us(key: Key) -> Option<(char, char)> {
     Some(pair)
 }
 
-/// The stock JIS characters on the non-letter keys: Mode A's F8 escape and English readings.
+/// The stock JIS characters on the non-letter keys: Mode A's stock keyboard and English readings.
 fn stock_jis(key: Key) -> Option<(char, char)> {
     use Key::*;
     let pair = match key {

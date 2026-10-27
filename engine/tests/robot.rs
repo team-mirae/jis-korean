@@ -10,8 +10,8 @@ use std::sync::Arc;
 use jis_korean::Dictionary;
 use jis_korean::plan::Robot;
 
-/// Covers every part of the layout: dedicated keys, the implied ㅇ and the double press, F8
-/// symbols, Latin words in all cases, digits, hanja and a bare jamo.
+/// Covers every part of the layout: dedicated keys, the implied ㅇ and the double press, symbols
+/// off the legends, Latin words in all cases, digits, hanja and a bare jamo.
 const SAMPLE: &str = "\
 말이 많은 사람은 아이와 오이를 샀다. 닭이 울면 갈아입고 앉아서 읽어 봐요.
 2026년 상반기 DRAM과 NAND Flash 가격은 3~5% 올랐다(예상). 全 세계 HBM3E 수요—「AI」·클라우드!
@@ -38,7 +38,7 @@ fn robot_types_the_sample() {
     assert!(r.dropped.is_empty(), "sample should be fully typable: {:?}", r.dropped);
     // Each feature actually got used.
     assert!(r.dedicated_keys > 0 && r.implied_ieung > 0 && r.double_presses > 0);
-    assert!(r.hanja == 1 && r.latin_words >= 7 && r.escapes > 0);
+    assert!(r.hanja == 1 && r.latin_words >= 7);
 }
 
 #[test]

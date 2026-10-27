@@ -56,7 +56,7 @@ engine.resolveKeyCodeFromOutput("ㅃ", 1, 1);     // [["Digit1"], ["S-KeyQ"]]
         head={["Method", "What it does"]}
         rows={[
           ["key(code, mods?)", "One key press: { commit, preedit, consumed, candidates }."],
-          ["flush() / activate()", "Commit everything / leave the F8 escape."],
+          ["flush() / activate()", "Commit everything / note the input method was switched back to."],
           ["setEnterCommits(on)", "Plain Enter commits without a new line."],
           ["modes() / setMode(id)", "The modes and their names; switch between Mode A (0), Mode B (1) and Mode C (2). setDedicatedSymbols(on) is Mode C's Dedicated symbol keys."],
           ["legend(code, shift, escaped)", "What a key types in the current mode, for drawing keys."],

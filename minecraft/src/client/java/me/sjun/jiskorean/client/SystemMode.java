@@ -11,9 +11,10 @@ import java.util.concurrent.atomic.AtomicBoolean;
 /**
  * The layout mode the JIS Korean input method is in, so the mod types the way the OS input method
  * would, by its engine id (spec §3.6.1): 0 Mode A (JIS), 1 Mode B (US ANSI), 2 Mode C (UK ISO), or an
- * English mode's id, which the mod's engine refuses. On macOS it's read from the input method's
- * public API (spec §8.2): {@code defaults read me.sjun.inputmethod.JISKorean CurrentModeID}. On
- * Windows it's the input method's {@code Mode} setting (spec §8.4), read as JIS Korean reads it:
+ * English mode's id, which the mod types as its board's Korean mode ({@code Staging.koreanMode}).
+ * On macOS it's read from the input method's public API (spec §8.2):
+ * {@code defaults read me.sjun.inputmethod.JISKorean CurrentModeID}. On Windows it's the input
+ * method's {@code Mode} setting (spec §8.4), read as JIS Korean reads it:
  * {@code HKCU\Software\JIS Korean}, else {@code HKLM\Software\JIS Korean}. Elsewhere, or if JIS
  * Korean has never been set up, it's Mode A.
  *
@@ -100,14 +101,19 @@ final class SystemMode {
 	private static String run(String... command) {
 		try {
 			Process process = new ProcessBuilder(command).redirectErrorStream(true).start();
-			String out;
-			try (InputStream in = process.getInputStream()) {
-				out = new String(in.readAllBytes(), StandardCharsets.UTF_8);
-			}
-			if (!process.waitFor(2, TimeUnit.SECONDS) || process.exitValue() != 0) {
+			// Wait first: reading first would block for as long as a hung command keeps its output
+			// open, and the reader (and every later refresh) with it. The output is a line or two, so
+			// it can't fill the pipe while we wait.
+			if (!process.waitFor(2, TimeUnit.SECONDS)) {
+				process.destroyForcibly();
 				return null;
 			}
-			return out;
+			if (process.exitValue() != 0) {
+				return null;
+			}
+			try (InputStream in = process.getInputStream()) {
+				return new String(in.readAllBytes(), StandardCharsets.UTF_8);
+			}
 		} catch (IOException e) {
 			return null;
 		} catch (InterruptedException e) {

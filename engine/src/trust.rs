@@ -1,7 +1,7 @@
 //! Typing a text the trusting way (spec §10.10): the fewest presses, letting predictions do the
 //! rest. Each word is typed by its cheapest keys: Hangul by JIS Korean's optimized route, Latin
-//! letter by letter (no F10), hanja by their reading (no F7), symbols by their key (or the F8
-//! escape when no JIS Korean legend has them). Space or Enter then commits the top prediction, as
+//! letter by letter (no F10), hanja by their reading (no F7), symbols by their key (pasted when
+//! no JIS Korean legend has them). Space or Enter then commits the top prediction, as
 //! the shells do. A word fails when what's committed isn't the word. Hanja are the exception: they
 //! are never the top prediction (spec §10.3), so a word with hanja is picked with ↓ from the list,
 //! each ↓ a press; it fails only when it isn't listed.
@@ -23,7 +23,7 @@ pub struct Failure {
     pub got: String,
     /// The predictions shown when it was committed.
     pub list: Vec<String>,
-    /// The keys pressed for it, spelled as Latin (a capital is Shift; F8 escapes shown as ⟨ ⟩).
+    /// The keys pressed for it, spelled as Latin (a capital is Shift).
     pub keys: String,
 }
 
@@ -75,6 +75,23 @@ pub fn type_text(
     attentive: bool,
     learner: Option<Learner>,
 ) -> (Trusting, Option<Learner>) {
+    type_text_observed(text, predictor, dictionary, ranker, style, attentive, learner, &mut |_, _, _| {})
+}
+
+/// [`type_text`], calling `observe` before each word is committed with the engine, the word, and
+/// what of it is staged (the word without what was committed before, when a pasted symbol
+/// committed part of it): the training data's view (spec §10.13).
+#[allow(clippy::too_many_arguments)]
+pub fn type_text_observed(
+    text: &str,
+    predictor: Arc<Predictor>,
+    dictionary: Option<Arc<Dictionary>>,
+    ranker: Ranker,
+    style: Style,
+    attentive: bool,
+    learner: Option<Learner>,
+    observe: &mut dyn FnMut(&Engine, &str, &str),
+) -> (Trusting, Option<Learner>) {
     let (text, _) = normalize(text);
     let robot = Robot::new(dictionary.clone());
     let mut engine = Engine::new();
@@ -104,7 +121,7 @@ pub fn type_text(
                 Style::Mixed(seed) => Style::Mixed(seed ^ (report.words as u64 + 1).wrapping_mul(0x9E37_79B9)),
                 other => other,
             };
-            type_word(word, &robot, &mut engine, dictionary.clone(), style, attentive, &mut report);
+            type_word(word, &robot, &mut engine, dictionary.clone(), style, attentive, &mut report, observe);
         }
     }
     let learned = learner.map(|_| engine.learner().clone());
@@ -120,16 +137,12 @@ fn type_word(
     style: Style,
     attentive: bool,
     report: &mut Trusting,
+    observe: &mut dyn FnMut(&Engine, &str, &str),
 ) {
     let mut got = String::new();
     let mut keys = String::new();
     let press = |engine: &mut Engine, presses: &[Press], got: &mut String, keys: &mut String, report: &mut Trusting| {
-        // A symbol through the F8 escape counts a flat OFF_LEGEND, as in plan.rs.
-        report.presses += if presses.first().is_some_and(|p| p.key == Key::F8) {
-            plan::OFF_LEGEND
-        } else {
-            presses.iter().map(|p| p.cost()).sum()
-        };
+        report.presses += presses.iter().map(|p| p.cost()).sum::<usize>();
         for p in presses {
             got.push_str(&engine.key(p.key, if p.shift { Mods::SHIFTED } else { Mods::NONE }).commit);
             keys.push_str(&spell(*p));
@@ -176,6 +189,9 @@ fn type_word(
         };
         press(engine, &presses, &mut got, &mut keys, report);
         i = end;
+    }
+    if let Some(staged) = word.strip_prefix(got.as_str()) {
+        observe(engine, word, staged);
     }
     let list: Vec<(String, Kind)> = engine.predictions().into_iter().map(|p| (p.text, p.kind)).collect();
     if list.first().is_some_and(|(_, kind)| *kind == Kind::Hanja) {
@@ -228,12 +244,8 @@ fn commit_top(engine: &mut Engine) -> (String, Vec<String>) {
 
 fn spell(p: Press) -> String {
     let code = p.key.code();
-    let s = match p.key {
-        Key::F8 if p.shift => "⟩".to_string(),
-        Key::F8 => "⟨".to_string(),
-        _ => code.strip_prefix("Key").or_else(|| code.strip_prefix("Digit")).unwrap_or(code).to_string(),
-    };
-    if p.shift && p.key != Key::F8 { s.to_uppercase() } else if p.key.letter().is_some() { s.to_lowercase() } else { s }
+    let s = code.strip_prefix("Key").or_else(|| code.strip_prefix("Digit")).unwrap_or(code).to_string();
+    if p.shift { s.to_uppercase() } else if p.key.letter().is_some() { s.to_lowercase() } else { s }
 }
 
 fn edit_distance(a: &str, b: &str) -> usize {

@@ -22,6 +22,8 @@ namespace {
 constexpr wchar_t kAppliedDate[] = L"TrainingFileDate";
 constexpr wchar_t kKoreanWords[] = L"TrainingWords.Korean";
 constexpr wchar_t kEnglishWords[] = L"TrainingWords.English";
+constexpr wchar_t kKoreanAvoid[] = L"TrainingAvoid.Korean";
+constexpr wchar_t kEnglishAvoid[] = L"TrainingAvoid.English";
 
 std::wstring Folder() {
     PWSTR path = nullptr;
@@ -85,6 +87,27 @@ std::wstring Lines(const json::Value* list, bool (*valid)(const std::wstring&)) 
     return out;
 }
 
+// `word` or `word<TAB>strong` lines from the avoid list (training-contract.md) for one language, at
+// most 5000.
+std::wstring AvoidLines(const json::Value* list, const char* language, bool (*valid)(const std::wstring&)) {
+    std::wstring out;
+    if (!list || list->type != json::Value::Type::kArray) return out;
+    int n = 0;
+    for (const json::Value& entry : list->array) {
+        const json::Value* word = entry.Get("word");
+        const json::Value* lang = entry.Get("language");
+        if (!word || !word->String() || !lang || !lang->String() || *lang->String() != language) continue;
+        const std::wstring w = Wide(*word->String());
+        if (!valid(w)) continue;
+        const json::Value* strength = entry.Get("strength");
+        if (!out.empty()) out += L'\n';
+        out += w;
+        if (strength && strength->String() && *strength->String() == "strong") out += L"\tstrong";
+        if (++n == 5000) break;
+    }
+    return out;
+}
+
 ULONGLONG FileTime(const std::wstring& file, bool* exists) {
     WIN32_FILE_ATTRIBUTE_DATA attributes = {};
     *exists = GetFileAttributesExW(file.c_str(), GetFileExInfoStandard, &attributes) != FALSE;
@@ -107,14 +130,26 @@ const JkPredictor* Predictor() {
     static JkPredictor* personal = nullptr;
     const std::wstring korean = settings::ReadString(kKoreanWords).value_or(L"");
     const std::wstring english = settings::ReadString(kEnglishWords).value_or(L"");
-    if (korean.empty() && english.empty()) return SharedPredictor();
-    const std::wstring key = korean + L'\0' + english;
+    const std::wstring avoidKorean = settings::ReadString(kKoreanAvoid).value_or(L"");
+    const std::wstring avoidEnglish = settings::ReadString(kEnglishAvoid).value_or(L"");
+    if (korean.empty() && english.empty() && avoidKorean.empty() && avoidEnglish.empty()) return SharedPredictor();
+    const std::wstring key = korean + L'\0' + english + L'\0' + avoidKorean + L'\0' + avoidEnglish;
     std::lock_guard<std::mutex> lock(mutex);
     if (!personal || key != words) {
         const std::string k = Narrow(korean), e = Narrow(english);
         JkPredictor* built = jk_predictor_with_words(
             SharedPredictor(), reinterpret_cast<const std::uint8_t*>(k.data()), k.size(),
             reinterpret_cast<const std::uint8_t*>(e.data()), e.size());
+        if (built && !(avoidKorean.empty() && avoidEnglish.empty())) {
+            const std::string ak = Narrow(avoidKorean), ae = Narrow(avoidEnglish);
+            JkPredictor* avoided = jk_predictor_with_avoided(
+                built, reinterpret_cast<const std::uint8_t*>(ak.data()), ak.size(),
+                reinterpret_cast<const std::uint8_t*>(ae.data()), ae.size());
+            if (avoided) {
+                jk_predictor_free(built);
+                built = avoided;
+            }
+        }
         if (personal) jk_predictor_free(personal);  // engines keep their own reference
         personal = built;
         words = key;
@@ -130,6 +165,8 @@ void ApplyIfChanged(JkEngine* engine) {
             settings::Delete(kAppliedDate);
             settings::Delete(kKoreanWords);
             settings::Delete(kEnglishWords);
+            settings::Delete(kKoreanAvoid);
+            settings::Delete(kEnglishAvoid);
         }
         return;
     }
@@ -175,6 +212,9 @@ void ApplyIfChanged(JkEngine* engine) {
     const json::Value* vocabulary = json->Get("vocabulary");
     settings::WriteString(kKoreanWords, Lines(vocabulary ? vocabulary->Get("korean") : nullptr, KoreanWord));
     settings::WriteString(kEnglishWords, Lines(vocabulary ? vocabulary->Get("english") : nullptr, EnglishWord));
+    const json::Value* avoid = json->Get("avoid");
+    settings::WriteString(kKoreanAvoid, AvoidLines(avoid, "korean", KoreanWord));
+    settings::WriteString(kEnglishAvoid, AvoidLines(avoid, "english", EnglishWord));
     const json::Value* examples = json->Get("examples");
     if (examples && examples->type == json::Value::Type::kArray && !examples->array.empty()) {
         settings::WriteDword(L"LearnFromChoices", 1);

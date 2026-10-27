@@ -12,3 +12,4 @@
 #define IDR_COMMON_EN 303
 #define IDR_COMMON_KO 304
 #define IDR_NOUNS 305
+#define IDR_LEARNED 306

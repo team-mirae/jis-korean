@@ -50,6 +50,14 @@ Build order: macOS → Minecraft → Windows. Android and iPhone are out of scop
 - macOS: `make` / `make install` in `/mac` (see `mac/README.md`); `make PREDICT=0` builds the lean
   version without the predictive layer.
 - Engine: `cargo test --no-default-features` tests the lite engine (no `predict` feature).
+- Engine builds (spec §10.1, §10.13): **full** (default) ranks predictions with the learned ranker
+  (`engine/predict/learned.bin`); **legacy** (`cargo build --features legacy-predict`, tested with
+  `cargo test --features legacy-predict`) ranks by the rules alone; **lite**
+  (`--no-default-features`) has no predictions. macOS: `make` / `make LEGACY_PREDICT=1` /
+  `make PREDICT=0`; Windows: `tools/build.ps1` / `-Legacy` / `-Lite`.
+- Learned ranker: `python3 engine/tools/train_learned.py` regenerates its training data (typing the
+  corpora through the engine) and retrains `learned.bin` in one command; rerun it after
+  `ranker.bin` or `common-*.txt` change. Never train on the evaluation texts (it excludes them).
 - Windows: `tools/build.ps1` in `/windows` (x64 + x86, runs the shell tests; `-Lite` without
   predictions), `tools/install.ps1` (admin) / `-Update`, and `tools/type-test.ps1` types through
   the installed TIP (see `windows/README.md`). Read `docs/troubleshooting/windows-tsf-notes.md`

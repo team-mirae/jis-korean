@@ -212,11 +212,6 @@ footer a {
   font-weight: 600;
 }
 
-.chip.escaped {
-  border-color: var(--camel);
-  background: var(--highlight);
-}
-
 .hint {
   color: var(--muted);
 }
@@ -1199,6 +1194,28 @@ main.floating-keyboard .caret {
 .board.ansi,
 .board.iso {
   --u: min(52px, calc((100vw - 32px) / 15.6));
+}
+
+/* Backspace, Space and Enter under the board, for touch screens. */
+.edit-row {
+  justify-content: center;
+}
+
+.key.edit {
+  width: calc(var(--u) * 1.5 - var(--gap));
+  height: calc(var(--u) * 0.7 - var(--gap));
+  aspect-ratio: auto;
+  background: var(--cap-fn);
+}
+
+.key.edit.space {
+  width: calc(var(--u) * 6 - var(--gap));
+}
+
+.key.edit .base {
+  left: 50%;
+  bottom: 50%;
+  transform: translate(-50%, 50%);
 }
 
 .key.wide {

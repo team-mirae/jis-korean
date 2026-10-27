@@ -54,7 +54,7 @@
 <p align="center">
   <picture>
     <source media="(prefers-color-scheme: dark)" srcset="docs/layout/pieces/mode-a-dark.png">
-    <img width="940" alt="Mode A, the JIS Korean Original Layout, drawn on a JIS keyboard. The 26 letter keys are standard 2-set. The number row types the double consonants ㅃ ㅉ ㄸ ㄲ ㅆ and the compound vowels ㅟ ㅝ ㅚ ㅢ ㅘ, with digits on Shift. The symbol keys type Korean punctuation: ! ? on the minus key, ( ) on the caret key, an em dash on the yen key, 「 」 on Shift+[ and Shift+], a middle dot on the slash key. F6 한글, F7 한자, F8 두벌식, F9 전각 and F10 반각 sit on the function row, and Shift+Z is F10." src="docs/layout/pieces/mode-a-light.png">
+    <img width="940" alt="Mode A, the JIS Korean Original Layout, drawn on a JIS keyboard. The 26 letter keys are standard 2-set. The number row types the double consonants ㅃ ㅉ ㄸ ㄲ ㅆ and the compound vowels ㅟ ㅝ ㅚ ㅢ ㅘ, with digits on Shift. The symbol keys type Korean punctuation: ! ? on the minus key, ( ) on the caret key, an em dash on the yen key, 「 」 on Shift+[ and Shift+], a middle dot on the slash key. F6 한글, F7 한자, F9 전각 and F10 반각 sit on the function row (F8 is reserved), and Shift+Z is F10." src="docs/layout/pieces/mode-a-light.png">
   </picture>
 </p>
 

@@ -18,7 +18,7 @@ const ROWS: Row[] = [
 const FUNCTION_KEYS: Record<string, { label: string; planned?: boolean }> = {
   F6: { label: "한글" },
   F7: { label: "한자" },
-  F8: { label: "두벌식" },
+  F8: { label: "—" },
   F9: { label: "전각" },
   F10: { label: "반각" },
 };
@@ -43,6 +43,14 @@ const ISO_ROWS: Row[] = [
   { offset: 1.25, codes: ["IntlBackslash", ..."ZXCVBNM".split("").map((l) => "Key" + l), "Comma", "Period", "Slash"] },
 ];
 
+// The editing keys, under the board, so a touch screen (no physical keyboard) can type spaces,
+// delete and start new lines. Shift is the toggle beside the typing area.
+const EDIT_KEYS: { code: string; label: string; name: string }[] = [
+  { code: "Backspace", label: "⌫", name: "Backspace" },
+  { code: "Space", label: "", name: "Space" },
+  { code: "Enter", label: "⏎", name: "Enter" },
+];
+
 const BOARDS = [
   { rows: ROWS, className: "", label: "JIS Korean keyboard" },
   { rows: ANSI_ROWS, className: " ansi", label: "JIS Korean for US ANSI keyboard" },
@@ -53,7 +61,6 @@ interface Props {
   engine: Engine;
   /** The mode: 0 = Mode A (JIS board), 1 = Mode B (US ANSI), 2 = Mode C (UK ISO). */
   mode: number;
-  escaped: boolean;
   shift: boolean;
   pressed: Set<string>;
   /** Float over the page (fixed to the bottom of the window) while the text is long. */
@@ -61,7 +68,7 @@ interface Props {
   onPress(code: string): void;
 }
 
-export function Keyboard({ engine, mode, escaped, shift, pressed, floating, onPress }: Props) {
+export function Keyboard({ engine, mode, shift, pressed, floating, onPress }: Props) {
   const board = BOARDS[mode] ?? BOARDS[0];
   return (
     <div className={"board" + board.className + (floating ? " floating" : "")}>
@@ -70,9 +77,9 @@ export function Keyboard({ engine, mode, escaped, shift, pressed, floating, onPr
           <div key={i} className={"row" + (i === 0 ? " fn-row" : "")} style={{ "--offset": row.offset } as CSSProperties}>
             {row.codes.map((code) => {
               const fn = FUNCTION_KEYS[code];
-              const base = fn ? code : engine.legend(code, false, escaped);
-              // Shift+Z is F10 (half-width letters) outside the F8 escape.
-              const shifted = fn ? fn.label : code === "KeyZ" && !escaped ? "반각" : engine.legend(code, true, escaped);
+              const base = fn ? code : engine.legend(code, false);
+              // Shift+Z is F10 (half-width letters).
+              const shifted = fn ? fn.label : code === "KeyZ" ? "반각" : engine.legend(code, true);
               const letter = code.startsWith("Key") ? code.slice(3) : "";
               const className = [
                 "key",
@@ -104,6 +111,20 @@ export function Keyboard({ engine, mode, escaped, shift, pressed, floating, onPr
             })}
           </div>
         ))}
+        <div className="row edit-row">
+          {EDIT_KEYS.map(({ code, label, name }) => (
+            <button
+              key={code}
+              type="button"
+              className={"key edit" + (code === "Space" ? " space" : "") + (pressed.has(code) ? " down" : "")}
+              aria-label={name}
+              onMouseDown={(e) => e.preventDefault()}
+              onClick={() => onPress(code)}
+            >
+              <span className="base">{label}</span>
+            </button>
+          ))}
+        </div>
       </div>
     </div>
   );

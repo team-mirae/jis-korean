@@ -31,6 +31,7 @@ jobs:
           workspaces: engine
       - run: cargo test --release --test baseline
       - run: cargo test --release --no-default-features --test baseline
+      - run: cargo test --release --features legacy-predict --test baseline
       - run: cargo test --release --features english --test baseline
 
   engine:
@@ -46,8 +47,10 @@ jobs:
         with:
           workspaces: engine
       # Tests that read the gitignored corpus (tests/data) skip themselves without it.
-      - name: Full build (with predictions)
+      - name: Full build (with predictions, the learned ranker)
         run: cargo test --release
+      - name: Legacy build (predictions ranked by the rules alone, spec §10.13)
+        run: cargo test --release --features legacy-predict
       - name: Lite build
         run: cargo test --release --no-default-features
       - name: With JIS English (spec §3.6.2)

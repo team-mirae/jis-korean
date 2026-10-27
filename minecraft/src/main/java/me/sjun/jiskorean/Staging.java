@@ -53,10 +53,6 @@ public final class Staging {
 		return english;
 	}
 
-	public boolean escaped() {
-		return engine.escaped();
-	}
-
 	/** The current ranking, for the candidate window. {@code before}: the field's text before the cursor. */
 	public Ranker.Choice ranking(String before) {
 		// A command name (/give, /tp) is always English; its arguments are ranked as usual.
@@ -122,17 +118,28 @@ public final class Staging {
 		// Shift+Z is F10 (spec §6). When the ranked reading is already what F10 would give (English,
 		// plain letters as typed), it skips ahead: F10 twice (gks → GKS).
 		// Only on the first press: once converted, the two readings are the same and F10 just cycles.
-		// Not in the F8 escape, where Shift+Z is ㅋ as in standard 2-set (spec §6).
-		if (code.equals("KeyZ") && shift && !isEmpty() && !engine.escaped() && !korean.equals(english)
+		if (code.equals("KeyZ") && shift && !isEmpty() && !korean.equals(english)
 				&& english.chars().allMatch(Character::isLetter) && ranking(before).language() == Language.ENGLISH) {
 			update(engine.key("F10", false));
 		}
+		String stagedKorean = korean;
+		String stagedEnglish = english;
 		WasmEngine.Output out = engine.key(code, shift);
+		if (!out.consumed() && !(stagedKorean.isEmpty() && stagedEnglish.isEmpty())) {
+			// A key the mode doesn't map (spec §3.5): the engine committed its Korean reading and let
+			// the key through. Commit the ranked reading instead, as Space would, then let it through.
+			korean = stagedKorean;
+			english = stagedEnglish;
+			return new Result(false, commitRanked(before));
+		}
 		update(out);
 		return new Result(out.consumed(), out.commit());
 	}
 
-	/** Commits the ranked reading. Call on focus loss and when the screen closes. */
+	/**
+	 * Commits the ranked reading. The host calls it when the field loses focus (another field,
+	 * a click, the screen closing; spec §5.1).
+	 */
 	public String commitRanked(String before) {
 		if (isEmpty()) {
 			return "";
@@ -144,30 +151,51 @@ public final class Staging {
 		return text;
 	}
 
-	/** Drops the staging area without committing. */
 	/**
-	 * Switches the engine's layout mode by its engine id (spec §3.6.1), dropping anything
-	 * staged. Does nothing if the mode is already set.
+	 * Switches the engine's layout mode by its engine id (spec §3.6.1). Anything staged was typed
+	 * in the old mode, so it's committed first (ranked) and returned for the host to insert. Does
+	 * nothing if the mode is already set or the engine refuses the id (it stays in its mode).
+	 *
+	 * @param before the field's text before the cursor (for command names)
+	 * @return the committed text, possibly empty
 	 */
-	public void setMode(int id) {
-		if (id != mode) {
-			clear();
-			engine.setMode(id);
-			mode = id;
+	public String setMode(int id, String before) {
+		if (id == mode || !engine.setMode(id)) {
+			return "";
 		}
+		mode = id;
+		// The engine's set_mode leaves the staged keys alone; commitRanked ranks this side's copy.
+		return commitRanked(before);
 	}
 
 	public int mode() {
 		return mode;
 	}
 
+	/**
+	 * The Korean mode to type in when the input method is in {@code id} (spec Open question 13,
+	 * the default until it's settled): an English mode maps to the Korean mode of its keyboard
+	 * family (§3.6.1, §3.6.2), since the mod is always on. JIS English, JIS Dvorak and JIS Colemak
+	 * (3, 7, 8) are Mode A's board, US English (9) Mode B's, UK English (10, {@code CJ_}) Mode C's.
+	 * Any other id is returned as is.
+	 */
+	public static int koreanMode(int id) {
+		return switch (id) {
+			case 3, 7, 8 -> 0;
+			case 9 -> 1;
+			case 10 -> 2;
+			default -> id;
+		};
+	}
+
+	/** Drops the staging area without committing. */
 	public void clear() {
 		engine.clear();
 		korean = "";
 		english = "";
 	}
 
-	/** The mod was switched on again: leave any F8 escape, start clean. */
+	/** The mod was switched on again: start clean. */
 	public void activate() {
 		clear();
 		engine.activate();

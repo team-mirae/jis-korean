@@ -31,20 +31,25 @@ fn guard<T>(fallback: T, f: impl FnOnce() -> T) -> T {
     catch_unwind(AssertUnwindSafe(f)).unwrap_or(fallback)
 }
 
-fn with<T>(handle: *mut JkEngine, fallback: T, f: impl FnOnce(&mut JkEngine) -> T) -> T {
-    // SAFETY: callers pass a handle from `jk_new` that hasn't been freed, from one thread.
-    if unsafe { handle.as_mut() }.is_none() {
+fn with<T: Copy>(handle: *mut JkEngine, fallback: T, f: impl FnOnce(&mut JkEngine) -> T) -> T {
+    with_or(handle, fallback, fallback, f)
+}
+
+/// [`with`], answering `on_panic` instead of `fallback` when the engine panicked.
+fn with_or<T>(handle: *mut JkEngine, fallback: T, on_panic: T, f: impl FnOnce(&mut JkEngine) -> T) -> T {
+    // SAFETY: callers pass a handle from `jk_new` that hasn't been freed, from one thread. The
+    // pointer is turned into a reference once, here; the closure only reborrows it.
+    let Some(h) = (unsafe { handle.as_mut() }) else {
         return fallback;
-    }
-    match catch_unwind(AssertUnwindSafe(|| f(unsafe { &mut *handle }))) {
+    };
+    match catch_unwind(AssertUnwindSafe(|| f(&mut *h))) {
         Ok(value) => value,
         Err(_) => {
             // A panic: nothing from before it may be applied again (the shell reads `last` after
             // the call), and the unconfirmed state it left may be inconsistent.
-            let h = unsafe { &mut *handle };
             h.last = Output::default();
             h.engine.clear();
-            fallback
+            on_panic
         }
     }
 }
@@ -73,14 +78,26 @@ pub unsafe extern "C" fn jk_free(handle: *mut JkEngine) {
     }
 }
 
+/// What `jk_key` answers when the engine failed on a key: nothing to apply, and the key is taken
+/// (not passed on, where the app's layout would type a bare jamo).
+pub const JK_RESULT_ERROR: u32 = 2;
+
 /// Handles one key press. Returns 1 if consumed, 0 if the shell should pass the key on to the
-/// app after applying the commit and preedit.
+/// app after applying the commit and preedit, [`JK_RESULT_ERROR`] if the engine failed (consumed,
+/// nothing to apply).
 #[unsafe(no_mangle)]
 pub extern "C" fn jk_key(handle: *mut JkEngine, key: u32, mods: u32) -> u32 {
-    with(handle, 0, |h| {
+    with_or(handle, 0, JK_RESULT_ERROR, |h| {
         h.last = h.engine.key(Key::from_id(key), Mods::from_bits(mods));
         h.last.consumed as u32
     })
+}
+
+/// 1 if `key` commits the unconfirmed text as it stands (Space, Enter, Esc, arrows, shortcuts, keys
+/// outside the mode's map): while a prediction shows, send it with `jk_key_after_prediction`.
+#[unsafe(no_mangle)]
+pub extern "C" fn jk_key_commits(handle: *mut JkEngine, key: u32, mods: u32) -> u32 {
+    with(handle, 0, |h| h.engine.commits(Key::from_id(key), Mods::from_bits(mods)) as u32)
 }
 
 /// Commits everything unconfirmed (focus loss, app or IME switch).
@@ -89,7 +106,7 @@ pub extern "C" fn jk_flush(handle: *mut JkEngine) {
     with(handle, (), |h| h.last = h.engine.flush())
 }
 
-/// The IME was switched back to: leaves any F8 escape.
+/// The IME was switched back to. Nothing to do since the F8 escape was retired; kept for hosts.
 #[unsafe(no_mangle)]
 pub extern "C" fn jk_activate(handle: *mut JkEngine) {
     with(handle, (), |h| h.engine.activate())
@@ -308,7 +325,11 @@ pub extern "C" fn jk_resolved_len(handle: *mut JkEngine) -> usize {
 /// Allocates `len` bytes in the engine's memory, for passing data in from wasm hosts.
 #[unsafe(no_mangle)]
 pub extern "C" fn jk_alloc(len: usize) -> *mut u8 {
-    let mut buffer = Vec::<u8>::with_capacity(len);
+    // Null instead of a panic when it can't be had: nothing may unwind into the host.
+    let mut buffer = Vec::<u8>::new();
+    if buffer.try_reserve_exact(len).is_err() {
+        return std::ptr::null_mut();
+    }
     let ptr = buffer.as_mut_ptr();
     std::mem::forget(buffer);
     ptr
@@ -476,7 +497,7 @@ pub use predict_ffi::*;
 mod predict_ffi {
     use std::sync::Arc;
 
-    use super::{JkEngine, with};
+    use super::{JK_RESULT_ERROR, JkEngine, guard, with, with_or};
     use crate::predict::Predictor;
 
     /// A loaded predictor, shareable by many engines.
@@ -511,13 +532,33 @@ mod predict_ffi {
         };
         // SAFETY: per the contract above.
         let n = unsafe { text(nouns, nouns_len) }.unwrap_or(&[]);
-        match (std::str::from_utf8(e), std::str::from_utf8(k), std::str::from_utf8(n)) {
+        guard(std::ptr::null_mut(), || match (std::str::from_utf8(e), std::str::from_utf8(k), std::str::from_utf8(n)) {
             (Ok(e), Ok(k), Ok(n)) => match Predictor::parse(m, e, k, n) {
                 Ok(p) => Box::into_raw(Box::new(JkPredictor(Arc::new(p)))),
                 Err(_) => std::ptr::null_mut(),
             },
             _ => std::ptr::null_mut(),
-        }
+        })
+    }
+
+    /// A new predictor: `base` ranking with the learned model (`predict/learned.bin`, spec §10.13).
+    /// `base` stays valid and unchanged. Null if `base` is null or the model is malformed (or was
+    /// trained on other features). The legacy build (`legacy-predict`) ignores the model: a copy
+    /// of `base`, ranking by the rules.
+    ///
+    /// # Safety
+    /// `base` must come from `jk_predictor_new` or a `jk_predictor_with_*` function; `model` must
+    /// point to `model_len` readable bytes.
+    #[unsafe(no_mangle)]
+    pub unsafe extern "C" fn jk_predictor_with_learned(base: *const JkPredictor, model: *const u8, model_len: usize) -> *mut JkPredictor {
+        // SAFETY: per the contract above.
+        let Some(base) = (unsafe { base.as_ref() }) else { return std::ptr::null_mut() };
+        // SAFETY: per the contract above.
+        let Some(m) = (unsafe { text(model, model_len) }) else { return std::ptr::null_mut() };
+        guard(std::ptr::null_mut(), || match base.0.with_learned(m) {
+            Ok(p) => Box::into_raw(Box::new(JkPredictor(Arc::new(p)))),
+            Err(_) => std::ptr::null_mut(),
+        })
     }
 
     /// A new predictor: `base` with the user's own words added (training contract, spec §10.12),
@@ -539,10 +580,34 @@ mod predict_ffi {
         let Some(base) = (unsafe { base.as_ref() }) else { return std::ptr::null_mut() };
         // SAFETY: per the contract above.
         let (k, e) = (unsafe { text(korean, korean_len) }.unwrap_or(&[]), unsafe { text(english, english_len) }.unwrap_or(&[]));
-        match (std::str::from_utf8(k), std::str::from_utf8(e)) {
+        guard(std::ptr::null_mut(), || match (std::str::from_utf8(k), std::str::from_utf8(e)) {
             (Ok(k), Ok(e)) => Box::into_raw(Box::new(JkPredictor(Arc::new(base.0.with_user_words(k, e))))),
             _ => std::ptr::null_mut(),
-        }
+        })
+    }
+
+    /// A new predictor: `base` with words the user never means (the training contract's `avoid`,
+    /// spec §10.12), UTF-8 lines of `word` or `word<TAB>strong` for Korean and English (either may
+    /// be empty). `base` stays valid and unchanged. Null if `base` is null or a list isn't UTF-8.
+    ///
+    /// # Safety
+    /// As [`jk_predictor_with_words`].
+    #[unsafe(no_mangle)]
+    pub unsafe extern "C" fn jk_predictor_with_avoided(
+        base: *const JkPredictor,
+        korean: *const u8,
+        korean_len: usize,
+        english: *const u8,
+        english_len: usize,
+    ) -> *mut JkPredictor {
+        // SAFETY: per the contract above.
+        let Some(base) = (unsafe { base.as_ref() }) else { return std::ptr::null_mut() };
+        // SAFETY: per the contract above.
+        let (k, e) = (unsafe { text(korean, korean_len) }.unwrap_or(&[]), unsafe { text(english, english_len) }.unwrap_or(&[]));
+        guard(std::ptr::null_mut(), || match (std::str::from_utf8(k), std::str::from_utf8(e)) {
+            (Ok(k), Ok(e)) => Box::into_raw(Box::new(JkPredictor(Arc::new(base.0.with_avoided(k, e))))),
+            _ => std::ptr::null_mut(),
+        })
     }
 
     /// Learns from one example of what the user meant (training contract, spec §10.12): `keys` as
@@ -566,7 +631,7 @@ mod predict_ffi {
         let keys = match unsafe { text(keys, keys_len) }.map(std::str::from_utf8) {
             None => None,
             Some(Ok(k)) if k.trim().is_empty() => None,
-            Some(Ok(k)) => match crate::plan::parse_keys(k) {
+            Some(Ok(k)) => match guard(None, || crate::plan::parse_keys(k)) {
                 Some(presses) => Some(presses),
                 None => return -2,
             },
@@ -695,10 +760,13 @@ mod predict_ffi {
     pub unsafe extern "C" fn jk_learner_import(handle: *mut JkEngine, ptr: *const u8, len: usize) -> u32 {
         // SAFETY: as documented.
         let Some(bytes) = (unsafe { text(ptr, len) }) else { return 0 };
-        let Some(learner) = std::str::from_utf8(bytes).ok().and_then(crate::learn::Learner::import) else { return 0 };
-        with(handle, 0, |h| {
-            h.engine.set_learner(learner);
-            1
+        let Ok(text) = std::str::from_utf8(bytes) else { return 0 };
+        with(handle, 0, |h| match crate::learn::Learner::import(text) {
+            Some(learner) => {
+                h.engine.set_learner(learner);
+                1
+            }
+            None => 0,
         })
     }
 
@@ -721,7 +789,7 @@ mod predict_ffi {
     /// text with `jk_commit_*` and `jk_preedit_*`.
     #[unsafe(no_mangle)]
     pub extern "C" fn jk_key_after_prediction(handle: *mut JkEngine, index: usize, key: u32, mods: u32) -> u32 {
-        with(handle, 0, |h| {
+        with_or(handle, 0, JK_RESULT_ERROR, |h| {
             h.last = h.engine.key_after_prediction(index, crate::Key::from_id(key), crate::Mods::from_bits(mods));
             h.predictions.clear();
             h.last.consumed as u32
@@ -768,5 +836,25 @@ mod tests {
         assert!(h.engine.preedit().is_empty());
         // SAFETY: from jk_new, freed once.
         unsafe { jk_free(handle) };
+    }
+
+    #[test]
+    fn a_panic_on_a_key_takes_the_key() {
+        let handle = jk_new();
+        assert_eq!(with_or(handle, 0, JK_RESULT_ERROR, |_| panic!("simulated")), JK_RESULT_ERROR);
+        // A null handle is no failure: the key goes on.
+        assert_eq!(jk_key(std::ptr::null_mut(), Key::from_code("KeyG") as u32, 0), 0);
+        // SAFETY: from jk_new, freed once.
+        unsafe { jk_free(handle) };
+    }
+
+    #[cfg(not(target_family = "wasm"))]
+    #[test]
+    fn an_allocation_too_large_is_null() {
+        assert!(jk_alloc(usize::MAX).is_null());
+        let ptr = jk_alloc(16);
+        assert!(!ptr.is_null());
+        // SAFETY: from jk_alloc(16), freed once.
+        unsafe { jk_dealloc(ptr, 16) };
     }
 }

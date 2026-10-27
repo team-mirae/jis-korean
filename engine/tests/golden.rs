@@ -146,18 +146,42 @@ fn parentheses_on_the_caret_key_and_caret_on_shift_yen() {
     // The ^ key types ( and ) (spec §3.1); ^ is on Shift+¥, so ^^ is two Shift+¥.
     pre("Equal KeyG KeyK KeyS S-Equal", "(한)");
     pre("S-IntlYen S-IntlYen", "^^");
-    // The F8 escape still types the stock JIS characters there.
-    pre("F8 Equal S-Equal IntlYen", "^~¥");
     // F9 / F10 never turn them into ^ ~: a word after ( converts and ( stays; text ending in )
-    // converts that symbol run, as typed (§6.1: ) half-width is ) ).
+    // converts that symbol run, as typed (§5.3: ) half-width is ) ).
     pre("Equal KeyR KeyK F10", "(rk");
     pre("Equal KeyR KeyK S-Equal F10", "(가)");
     pre("Equal KeyR KeyK S-Equal F9", "(가）");
 }
 
 #[test]
+fn f9_and_f10_convert_every_symbol_with_a_form_in_that_width() {
+    // 「 」 are full-width already: F10 makes them half-width, F9 leaves them.
+    pre("S-BracketRight KeyR KeyK S-Backslash F10", "「가｣");
+    pre("S-BracketRight KeyR KeyK S-Backslash F9", "「가」");
+    pre("S-BracketRight KeyR KeyK S-Backslash F10 F9", "「가」");
+    // A symbol with no other form stays, and the run goes on past it: · and — have none.
+    pre("Minus Slash Minus F9", "！·！");
+    pre("IntlYen S-Digit1 F9", "—１");
+    pre("Minus Slash Minus F9 F10", "!·!");
+}
+
+#[test]
 fn shift_ignored_on_vowels_without_shifted_forms() {
     pre("KeyR S-KeyK", "가");
+}
+
+#[test]
+fn shift_still_held_after_a_double_final_moves_it_like_any_final() {
+    // ㄲ and ㅆ can be finals: the vowel after them takes them, as after ㄴ or ㄱ (2-set too).
+    pre("KeyR KeyK S-KeyR S-KeyK KeyD KeyL", "가까이");
+    pre("KeyQ KeyL S-KeyT S-KeyK", "비싸");
+    pre("KeyQ KeyK S-KeyR S-KeyK KeyX", "바깥");
+    pre("KeyD KeyL S-KeyT S-KeyJ", "이써");
+    // 있어 the other ways: the same vowel again, or the dedicated ㅆ key, after which Shift is new.
+    pre("KeyD KeyL S-KeyT KeyJ KeyJ", "있어");
+    pre("KeyD KeyL Digit5 S-KeyJ", "있어");
+    // Only right after the double: a Shift+vowel later still starts on ㅇ.
+    pre("KeyD KeyL S-KeyT S-KeyJ S-KeyK", "이써아");
 }
 
 // §4.1 Automaton
@@ -341,33 +365,35 @@ fn f6_with_nothing_unconfirmed_is_a_no_op() {
     doc("F6", "", "");
 }
 
-// §6.1 F8
-
 #[test]
-fn f8_escapes_to_stock_jis() {
-    pre("F8 Digit1 S-Digit2 BracketLeft Slash", "1\"@/");
-    pre("F8 KeyG KeyK KeyS", "한");
+fn function_keys_with_nothing_unconfirmed_go_to_the_app() {
+    for key in [Key::F6, Key::F7, Key::F8, Key::F9, Key::F10] {
+        assert!(!Engine::new().key(key, Mods::NONE).consumed, "{key:?}");
+    }
+    // Shift+Z is a JIS Korean key, not a real F10: taken either way.
+    assert!(Engine::new().key(Key::KeyZ, Mods::SHIFTED).consumed);
+    // With something unconfirmed they act and are taken.
+    let mut e = Engine::new();
+    e.key(Key::KeyR, Mods::NONE);
+    let out = e.key(Key::F6, Mods::NONE);
+    assert!(out.consumed);
+    assert_eq!(out.commit, "ㄱ");
 }
 
-#[test]
-fn f8_is_one_way_and_shift_f8_returns() {
-    pre("F8 F8 Digit1", "1");
-    pre("F8 S-F8 Digit1", "ㅃ");
-}
+// §6 F8 (reserved)
 
 #[test]
-fn activate_leaves_escape() {
-    let mut h = Host::new();
-    h.keys("F8");
-    assert!(h.engine.is_escaped());
-    h.engine.activate();
-    h.keys("Digit1");
-    assert_eq!(h.preedit, "ㅃ");
-}
-
-#[test]
-fn f8_carries_the_syllable_being_composed() {
+fn f8_is_reserved_and_does_nothing() {
+    // With something unconfirmed it's taken and changes nothing; the keys after it type as ever.
     pre("KeyG KeyK F8 KeyS", "한");
+    pre("F8 Digit1 S-Digit2", "ㅃ2");
+    pre("KeyG KeyK S-F8 Digit1", "하ㅃ");
+    // With nothing unconfirmed it goes to the app.
+    let mut e = Engine::new();
+    assert!(!e.key(Key::F8, Mods::NONE).consumed);
+    e.key(Key::KeyG, Mods::NONE);
+    assert!(e.key(Key::F8, Mods::NONE).consumed);
+    assert!(!e.is_escaped());
 }
 
 // §6.2 F9 / F10
@@ -513,11 +539,6 @@ fn shift_on_consonants_is_unchanged() {
 }
 
 #[test]
-fn f8_escape_keeps_standard_shift_on_vowels() {
-    pre("F8 KeyA KeyK KeyF S-KeyL", "마리");
-}
-
-#[test]
 fn english_reading_keeps_the_shifted_vowel_letter() {
     let mut e = Engine::new();
     for (code, shift) in [("KeyA", false), ("KeyK", false), ("KeyF", false), ("KeyL", true)] {
@@ -551,6 +572,15 @@ fn plain_z_still_types_kieuk() {
 }
 
 #[test]
-fn shift_z_in_the_f8_escape_is_kieuk() {
-    pre("F8 S-KeyZ KeyK", "카");
+fn the_engine_says_which_keys_commit_what_stands() {
+    let e = Engine::new();
+    for key in [Key::Space, Key::Enter, Key::Escape, Key::ArrowDown, Key::ArrowLeft, Key::Other, Key::Backquote] {
+        assert!(e.commits(key, Mods::NONE), "{key:?}");
+    }
+    assert!(e.commits(Key::KeyG, Mods { ctrl: true, ..Mods::NONE }));
+    for key in [Key::KeyG, Key::Digit1, Key::Minus, Key::Backspace, Key::F6, Key::F10, Key::Modifier] {
+        assert!(!e.commits(key, Mods::NONE), "{key:?}");
+    }
+    // Shift+Z is F10 here, not a commit.
+    assert!(!e.commits(Key::KeyZ, Mods::SHIFTED));
 }

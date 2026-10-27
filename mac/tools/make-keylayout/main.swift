@@ -3,7 +3,8 @@
 // (`cargo run --example legends <mode id>`, by key id) through Sources/KeyMap.swift (key code → key
 // id). Every other layer, and every key the engine doesn't label, is ABC's on the keyboard being
 // typed on (one key map set each for JIS, ANSI and ISO), read from this Mac: Cmd and Ctrl shortcuts
-// and Option characters stay exactly as they are, whichever keyboard the mode is used on.
+// and Option characters stay exactly as they are, whichever keyboard the mode is used on. One
+// exception: on JIS, the key left of 1 (半角/全角) types nothing in a mode that doesn't label it.
 // Usage: make-keylayout <legends.tsv> <out.keylayout> <name> <JIS|ANSI|ISO> <id> [caps]   (built by the
 // Makefile with KeyMap.swift and the engine header; name and id must be unique among the bundle's
 // layouts). `caps`: Caps Lock types the letters upper-case, for an English mode (JIS English); the
@@ -116,6 +117,10 @@ for family in families.map(\.name) {
                 if index == 6, out.count == 1, out.first!.isASCII, out.first!.isLetter {
                     out = out.uppercased()
                 }
+            } else if index < 2 || index == 6, family == "JIS", code == kVK_ANSI_Grave {
+                // On a JIS board this key is 半角/全角, a language key: a mode that doesn't map it
+                // (Mode A, spec §3.6) commits and types nothing, not ABC's ` (#12).
+                out = ""
             }
             if !out.isEmpty {
                 xml += "      <key code=\"\(code)\" output=\"\(escaped(out))\"/>\n"
