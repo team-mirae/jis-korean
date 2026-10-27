@@ -27,6 +27,16 @@ const wchar_t* ExeName() {
 
 }  // namespace
 
+size_t Append(wchar_t* line, size_t size, size_t used, const wchar_t* format, va_list args) {
+    if (used + 2 > size) return used;
+    const size_t room = size - used - 1;  // one left for the newline
+    int m = _vsnwprintf_s(line + used, room, _TRUNCATE, format, args);
+    if (m < 0) m = static_cast<int>(wcsnlen(line + used, room));  // truncated
+    used += static_cast<size_t>(m);
+    line[used++] = L'\n';
+    return used;
+}
+
 void Write(const wchar_t* format, ...) {
     if (!settings::ReadDword(L"DiagnosticLog", 0)) return;
     wchar_t path[MAX_PATH];
@@ -41,13 +51,11 @@ void Write(const wchar_t* format, ...) {
     if (n < 0) return;
     va_list args;
     va_start(args, format);
-    const int m = vswprintf_s(line + n, std::size(line) - n - 2, format, args);
+    const size_t length = Append(line, std::size(line), static_cast<size_t>(n), format, args);
     va_end(args);
-    if (m < 0) return;
-    n += m;
-    line[n++] = L'\n';
     char utf8[3072];
-    const int bytes = WideCharToMultiByte(CP_UTF8, 0, line, n, utf8, sizeof(utf8), nullptr, nullptr);
+    const int bytes = WideCharToMultiByte(CP_UTF8, 0, line, static_cast<int>(length), utf8, sizeof(utf8),
+                                          nullptr, nullptr);
     if (bytes <= 0) return;
     // FILE_APPEND_DATA: every write lands at the end, so processes don't overwrite each other.
     HANDLE file = CreateFileW(path, FILE_APPEND_DATA, FILE_SHARE_READ | FILE_SHARE_WRITE, nullptr,

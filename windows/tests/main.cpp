@@ -10,6 +10,7 @@
 #include "jis_korean.h"
 #include "json.h"
 #include "key_map.h"
+#include "log.h"
 
 namespace {
 
@@ -44,6 +45,14 @@ std::string Type(unsigned mode, const std::vector<Press>& presses, std::string* 
     if (preedit) *preedit = Str(jk_preedit_ptr(e), jk_preedit_len(e));
     jk_free(e);
     return committed;
+}
+
+size_t Format(wchar_t* line, size_t size, size_t used, const wchar_t* format, ...) {
+    va_list args;
+    va_start(args, format);
+    const size_t n = jk::log::Append(line, size, used, format, args);
+    va_end(args);
+    return n;
 }
 
 // The key code name of an engine key, as the engine spells it.
@@ -160,6 +169,16 @@ int main() {
         Check(jk_mode_is_english(7) && jk_legend_in(key_s, 0, 0, 7) == U'o', "JIS Dvorak: the S key is o");
         Check(jk_mode_is_english(8) && jk_legend_in(key_s, 0, 0, 8) == U'r', "JIS Colemak: the S key is r");
         Check(jk_mode_is_english(10) && jk_legend_in(ro, 0, 0, 10) == U'\\', "UK English: ろ is \\");
+    }
+
+    // The log truncates an overlong line instead of ending the process (log.cpp).
+    {
+        wchar_t line[16];
+        const std::wstring big(100, L'x');
+        size_t n = Format(line, 16, 3, L"%s", big.c_str());
+        Check(n == 15 && line[14] == L'\n', "an overlong log line is truncated");
+        n = Format(line, 16, 0, L"ab%d", 5);
+        Check(n == 4 && std::wstring(line, n) == L"ab5\n", "a log line that fits");
     }
 
     std::printf(failures ? "%d failed\n" : "all passed\n", failures);

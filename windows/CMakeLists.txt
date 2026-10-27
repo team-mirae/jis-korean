@@ -65,7 +65,7 @@ target_include_directories(jiskorean PRIVATE src)
 target_link_libraries(jiskorean PRIVATE jk_keymap jk_engine ole32 oleaut32 user32 gdi32 shell32)
 
 enable_testing()
-add_executable(jiskorean_tests tests/main.cpp src/json.cpp)
+add_executable(jiskorean_tests tests/main.cpp src/json.cpp src/log.cpp src/settings.cpp)
 target_link_libraries(jiskorean_tests PRIVATE jk_keymap jk_engine)
 target_compile_definitions(jiskorean_tests PRIVATE JK_DOCS_DIR="${CMAKE_CURRENT_SOURCE_DIR}/../docs")
 add_test(NAME jiskorean_tests COMMAND jiskorean_tests)

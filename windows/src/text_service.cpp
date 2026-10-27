@@ -130,8 +130,10 @@ HRESULT GetCompartment(IUnknown* manager_owner, REFGUID guid, ComPtr<ITfCompartm
 LONG ReadCompartment(ITfCompartment* compartment) {
     VARIANT v;
     VariantInit(&v);
-    if (!compartment || FAILED(compartment->GetValue(&v)) || v.vt != VT_I4) return 0;
-    return v.lVal;
+    if (!compartment || FAILED(compartment->GetValue(&v))) return 0;
+    const LONG value = v.vt == VT_I4 ? v.lVal : 0;
+    VariantClear(&v);  // another TIP or app may have stored a string or an object there
+    return value;
 }
 
 void WriteCompartment(ITfCompartment* compartment, TfClientId client_id, LONG value) {

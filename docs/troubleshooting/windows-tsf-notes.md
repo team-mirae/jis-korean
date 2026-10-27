@@ -225,6 +225,10 @@ sessions (Chromium) wasn't measured, so the async log line hasn't been seen yet.
   `GetModuleHandleExW` and drop it with `FreeLibraryWhenCallbackReturns`.
 - **The personal predictor could be freed under another thread.** `training::SetPredictor(engine)`
   sets it on the engine under the lock that guards rebuilding it.
+- **Small ones.** `ReadCompartment` clears the `VARIANT` whatever its type (a string or object
+  stored by someone else leaked). An overlong log line went through `vswprintf_s`, whose
+  invalid-parameter handler ends the process; `log::Append` truncates with `_vsnwprintf_s(…,
+  _TRUNCATE, …)` (unit-tested).
 
 ## Open issues: root causes
 
