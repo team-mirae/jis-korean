@@ -5,7 +5,8 @@
 //   jk_testpad --profile on --target edit|rich|tsf|password|pwscope|nocontext|cancel --keys "KeyG KeyK KeyS Space" --out result.txt
 //              [--peek 1] [--probe 1]
 //
-// Keys: KeyboardEvent.code names (S- holds Shift), U+XXXX injects a character as Unicode
+// Keys: KeyboardEvent.code names (S- holds Shift; D- is the key-down alone, again for an
+// auto-repeat, and R- its release), U+XXXX injects a character as Unicode
 // (VK_PACKET), and @off / @on / @focus=<target> / @wait=<ms> are commands (TypeKeys).
 //
 // With --keys it selects the JIS Korean profile for itself (with --profile), injects the keys with
@@ -134,7 +135,11 @@ void TypeKeys(HWND window) {
     while (words >> word) {
         const bool shift = word.rfind(L"S-", 0) == 0;
         Key key;
-        if (word.rfind(L"U+", 0) == 0) {
+        if ((word.rfind(L"D-", 0) == 0 || word.rfind(L"R-", 0) == 0) && Lookup(word.substr(2), &key)) {
+            // D-: the key-down alone (again: an auto-repeat), R-: its release.
+            INPUT in = Input(key, word[0] == L'R');
+            SendInput(1, &in, sizeof(INPUT));
+        } else if (word.rfind(L"U+", 0) == 0) {
             SendUnicode(static_cast<wchar_t>(wcstoul(word.c_str() + 2, nullptr, 16)));
         } else if (word[0] == L'@') {
             // A command, run on the window's thread: @off / @on (switch to the Microsoft IME and

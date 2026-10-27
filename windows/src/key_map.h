@@ -24,4 +24,12 @@ inline constexpr unsigned kBack = 0x08, kTab = 0x09, kReturn = 0x0D, kShift = 0x
 // 16-23) and the extended-key flag (lParam bit 24).
 std::uint32_t EngineKey(unsigned vk, unsigned scan, bool extended);
 
+// Whether a key-down test (wparam, lParam, GetMessageTime, GetTickCount64) is the same key-down as
+// an earlier one with no key-up of it in between, tested again (#5). A first press (lParam bit 30
+// clear) can't come twice without a key-up, so the same lParam within a short while is the same
+// one, even when the message time differs (a test before the message was taken reads the previous
+// message's time). Auto-repeats share their lParam: those must have the same message time too.
+bool SameKeyDown(std::uintptr_t wparam, std::intptr_t lparam, std::int32_t time, std::uint64_t tick,
+                 std::uintptr_t wparam2, std::intptr_t lparam2, std::int32_t time2, std::uint64_t tick2);
+
 }  // namespace jk

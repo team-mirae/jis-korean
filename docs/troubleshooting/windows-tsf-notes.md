@@ -24,6 +24,7 @@ may follow. Two more measured facts shape that cache:
   made every key go through the engine twice.
 - Through the IMM layer, `OnKeyDown` follows even for a key `OnTestKeyDown` didn't eat (Enter), so
   the cache keeps not-eaten results too.
+- `OnTestKeyDown` itself can be called twice for one key-down: see #5 below.
 
 ## Classic apps need the composition selected as an interim character
 
@@ -79,6 +80,26 @@ Parsing the embedded hanja dictionary takes 80–110 ms and the predictor 16–3
 (measured). Both now load on a thread-pool thread when JIS Korean activates; the first key waits
 only if they aren't ready yet.
 
+## A key-down tested twice ran the engine twice (#5)
+
+**Symptom (reproduced).** `jk_testpad --peek 1 --probe 1` (a message loop that peeks each key and
+calls `ITfKeystrokeMgr::TestKeyDown` on it before taking it) turned `KeyE KeyK KeyE KeyK Space` into
+`ㄷ다앋다아  ` in the TSF RichEdit. The Edit and the IMM RichEdit were unaffected: there the peeked
+key is already `VK_PROCESSKEY`.
+
+**Change.** `OnTestKeyDown` remembers the key-down it ran the engine for and answers a second test
+of it from that (`SameKeyDown` in `key_map.cpp`, unit-tested). The message time alone can't tell: a
+test before the message was taken reads the *previous* message's time. So a first press (lParam bit
+30 clear) is the same one when its lParam matches within 500 ms, since it can't come twice without
+a key-up. An auto-repeat must match the message time too. The memory ends on that key's key-up
+(`OnTestKeyUp`/`OnKeyUp`), on a focus change, or at the next key tested; the 2 s window is gone.
+`OnKeyDown` still takes the result once, by virtual key, scan code and extended flag. The first
+repeat test per program is logged ("a key-down was tested twice").
+
+**Verified.** `type-test.ps1` `#5` cases: `다다 ` with peek+probe in edit/rich/tsf; held `KeyG`
+(`D-KeyG` ×4) gives four ㅎ, with and without probing. Not measured: Chrome/Edge, Word, Windows
+Terminal (look for the log line).
+
 ## Edit sessions hold the service, and never call the engine (#7)
 
 **Symptom (read, not reproduced).** A session TSF queued (`TF_E_SYNCHRONOUS` → `TF_ES_ASYNCDONTCARE`)
@@ -114,9 +135,7 @@ issue's body has the full analysis and the steps to verify it with `type-test.ps
 - **#4, `VK_PACKET`.** Characters injected with `KEYEVENTF_UNICODE` carry the character, not a scan
   code, in lParam. `EngineKey` reads it as a position (Space → ㅇ). Fix: `VK_PACKET` →
   `JK_KEY_OTHER`, which commits first and passes the character on.
-- **#5, `OnTestKeyDown` twice.** The engine runs in `OnTestKeyDown` (above), but nothing makes a
-  second test of the same key-down a no-op. Fix: return the cached result for the same wparam,
-  lParam and `GetMessageTime()`, and clear the cache on that key's key-up.
+- **#5, `OnTestKeyDown` twice.** Fixed (above).
 - **#6, loose jamo.** A refused `StartComposition` flushes the engine at every key, and a
   composition the app ends right after the update (no interim selection kept) clears it. With a
   prediction shown, the refused path also inserts the prediction but flushes the Korean reading.

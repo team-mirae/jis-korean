@@ -51,6 +51,13 @@ $cases = @(
 $passwordCases = @(
     ,@('password field passes keys through', 1, 1, 'KeyG KeyK KeyS S-KeyR Digit1 KeyH KeyE KeyL KeyL KeyO', 'gksR1hello')
 )
+# Hosts that misbehave (jk_testpad's options and targets): name, Mode, Predictions, keys, expected,
+# targets, extra jk_testpad arguments.
+$hostCases = @(
+    @('#5 auto-repeat: one jamo per repeat', 0, 0, 'D-KeyG D-KeyG D-KeyG D-KeyG R-KeyG KeyE KeyE Space', 'ㅎㅎㅎㅎㄷㄷ ', @('edit', 'rich', 'tsf'), @()),
+    @('#5 a key tested twice runs once', 0, 0, 'KeyE KeyK KeyE KeyK Space', '다다 ', @('edit', 'rich', 'tsf'), @('--peek', '1', '--probe', '1')),
+    @('#5 auto-repeat tested twice', 0, 0, 'D-KeyG D-KeyG D-KeyG R-KeyG Space', 'ㅎㅎㅎ ', @('tsf'), @('--peek', '1', '--probe', '1'))
+)
 
 $saved = @{}
 foreach ($name in 'Mode', 'Predictions', 'DedicatedSymbols', 'EnglishMode', 'LearnFromChoices') {
@@ -60,19 +67,22 @@ Set-ItemProperty $key LearnFromChoices 0 -Type DWord
 $failed = 0
 $out = Join-Path $env:TEMP 'jk-type-test.txt'
 try {
-    foreach ($c in @($cases) + @($passwordCases)) {
+    foreach ($c in @($cases) + @($passwordCases) + @($hostCases)) {
         if ($Filter -and $c[0] -notlike "*$Filter*") { continue }
+        $hosted = $hostCases -contains $c
         Set-ItemProperty $key Mode $c[1] -Type DWord
         Set-ItemProperty $key Predictions $c[2] -Type DWord
-        Set-ItemProperty $key DedicatedSymbols $(if ($c.Count -gt 5) { $c[5] } else { 1 }) -Type DWord
-        $english = if ($c.Count -gt 6) { $c[6] } else { 'unset' }
+        Set-ItemProperty $key DedicatedSymbols $(if ($c.Count -gt 5 -and -not $hosted) { $c[5] } else { 1 }) -Type DWord
+        $english = if ($c.Count -gt 6 -and -not $hosted) { $c[6] } else { 'unset' }
         if ($english -eq 'unset') { Remove-ItemProperty $key -Name EnglishMode -ErrorAction SilentlyContinue }
         elseif ($english -eq 'windows') { Set-ItemProperty $key EnglishMode ([int32]-1) -Type DWord }
         else { Set-ItemProperty $key EnglishMode $english -Type DWord }
-        $targets = if ([object]::ReferenceEquals($c, $passwordCases[0])) { @('password', 'pwscope') } else { $Target }
+        $targets = if ([object]::ReferenceEquals($c, $passwordCases[0])) { @('password', 'pwscope') }
+            elseif ($hosted) { $c[5] } else { $Target }
+        $extra = if ($hosted) { $c[6] } else { @() }
         foreach ($t in $targets) {
             Remove-Item $out -ErrorAction SilentlyContinue
-            $p = Start-Process $pad -ArgumentList '--profile', 'on', '--target', $t, '--keys', "`"$($c[3])`"", '--out', "`"$out`"" -PassThru
+            $p = Start-Process $pad -ArgumentList (@('--profile', 'on', '--target', $t, '--keys', "`"$($c[3])`"", '--out', "`"$out`"") + $extra) -PassThru
             if (-not $p.WaitForExit(30000)) { $p.Kill(); Write-Host "TIMEOUT $($c[0]) [$t]" -ForegroundColor Red; $failed++; continue }
             $got = if (Test-Path $out) { [IO.File]::ReadAllText($out, [Text.Encoding]::UTF8) } else { '<no output>' }
             if ($got -ceq $c[4]) {

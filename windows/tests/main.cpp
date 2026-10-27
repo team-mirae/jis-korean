@@ -78,6 +78,19 @@ int main() {
     Check(jk::EngineKey(0x24, 0x47, true) == JK_KEY_OTHER, "Home");
     Check(jk::EngineKey(0x15, 0x38, true) == JK_KEY_OTHER, "한/영 isn't an engine key");
 
+    // #5: a key-down tested twice is recognised; separate presses and auto-repeats aren't.
+    {
+        const std::intptr_t press = 0x00220001, repeat = 0x40220001;  // KeyG: scan 0x22, bit 30 for repeats
+        Check(jk::SameKeyDown(0x47, press, 100, 1000, 0x47, press, 100, 1000), "the same test twice");
+        Check(jk::SameKeyDown(0x47, press, 90, 1000, 0x47, press, 100, 1003),
+              "tested before the message was taken (previous message's time), then again");
+        Check(!jk::SameKeyDown(0x47, press, 90, 1000, 0x47, press, 2000, 2000),
+              "a later press after a missed key-up isn't swallowed");
+        Check(!jk::SameKeyDown(0x47, repeat, 100, 1000, 0x47, repeat, 133, 1033), "auto-repeats each count");
+        Check(jk::SameKeyDown(0x47, repeat, 133, 1033, 0x47, repeat, 133, 1035), "an auto-repeat tested twice");
+        Check(!jk::SameKeyDown(0x47, press, 100, 1000, 0x4B, 0x00250001, 100, 1000), "another key");
+    }
+
     // Typed through the map: G K S → 한 (unconfirmed), Space commits it with a space.
     const Press g = {0x47, 0x22}, k = {0x4B, 0x25}, s = {0x53, 0x1F}, space = {0x20, 0x39};
     std::string preedit;

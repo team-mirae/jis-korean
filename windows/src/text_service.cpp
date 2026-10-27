@@ -385,6 +385,7 @@ bool TextService::Wants(unsigned vk, std::uint32_t key, std::uint32_t mods) cons
 }
 
 STDMETHODIMP TextService::OnSetFocus(BOOL foreground) {
+    tested_ = {};  // a key-up may have gone elsewhere
     if (foreground) ApplySettings();
     return S_OK;
 }
@@ -402,17 +403,30 @@ STDMETHODIMP TextService::OnTestKeyDown(ITfContext* context, WPARAM wparam, LPAR
         *eaten = TRUE;  // handled in OnKeyDown
         return S_OK;
     }
+    // The same key-down tested again (a message loop that peeks before it takes, an app calling
+    // ITfKeystrokeMgr::TestKeyDown itself): the engine already ran for it (#5).
+    const LONG time = GetMessageTime();
+    const ULONGLONG tick = GetTickCount64();
+    if (tested_.valid && SameKeyDown(tested_.wparam, tested_.lparam, tested_.time, tested_.tick,
+                                     wparam, lparam, time, tick)) {
+        static bool logged = false;
+        if (!logged) log::Write(L"a key-down was tested twice: the first result stands");
+        logged = true;
+        *eaten = tested_.eaten;
+        return S_OK;
+    }
+    tested_ = {};
     const std::uint32_t key = KeyOf(wparam, lparam);
     const std::uint32_t mods = Modifiers();
     if (!Composing()) private_ = PrivateField(context);
     if (TypesEnglish(key)) {
         // ABC: the English layout's character, typed here for the same reason as below.
         *eaten = TypeEnglish(context ? context : composition_context_.Get(), key, mods);
-        tested_ = {wparam, lparam, GetTickCount64(), *eaten != FALSE, true};
+        tested_ = {wparam, lparam, time, tick, *eaten, true, true};
     } else if (Wants(vk, key, mods)) {
         EnsureData();
         HandleKey(context ? context : composition_context_.Get(), vk, key, mods, eaten);
-        tested_ = {wparam, lparam, GetTickCount64(), *eaten != FALSE, true};
+        tested_ = {wparam, lparam, time, tick, *eaten, true, true};
     }
     if (vk < eaten_down_.size()) eaten_down_[vk] = *eaten != FALSE;
     return S_OK;
@@ -427,13 +441,12 @@ STDMETHODIMP TextService::OnKeyDown(ITfContext* context, WPARAM wparam, LPARAM l
     // layer call OnKeyDown even for keys OnTestKeyDown didn't eat (measured: Enter).
     constexpr LPARAM kScanAndExtended = 0x01FF0000;
     if (tested_.pending && tested_.wparam == wparam &&
-        (tested_.lparam & kScanAndExtended) == (lparam & kScanAndExtended) &&
-        GetTickCount64() - tested_.tick < 2000) {
+        (tested_.lparam & kScanAndExtended) == (lparam & kScanAndExtended)) {
         tested_.pending = false;
         *eaten = tested_.eaten;
         return S_OK;
     }
-    tested_.pending = false;
+    tested_ = {};
     if (!context) context = composition_context_.Get();
     if (vk == kVkHangul) {
         // 한/영, as the Microsoft IME: commit, then switch every app (the session's state).
@@ -490,11 +503,14 @@ void TextService::HandleKey(ITfContext* context, unsigned vk, std::uint32_t key,
 }
 
 STDMETHODIMP TextService::OnTestKeyUp(ITfContext*, WPARAM wparam, LPARAM, BOOL* eaten) {
+    // The key-down is over: a key-down of this key after this is a new press (#5).
+    if (tested_.wparam == wparam) tested_ = {};
     *eaten = wparam < eaten_down_.size() && eaten_down_[wparam];
     return S_OK;
 }
 
 STDMETHODIMP TextService::OnKeyUp(ITfContext*, WPARAM wparam, LPARAM, BOOL* eaten) {
+    if (tested_.wparam == wparam) tested_ = {};
     // The key-up of a key-down the app never saw stays away from it too.
     *eaten = wparam < eaten_down_.size() && eaten_down_[wparam];
     if (wparam < eaten_down_.size()) eaten_down_[wparam] = false;
@@ -995,6 +1011,7 @@ STDMETHODIMP TextService::OnChange(REFGUID guid) {
 
 STDMETHODIMP TextService::OnSetFocus(ITfDocumentMgr*, ITfDocumentMgr*) {
     // Focus moved to another document: what was unconfirmed is committed where it was (spec §5.1).
+    tested_ = {};
     if (composition_context_) Flush(composition_context_.Get());
     list_.Hide();
     ApplySettings();  // a setting changed in another app applies here from now on

@@ -69,4 +69,14 @@ std::uint32_t EngineKey(unsigned key, unsigned scan, bool extended) {
     return k == kNone ? JK_KEY_OTHER : k;
 }
 
+bool SameKeyDown(std::uintptr_t wparam, std::intptr_t lparam, std::int32_t time, std::uint64_t tick,
+                 std::uintptr_t wparam2, std::intptr_t lparam2, std::int32_t time2, std::uint64_t tick2) {
+    if (wparam != wparam2 || lparam != lparam2) return false;
+    if (time == time2) return true;
+    // A missed key-up (focus moved to another thread in between) must not swallow a later press.
+    constexpr std::uint64_t kRetest = 500;
+    const bool first_press = (lparam & (std::intptr_t{1} << 30)) == 0;
+    return first_press && tick2 >= tick && tick2 - tick < kRetest;
+}
+
 }  // namespace jk

@@ -157,12 +157,17 @@ private:
     CandidateWindow list_;
     LangBarButton* lang_bar_ = nullptr;
     std::bitset<256> eaten_down_;  // key-downs eaten, so their key-ups are eaten too
-    // A key-down OnTestKeyDown handled and reported as eaten; OnKeyDown follows for it.
+    // The last key-down OnTestKeyDown ran the engine for. A second test of the same key-down
+    // returns its result without running the engine again (#5, SameKeyDown); OnKeyDown, which
+    // may follow, takes it once (`pending`). Both end on that key's key-up, a focus change, or
+    // the next key-down tested.
     struct Tested {
         WPARAM wparam = 0;
         LPARAM lparam = 0;
-        ULONGLONG tick = 0;
+        LONG time = 0;        // GetMessageTime
+        ULONGLONG tick = 0;   // GetTickCount64 when it was tested
         BOOL eaten = FALSE;
+        bool valid = false;
         bool pending = false;
     } tested_;
     unsigned mode_ = 0xFF;  // none yet: the first ApplySettings sets it
