@@ -288,6 +288,31 @@ bool TextService::Composing() const {
     return false;
 }
 
+ITfContext* TextService::Target(ITfContext* context) const {
+    return context ? context : composition_context_.Get();
+}
+
+HRESULT TextService::NoContext(unsigned vk) {
+    // No document to type into (a game window without an input context, a custom-drawn control):
+    // the key is the app's, and nothing stays in the engine where it can't be seen (#3).
+    static bool logged = false;
+    if (!logged) log::Write(L"a key without an input context: passed on");
+    logged = true;
+    if (Composing()) DropInvisible();
+    if (vk < eaten_down_.size()) eaten_down_[vk] = false;
+    return S_OK;
+}
+
+void TextService::DropInvisible() {
+    jk_clear(engine_);
+#ifdef JK_PREDICT
+    predictions_.clear();
+    chosen_.reset();
+    shown_.reset();
+#endif
+    list_.Hide();
+}
+
 bool TextService::PrivateField(ITfContext* context) {
     // A password-style edit control, however it's labelled: ES_PASSWORD, or a password character
     // set (EM_GETPASSWORDCHAR). Only Edit and RichEdit classes are asked: custom controls may
@@ -416,6 +441,7 @@ STDMETHODIMP TextService::OnTestKeyDown(ITfContext* context, WPARAM wparam, LPAR
         return S_OK;
     }
     tested_ = {};
+    if (!Target(context)) return NoContext(vk);
     if (vk == vk::kPacket) {
         // Whether injected characters reach the TIP at all, and what lParam carries (#4).
         static bool logged = false;
@@ -453,12 +479,15 @@ STDMETHODIMP TextService::OnKeyDown(ITfContext* context, WPARAM wparam, LPARAM l
         return S_OK;
     }
     tested_ = {};
-    if (!context) context = composition_context_.Get();
+    context = Target(context);
     if (vk == kVkHangul) {
-        // 한/영, as the Microsoft IME: commit, then switch every app (the session's state).
+        // 한/영, as the Microsoft IME: commit, then switch every app (the session's state). It
+        // needs no context: it only writes the session's compartment.
         if (open_ && Composing()) Flush(context);
         WriteEnglish(open_);
         *eaten = TRUE;
+    } else if (!context) {
+        return NoContext(vk);
     } else {
         const std::uint32_t key = KeyOf(wparam, lparam);
         const std::uint32_t mods = Modifiers();
@@ -567,7 +596,14 @@ void TextService::Refresh(ITfContext* context, const std::wstring& commit) {
         converted = true;
     }
 #endif
-    UpdateText(context, commit, preedit, converted);
+    // The engine never holds text the user can't see (#3): unconfirmed text with no composition
+    // to show it, once the update has run, is dropped.
+    if (UpdateText(context, commit, preedit, converted) && Composing() && !composition_) {
+        static bool logged = false;
+        if (!logged) log::Write(L"unconfirmed text with nothing showing it: dropped");
+        logged = true;
+        DropInvisible();
+    }
     ShowList();
 }
 
@@ -1018,7 +1054,11 @@ STDMETHODIMP TextService::OnChange(REFGUID guid) {
 STDMETHODIMP TextService::OnSetFocus(ITfDocumentMgr*, ITfDocumentMgr*) {
     // Focus moved to another document: what was unconfirmed is committed where it was (spec §5.1).
     tested_ = {};
-    if (composition_context_) Flush(composition_context_.Get());
+    if (composition_context_) {
+        Flush(composition_context_.Get());
+    } else if (Composing()) {
+        DropInvisible();  // text that never reached a document doesn't follow focus (#3)
+    }
     list_.Hide();
     ApplySettings();  // a setting changed in another app applies here from now on
     return S_OK;
@@ -1047,13 +1087,7 @@ STDMETHODIMP TextService::OnCompositionTerminated(TfEditCookie ec, ITfCompositio
         }
         composition_.Reset();
         composition_context_.Reset();
-        jk_clear(engine_);
-#ifdef JK_PREDICT
-        predictions_.clear();
-        chosen_.reset();
-        shown_.reset();
-#endif
-        list_.Hide();
+        DropInvisible();
     }
     return S_OK;
 }
@@ -1072,9 +1106,9 @@ STDMETHODIMP TextService::GetDisplayAttributeInfo(REFGUID guid, ITfDisplayAttrib
 
 // --- the composition
 
-void TextService::UpdateText(ITfContext* context, const std::wstring& commit,
+bool TextService::UpdateText(ITfContext* context, const std::wstring& commit,
                              const std::wstring& preedit, bool converted) {
-    if (!context) return;
+    if (!context) return true;
     // A composition left in another document (focus moved) ends there as it is.
     if (composition_ && composition_context_ && !SameObject(composition_context_.Get(), context)) {
         ComPtr<ITfComposition> old = composition_;
@@ -1083,7 +1117,7 @@ void TextService::UpdateText(ITfContext* context, const std::wstring& commit,
         composition_.Reset();
         composition_context_.Reset();
     }
-    if (!composition_ && commit.empty() && preedit.empty()) return;
+    if (!composition_ && commit.empty() && preedit.empty()) return true;
     // When TSF can't run the session at once it runs after this returns, maybe after Deactivate:
     // it holds the service, the context and the composition it was meant for, and copies of the
     // text. It never calls the engine (Settle does, here, once the session has run).
@@ -1103,9 +1137,10 @@ void TextService::UpdateText(ITfContext* context, const std::wstring& commit,
         static bool logged = false;
         if (!logged) log::Write(L"edit session queued (async): the text lands after the key");
         logged = true;
-        return;
+        return false;
     }
     Settle();
+    return true;
 }
 
 void TextService::Settle() {

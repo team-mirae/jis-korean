@@ -59,6 +59,7 @@ $hostCases = @(
     @('#5 auto-repeat tested twice', 0, 0, 'D-KeyG D-KeyG D-KeyG R-KeyG Space', 'ㅎㅎㅎ ', @('tsf'), @('--peek', '1', '--probe', '1')),
     @('#4 Unicode-injected characters pass as typed', 0, 0, 'U+0061 U+0020 U+0062 U+002C U+002F U+0030 U+0035 U+0056 U+0073 U+007D U+AC10', 'a b,/05Vs}감', @('edit', 'rich', 'tsf'), @()),
     @('#4 Unicode-injected character commits first', 1, 1, 'KeyG KeyK U+0020 KeyG KeyK U+0078', '하 하x', @('edit', 'rich', 'tsf'), @()),
+    @('#3 no input context: keys pass, nothing follows focus', 1, 1, 'KeyW KeyA KeyS KeyD @focus=edit KeyG KeyK KeyS Space', '한 ', @('nocontext'), @()),
     @('#4 Unicode-injected characters in ABC', 0, 0, 'Hangul U+0061 U+0020 U+0030 Hangul', 'a 0', @('edit', 'tsf'), @())
 )
 

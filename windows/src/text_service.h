@@ -93,6 +93,10 @@ private:
     bool PrivateField(ITfContext* context);
     bool Private(const wchar_t* why);  // logs why a field is private, returns true
     bool Composing() const;
+    // The context a key types into: the key's, else the composition's. Null: none (#3).
+    ITfContext* Target(ITfContext* context) const;
+    HRESULT NoContext(unsigned vk);  // a key with no context: passed on, nothing kept
+    void DropInvisible();  // forgets the engine's unconfirmed text and the list, showing nothing
     void HandleKey(ITfContext* context, unsigned vk, std::uint32_t key, std::uint32_t mods,
                    BOOL* eaten);
 
@@ -129,7 +133,8 @@ private:
     // Replaces the composition (if any) with `commit`, which becomes final text, then starts or
     // updates a composition showing `preedit`. Either may be empty. `converted`: the preedit is a
     // reading in place of the typed one (thick underline).
-    void UpdateText(ITfContext* context, const std::wstring& commit, const std::wstring& preedit,
+    // False: TSF queued the edit session, so the text isn't there yet.
+    bool UpdateText(ITfContext* context, const std::wstring& commit, const std::wstring& preedit,
                     bool converted);
     // UpdateText's edit session: writes the text it was given and never calls the engine. It may
     // run after UpdateText returned (queued by TSF); `expected` is the composition it was meant for.

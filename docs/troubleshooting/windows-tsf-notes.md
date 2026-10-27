@@ -100,6 +100,24 @@ repeat test per program is logged ("a key-down was tested twice").
 (`D-KeyG` ×4) gives four ㅎ, with and without probing. Not measured: Chrome/Edge, Word, Windows
 Terminal (look for the log line).
 
+## A key with no input context (#3)
+
+**Measured.** In a window whose input context was removed (`ImmAssociateContext(hwnd, NULL)`,
+`jk_testpad --target nocontext`), TSF never called the key sink: WASD reached the window and
+nothing carried into the next field, before the change too. Not reproduced, then; a host that
+calls the sink with no context (`pic` null) wasn't found.
+
+**Change (a guard).** Both key handlers resolve one target context (the key's, else the
+composition's). With none, the key isn't eaten and any unconfirmed text is dropped
+(`DropInvisible`, logged once per program: "a key without an input context"). 한/영 still works
+there: it only writes the session's compartment. A focus change with unconfirmed text but no
+composition drops it too, and after every synchronous update the engine may not hold unconfirmed
+text that no composition shows ("unconfirmed text with nothing showing it: dropped"), which also
+covers #6 and #7.
+
+**Verified.** `type-test.ps1` `#3` case: WASD in `nocontext`, then `한 ` in the Edit with nothing
+before it. Full run passes.
+
 ## Characters injected as Unicode (`VK_PACKET`) (#4)
 
 **Measured.** `SendInput` with `KEYEVENTF_UNICODE` (`jk_testpad` `U+XXXX`) does reach the TIP's
@@ -142,10 +160,7 @@ sessions (Chromium) wasn't measured, so the async log line hasn't been seen yet.
 Read from the code on macOS (2026-10-27, at `b5ed9dd`), not yet built or measured on Windows. Each
 issue's body has the full analysis and the steps to verify it with `type-test.ps1` and the testpad.
 
-- **#3, a key with no context.** With no `ITfContext` and nothing composed, both key handlers still
-  run the engine and eat the key. `UpdateText` drops the text, so the jamo stay invisible in the
-  engine, and `OnSetFocus` only flushes a composition it can see, so they surface in the next field.
-  Fix: no target context → the key isn't eaten, and an invisible segment is cleared, also on focus change.
+- **#3, a key with no context.** Not reproduced (TSF didn't call the sink), guarded (above).
 - **#4, `VK_PACKET`.** Not reproduced (lParam's scan code is 0), hardened (above).
 - **#5, `OnTestKeyDown` twice.** Fixed (above).
 - **#6, loose jamo.** A refused `StartComposition` flushes the engine at every key, and a
