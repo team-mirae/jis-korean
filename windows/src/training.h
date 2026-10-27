@@ -21,6 +21,10 @@ bool Changed();
 // Applies the training file if it changed since it was last applied (or forgets its words if
 // it's gone). Examples are learned into `engine`; the caller saves what was learned.
 void ApplyIfChanged(JkEngine* engine);
+// ApplyIfChanged on a thread-pool thread, into an engine of its own holding what was learned so
+// far, saved to the settings after. Generation() changes once it's done.
+void ApplyInBackground();
+unsigned Generation();
 // Opens the folder the training file goes in (creating it) in File Explorer.
 void OpenFolder();
 #endif

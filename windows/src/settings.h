@@ -13,6 +13,7 @@
 //   Weight.<Scenario>  SZ        user tuning (spec §10.5): Korean English Implied Mixed TwoSet
 //                                KeepFinals Hanja ImpliedL, e.g. "0.8"
 //   DiagnosticLog      DWORD  0  log.h
+//   SettingsVersion    DWORD     changes with every write below (Version)
 //   Apps\<exe>         key       per app: Predictions DWORD, overriding the default-off list;
 //                                Off DWORD 1: JIS Korean passes every key through there (as ABC)
 #pragma once
@@ -21,6 +22,11 @@
 #include <string>
 
 namespace jk::settings {
+
+// Changes with every write through this file (SettingsVersion, HKCU): engines re-read the settings
+// only when it differs from the one they applied. Values changed by hand in the registry apply in
+// programs started afterwards, or with the next change made from the menu.
+unsigned long Version();
 
 unsigned long ReadDword(const wchar_t* name, unsigned long fallback);
 void WriteDword(const wchar_t* name, unsigned long value);

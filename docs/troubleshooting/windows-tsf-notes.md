@@ -227,6 +227,25 @@ sessions (Chromium) wasn't measured, so the async log line hasn't been seen yet.
 - The stale `tested_` (#5), `DllRelease` in the thread-pool callback and the `Predictor()` race
   (below) are fixed too.
 
+## #9, per-key cost (P2)
+
+- `PrivateField` (a synchronous read session, `GetFocus`, class names, two compartments) isn't
+  asked where its answer changes nothing: modifiers, "Off in <program>", and ABC passing keys to
+  Windows' layout (`MayBePrivate`).
+- `ApplySettings` (about fifteen registry reads and the learned counts) ran at every focus change.
+  Every write through `settings.cpp` now stores a new `SettingsVersion` DWORD, and `ApplySettings`
+  returns early when it's the one it applied (forced at activation and when the predictor becomes
+  ready). Values edited by hand in the registry apply in programs started afterwards, or with the
+  next change from the menu.
+- A changed training file was applied on the UI thread during activation (up to 2000 × 20
+  examples). `training::ApplyInBackground` applies it on a thread-pool thread, into an engine of its
+  own holding the mode, the dictionary and what was learned so far, and saves what it learned; the
+  next key picks it up (`training::Generation`). Verified: with `god` avoided and an example in a new
+  `training.json`, the first process typed `행 ` (log: "applied training.json" 17 ms after the
+  dictionary), the vocabulary count `1e300` was stored as 1000000, and removing the file gave `god `
+  again.
+- Not measured: per-key time before and after.
+
 ## Memory and lifetime
 
 - **Unloading leaked the shared data.** The dictionary and predictors were never freed, and

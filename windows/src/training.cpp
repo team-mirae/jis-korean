@@ -7,6 +7,7 @@
 #include <shlobj.h>
 
 #include <algorithm>
+#include <atomic>
 #include <map>
 #include <mutex>
 #include <string>
@@ -198,6 +199,41 @@ void ApplyIfChanged(JkEngine* engine) {
     }
     log::Write(L"applied training.json");
 }
+
+namespace {
+
+std::atomic<bool> g_applying{false};
+std::atomic<unsigned> g_generation{0};
+
+}  // namespace
+
+void ApplyInBackground() {
+    if (g_applying.exchange(true)) return;  // one at a time per process
+    const bool queued = RunInBackground([] {
+        JkEngine* engine = jk_new();
+        if (engine) {
+            // As the UI engine would have it: the mode, the dictionary and what was learned so far.
+            jk_set_mode(engine, static_cast<std::uint32_t>(settings::ReadDword(L"Mode", 0)));
+            jk_set_dictionary(engine, SharedDictionary());
+            if (auto learned = settings::ReadString(L"Learned")) {
+                const std::string bytes = Narrow(*learned);
+                jk_learner_import(engine, reinterpret_cast<const std::uint8_t*>(bytes.data()), bytes.size());
+            }
+            ApplyIfChanged(engine);
+            if (jk_learner_changed(engine)) {
+                const size_t length = jk_learner_export(engine);
+                settings::WriteString(L"Learned", Wide(std::string(
+                    reinterpret_cast<const char*>(jk_learner_ptr(engine)), length)));
+            }
+            jk_free(engine);
+        }
+        ++g_generation;
+        g_applying = false;
+    });
+    if (!queued) g_applying = false;
+}
+
+unsigned Generation() { return g_generation.load(); }
 
 void OpenFolder() {
     const std::wstring folder = Folder();

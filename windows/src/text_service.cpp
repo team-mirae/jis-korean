@@ -149,9 +149,17 @@ void WriteCompartment(ITfCompartment* compartment, TfClientId client_id, LONG va
 TextService::TextService() : engine_(jk_new()) { DllAddRef(); }
 
 void TextService::EnsureData() {
+#ifdef JK_PREDICT
+    // A training file applied in the background since the last key (training::ApplyInBackground).
+    if (const unsigned generation = training::Generation(); generation != training_seen_) {
+        training_seen_ = generation;
+        if (data_ready_) ApplySettings();
+    }
+#endif
     if (data_ready_) return;
     data_ready_ = true;
-    ApplySettings();  // the predictor (and with it the dictionary); waits only if Preload hasn't finished
+    // The predictor (and with it the dictionary); waits only if Preload hasn't finished.
+    ApplySettings(true);
 }
 
 void TextService::EnsureDictionary() {
@@ -248,14 +256,11 @@ STDMETHODIMP TextService::ActivateEx(ITfThreadMgr* thread_mgr, TfClientId client
 }
 
 void TextService::Activated() {
-    ApplySettings();
+    ApplySettings(true);
 #ifdef JK_PREDICT
-    if (!training::Changed()) return;
-    EnsureData();
-    // A new or changed training file (docs/training-contract.md): applied, then settings again.
-    training::ApplyIfChanged(engine_);
-    SaveLearned();
-    ApplySettings();
+    // A new or changed training file (docs/training-contract.md), applied on a thread-pool
+    // thread (up to 2000 × 20 examples learned); EnsureData picks the result up at the next key.
+    if (training::Changed()) training::ApplyInBackground();
 #endif
 }
 
@@ -424,6 +429,12 @@ bool TextService::PrivateField(ITfContext* context) {
     return secret ? Private(L"input scope") : false;
 }
 
+bool TextService::MayBePrivate(std::uint32_t key) const {
+    // Where the answer changes nothing it isn't asked (a read session per key): modifiers, a
+    // program JIS Korean is off in, and ABC passing keys to Windows' layout (#9).
+    return key != JK_KEY_MODIFIER && !app_off_ && (open_ || english_mode_ != kPassThrough);
+}
+
 bool TextService::Private(const wchar_t* why) {
     // Logged once per field: what made it private (never its text).
     if (!private_) log::Write(L"private field (%s): keys pass through", why);
@@ -493,7 +504,7 @@ STDMETHODIMP TextService::OnTestKeyDown(ITfContext* context, WPARAM wparam, LPAR
     }
     const std::uint32_t key = KeyOf(wparam, lparam);
     const std::uint32_t mods = Modifiers();
-    if (!Composing()) private_ = PrivateField(context);
+    if (!Composing() && MayBePrivate(key)) private_ = PrivateField(context);
     if (TypesEnglish(key)) {
         // ABC: the English layout's character, typed here for the same reason as below.
         *eaten = TypeEnglish(Target(context), key, mods);
@@ -534,7 +545,7 @@ STDMETHODIMP TextService::OnKeyDown(ITfContext* context, WPARAM wparam, LPARAM l
     } else {
         const std::uint32_t key = KeyOf(wparam, lparam);
         const std::uint32_t mods = Modifiers();
-        if (!Composing()) private_ = PrivateField(context);
+        if (!Composing() && MayBePrivate(key)) private_ = PrivateField(context);
         if (TypesEnglish(key)) {
             *eaten = TypeEnglish(context, key, mods);
         } else if (Wants(vk, key, mods)) {
@@ -758,7 +769,11 @@ void TextService::SaveLearned() {
 
 // --- settings
 
-void TextService::ApplySettings() {
+void TextService::ApplySettings(bool force) {
+    // About fifteen registry reads and the learned counts: only when something changed.
+    const unsigned long version = settings::Version();
+    if (!force && applied_version_ == version) return;
+    applied_version_ = version;
     app_off_ = settings::AppOff(settings::ExeName());
     // The mode follows the keyboard, not the app: one setting for every app (spec §8.4).
     SetMode(static_cast<unsigned>(settings::ReadDword(L"Mode", 0)));

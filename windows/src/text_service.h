@@ -92,6 +92,7 @@ private:
     // A password or PIN field (input scope), or one the app turned the keyboard off for.
     bool PrivateField(ITfContext* context);
     bool Private(const wchar_t* why);  // logs why a field is private, returns true
+    bool MayBePrivate(std::uint32_t key) const;  // whether PrivateField's answer matters for the key
     bool Composing() const;
     // The context a key types into: the key's, else the composition's. Null: none (#3).
     ITfContext* Target(ITfContext* context) const;
@@ -109,7 +110,7 @@ private:
     void PickHanja(size_t index);
     // Commits everything unconfirmed (focus loss, IME switch, 한/영).
     void Flush(ITfContext* context);
-    void ApplySettings();
+    void ApplySettings(bool force = false);  // unless forced, only when settings::Version changed
     void Activated();  // settings, then a changed training file (spec §10.12)
     void EnsureData();  // the predictor, before the first key
     void EnsureDictionary();  // the hanja dictionary: at the first F7, or with predictions
@@ -194,6 +195,8 @@ private:
     std::wstring last_scopes_;  // for the log
     bool data_ready_ = false;  // the shared predictor may be set on the engine
     bool dictionary_set_ = false;  // the shared dictionary is set on the engine
+    std::optional<unsigned long> applied_version_;  // settings::Version last applied
+    unsigned training_seen_ = 0;  // training::Generation last applied
 #ifdef JK_PREDICT
     std::vector<std::wstring> predictions_;
     std::optional<size_t> chosen_;     // the row chosen with ↓ / Tab

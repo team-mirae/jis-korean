@@ -55,7 +55,27 @@ constexpr const wchar_t* kOffByDefault[] = {
     L"skcertservice.exe",      // SignKorea certificate toolkit
 };
 
+constexpr wchar_t kVersion[] = L"SettingsVersion";
+
+// Every change through these functions gives the settings a new version, so engines in every
+// program re-read them (ApplySettings) only when something changed. A counter value from this
+// moment, not an increment: two programs writing at once still leave a value nobody applied.
+void Changed() {
+    LARGE_INTEGER now = {};
+    QueryPerformanceCounter(&now);
+    DWORD version = static_cast<DWORD>(now.QuadPart ^ (now.QuadPart >> 32));
+    if (version == Version()) ++version;
+    RegSetKeyValueW(HKEY_CURRENT_USER, kKey, kVersion, REG_DWORD, &version, sizeof(version));
+}
+
 }  // namespace
+
+unsigned long Version() {
+    DWORD value = 0;
+    DWORD size = sizeof(value);
+    RegGetValueW(HKEY_CURRENT_USER, kKey, kVersion, RRF_RT_REG_DWORD, nullptr, &value, &size);
+    return value;
+}
 
 unsigned long ReadDword(const wchar_t* name, unsigned long fallback) {
     for (HKEY root : {HKEY_CURRENT_USER, HKEY_LOCAL_MACHINE}) {
@@ -72,6 +92,7 @@ unsigned long ReadDword(const wchar_t* name, unsigned long fallback) {
 void WriteDword(const wchar_t* name, unsigned long value) {
     const DWORD v = value;
     RegSetKeyValueW(HKEY_CURRENT_USER, kKey, name, REG_DWORD, &v, sizeof(v));
+    Changed();
 }
 
 std::optional<std::wstring> ReadString(const wchar_t* name) {
@@ -94,9 +115,13 @@ std::optional<std::wstring> ReadString(const wchar_t* name) {
 void WriteString(const wchar_t* name, const std::wstring& value) {
     RegSetKeyValueW(HKEY_CURRENT_USER, kKey, name, REG_SZ, value.c_str(),
                     static_cast<DWORD>((value.size() + 1) * sizeof(wchar_t)));
+    Changed();
 }
 
-void Delete(const wchar_t* name) { RegDeleteKeyValueW(HKEY_CURRENT_USER, kKey, name); }
+void Delete(const wchar_t* name) {
+    RegDeleteKeyValueW(HKEY_CURRENT_USER, kKey, name);
+    Changed();
+}
 
 const std::wstring& ExeName() {
     static const std::wstring name = [] {
@@ -154,6 +179,7 @@ bool AppOff(const std::wstring& exe) {
 void SetAppOff(const std::wstring& exe, bool off) {
     const DWORD v = off ? 1 : 0;
     RegSetKeyValueW(HKEY_CURRENT_USER, AppKey(exe).c_str(), L"Off", REG_DWORD, &v, sizeof(v));
+    Changed();
 }
 
 void SetAppPredicting(const std::wstring& exe, bool on) {
@@ -162,10 +188,12 @@ void SetAppPredicting(const std::wstring& exe, bool on) {
         // Back to the default: nothing stays in the settings.
         RegDeleteKeyValueW(HKEY_CURRENT_USER, key.c_str(), L"Predictions");
         RegDeleteKeyW(HKEY_CURRENT_USER, key.c_str());
+        Changed();
         return;
     }
     const DWORD v = on ? 1 : 0;
     RegSetKeyValueW(HKEY_CURRENT_USER, key.c_str(), L"Predictions", REG_DWORD, &v, sizeof(v));
+    Changed();
 }
 
 }  // namespace jk::settings
