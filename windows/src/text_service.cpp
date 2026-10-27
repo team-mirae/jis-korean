@@ -549,13 +549,10 @@ void TextService::HandleKey(ITfContext* context, unsigned vk, std::uint32_t key,
         return;
     }
     // A key that commits takes the reading on screen, not the Korean one underneath, and then does
-    // to it what it does to any text (Space adds a space, Shift+Enter only commits): the engine
-    // does both (jk_key_after_prediction), as on macOS.
-    const bool commits = (mods & kShortcut) || vk == kVkTab || key == JK_KEY_SPACE ||
-                         key == JK_KEY_ENTER || key == JK_KEY_ESCAPE || key == JK_KEY_ARROWUP ||
-                         key == JK_KEY_ARROWDOWN || key == JK_KEY_ARROWLEFT ||
-                         key == JK_KEY_ARROWRIGHT || key == JK_KEY_OTHER;
-    if (shown_ && commits) {
+    // to it what it does to any text (Space adds a space, Shift+Enter only commits, Esc commits
+    // and passes on): the engine decides which keys commit (jk_key_commits) and does both
+    // (jk_key_after_prediction), as on macOS.
+    if (shown_ && jk_key_commits(engine_, key, mods) != 0) {
         *eaten = jk_key_after_prediction(engine_, chosen_.value_or(0), key, mods) != 0;
         chosen_.reset();
         shown_.reset();

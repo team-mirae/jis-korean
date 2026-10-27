@@ -100,6 +100,21 @@ repeat test per program is logged ("a key-down was tested twice").
 (`D-KeyG` ×4) gives four ㅎ, with and without probing. Not measured: Chrome/Edge, Word, Windows
 Terminal (look for the log line).
 
+## The engine decides which keys commit what's shown (#8)
+
+**Symptom (reproduced).** The shell kept its own list of keys that commit a shown prediction
+(shortcuts, Tab, Space, Enter, Esc, arrows, `JK_KEY_OTHER`). A key outside the mode's map that
+isn't on the list (Backquote in Mode A) committed the Korean reading under the prediction:
+`hello` + Backquote gave ``옫이애` ``.
+
+**Change.** `HandleKey` asks `jk_key_commits`, as macOS does, and sends those keys through
+`jk_key_after_prediction`. `HandleList` stays: ↓/Tab and ↑/Shift+Tab move through the list, Enter
+commits a chosen row, Esc goes back to none chosen (spec §5.1). Esc with nothing chosen commits
+what's shown and passes on (spec §5.1 / #16 default).
+
+**Verified.** `type-test.ps1` cases: ``hello` ``, Esc commits `hello` and reaches the app, Tab Tab
+Esc Esc, ↓↓↑ and Tab Tab Shift+Tab, plus the existing Tab / Shift+Enter cases.
+
 ## Apps that end or refuse the composition: loose jamo (#6)
 
 **Measured.** Logged once per program: "composition refused hr=…" and "composition terminated N ms
@@ -202,9 +217,7 @@ issue's body has the full analysis and the steps to verify it with `type-test.ps
   end compositions still get loose jamo. Spec §8.4's line is the owner's call ([decide]).
 - **#7, edit sessions.** Fixed (above). Still open: re-sending a key the app got before a queued
   commit ([decide]); measure the "edit session queued" log line in Chromium first.
-- **#8, commits through the engine.** The three bugs were fixed in a24d710. The shell's own list of
-  committing keys remains, and goes when the engine decides that per key. Tab/↑/↓ with predictions
-  already move through the list as on macOS (`HandleList`, decided). Tab is `JK_KEY_OTHER` on both
+- **#8, commits through the engine.** Fixed (above); Tab is still `JK_KEY_OTHER` on both
   platforms.
 - **#9, the rest.**
   - Correctness: the stale `tested_` (see #5), `DllRelease` inside the thread-pool callback, unclamped
