@@ -37,16 +37,16 @@ fn with<T: Copy>(handle: *mut JkEngine, fallback: T, f: impl FnOnce(&mut JkEngin
 
 /// [`with`], answering `on_panic` instead of `fallback` when the engine panicked.
 fn with_or<T>(handle: *mut JkEngine, fallback: T, on_panic: T, f: impl FnOnce(&mut JkEngine) -> T) -> T {
-    // SAFETY: callers pass a handle from `jk_new` that hasn't been freed, from one thread.
-    if unsafe { handle.as_mut() }.is_none() {
+    // SAFETY: callers pass a handle from `jk_new` that hasn't been freed, from one thread. The
+    // pointer is turned into a reference once, here; the closure only reborrows it.
+    let Some(h) = (unsafe { handle.as_mut() }) else {
         return fallback;
-    }
-    match catch_unwind(AssertUnwindSafe(|| f(unsafe { &mut *handle }))) {
+    };
+    match catch_unwind(AssertUnwindSafe(|| f(&mut *h))) {
         Ok(value) => value,
         Err(_) => {
             // A panic: nothing from before it may be applied again (the shell reads `last` after
             // the call), and the unconfirmed state it left may be inconsistent.
-            let h = unsafe { &mut *handle };
             h.last = Output::default();
             h.engine.clear();
             on_panic
