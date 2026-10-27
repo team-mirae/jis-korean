@@ -264,10 +264,11 @@ sessions (Chromium) wasn't measured, so the async log line hasn't been seen yet.
   invalid-parameter handler ends the process; `log::Append` truncates with `_vsnwprintf_s(…,
   _TRUNCATE, …)` (unit-tested).
 
-## Open issues: root causes
+## Open issues: status
 
-Read from the code on macOS (2026-10-27, at `b5ed9dd`), not yet built or measured on Windows. Each
-issue's body has the full analysis and the steps to verify it with `type-test.ps1` and the testpad.
+Analysed from the code on macOS (2026-10-27, at `b5ed9dd`), then built, measured and fixed on
+Windows 11 (branch `windows/core-fixes`, sections above). Each issue's body has the original
+analysis.
 
 - **#3, a key with no context.** Not reproduced (TSF didn't call the sink), guarded (above).
 - **#4, `VK_PACKET`.** Not reproduced (lParam's scan code is 0), hardened (above).
@@ -279,10 +280,11 @@ issue's body has the full analysis and the steps to verify it with `type-test.ps
 - **#8, commits through the engine.** Fixed (above); Tab is still `JK_KEY_OTHER` on both
   platforms.
 - **#9, the rest.**
-  - Correctness: the stale `tested_` (see #5), `DllRelease` inside the thread-pool callback, unclamped
-    `double` → `int` in training, the `Predictor()` free race, scan code 0.
-  - Per-key cost: `PrivateField` and `ApplySettings`, and training on the UI thread.
-  - Unbacked TSF categories: `UIELEMENTENABLED`, `INPUTMODECOMPARTMENT`.
-  - JIS keys (半角/全角, 英数, カタカナ as `VK_KANA`), which need measuring and a spec line.
+  - Correctness (P1) and per-key cost (P2): fixed (above).
+  - Unbacked TSF categories (P3): `UIELEMENTENABLED`, `INPUTMODECOMPARTMENT`. Open, needs the
+    owner.
+  - JIS keys (P4: 半角/全角, 英数, カタカナ as `VK_KANA`): open, needs measuring on a JIS board and
+    a spec line. Not measured yet: it takes physical presses on a JIS board, which injected keys
+    can't stand in for.
 
   With the F8 escape retired, Windows needed only its comment at `OnActivated` updated (done).
