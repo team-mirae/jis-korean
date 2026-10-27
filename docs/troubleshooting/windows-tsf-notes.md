@@ -100,6 +100,20 @@ repeat test per program is logged ("a key-down was tested twice").
 (`D-KeyG` ×4) gives four ㅎ, with and without probing. Not measured: Chrome/Edge, Word, Windows
 Terminal (look for the log line).
 
+## Characters injected as Unicode (`VK_PACKET`) (#4)
+
+**Measured.** `SendInput` with `KEYEVENTF_UNICODE` (`jk_testpad` `U+XXXX`) does reach the TIP's
+key sink as `VK_PACKET`, but with lParam `0x1`: scan code 0, not the character's low byte as the
+issue assumed. Scan 0 already mapped to `JK_KEY_OTHER`, so the characters came through right
+before the change too (`a b,/05Vs}감`, and `하 하x` while composing).
+
+**Change.** `EngineKey` maps `VK_PACKET` to `JK_KEY_OTHER` before looking at the scan code, so it
+stays a character (commit, then pass it on) whatever lParam carries, and the scan-code-0 recovery
+(#9) can't turn it into a position. The first `VK_PACKET` per program is logged with its lParam.
+
+**Verified.** Unit test (`EngineKey(0xE7, s)` for eight low bytes) and `type-test.ps1` `#4` cases in
+edit/rich/tsf, on 한글 and in ABC. Not tried: KeePass auto-type, AutoHotkey `SendText`.
+
 ## Edit sessions hold the service, and never call the engine (#7)
 
 **Symptom (read, not reproduced).** A session TSF queued (`TF_E_SYNCHRONOUS` → `TF_ES_ASYNCDONTCARE`)
@@ -132,9 +146,7 @@ issue's body has the full analysis and the steps to verify it with `type-test.ps
   run the engine and eat the key. `UpdateText` drops the text, so the jamo stay invisible in the
   engine, and `OnSetFocus` only flushes a composition it can see, so they surface in the next field.
   Fix: no target context → the key isn't eaten, and an invisible segment is cleared, also on focus change.
-- **#4, `VK_PACKET`.** Characters injected with `KEYEVENTF_UNICODE` carry the character, not a scan
-  code, in lParam. `EngineKey` reads it as a position (Space → ㅇ). Fix: `VK_PACKET` →
-  `JK_KEY_OTHER`, which commits first and passes the character on.
+- **#4, `VK_PACKET`.** Not reproduced (lParam's scan code is 0), hardened (above).
 - **#5, `OnTestKeyDown` twice.** Fixed (above).
 - **#6, loose jamo.** A refused `StartComposition` flushes the engine at every key, and a
   composition the app ends right after the update (no interim selection kept) clears it. With a

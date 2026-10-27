@@ -42,6 +42,10 @@ constexpr ScanTable kScan;
 
 std::uint32_t EngineKey(unsigned key, unsigned scan, bool extended) {
     switch (key) {
+        // A character injected as Unicode (SendInput KEYEVENTF_UNICODE): its "scan code" is the
+        // character's low byte, not a position. It commits first and reaches the app as typed (#4).
+        case vk::kPacket:
+            return JK_KEY_OTHER;
         // A modifier on its own belongs to the next key: it must never commit (FKeyIME
         // docs/issues/shift-splits-the-composition.md). Caps Lock likewise.
         case vk::kShift: case vk::kLShift: case vk::kRShift:

@@ -77,6 +77,10 @@ int main() {
     Check(jk::EngineKey(0x79, 0x44, false) == JK_KEY_F10, "F10");
     Check(jk::EngineKey(0x24, 0x47, true) == JK_KEY_OTHER, "Home");
     Check(jk::EngineKey(0x15, 0x38, true) == JK_KEY_OTHER, "한/영 isn't an engine key");
+    // #4: VK_PACKET carries a character's low byte where the scan code goes: never a position.
+    for (unsigned scan : {0x20u, 0x2Cu, 0x30u, 0x10u, 0x56u, 0x73u, 0x7Du, 0x00u}) {
+        Check(jk::EngineKey(0xE7, scan, false) == JK_KEY_OTHER, "VK_PACKET is never a letter key");
+    }
 
     // #5: a key-down tested twice is recognised; separate presses and auto-repeats aren't.
     {

@@ -416,6 +416,12 @@ STDMETHODIMP TextService::OnTestKeyDown(ITfContext* context, WPARAM wparam, LPAR
         return S_OK;
     }
     tested_ = {};
+    if (vk == vk::kPacket) {
+        // Whether injected characters reach the TIP at all, and what lParam carries (#4).
+        static bool logged = false;
+        if (!logged) log::Write(L"VK_PACKET key-down, lParam %#llx", static_cast<unsigned long long>(lparam));
+        logged = true;
+    }
     const std::uint32_t key = KeyOf(wparam, lparam);
     const std::uint32_t mods = Modifiers();
     if (!Composing()) private_ = PrivateField(context);
