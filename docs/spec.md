@@ -707,11 +707,14 @@ uncommitted text**. It never changes what the keys do; it only offers alternativ
 
 ### 10.1 Lite and full
 
-| | Lite | Full |
-|---|---|---|
-| Build | `cargo build --no-default-features` | default (`predict` feature) |
-| Run time | — | prediction is on only after the host loads a predictor (`jk_predictor_new`, `jk_set_predictor`); with none set, the full build behaves exactly like lite |
-| What the user gets | §1–§7 only: Space commits the JIS Korean reading | ranked readings to choose from, in addition |
+| | Lite | Legacy | Full |
+|---|---|---|---|
+| Build | `cargo build --no-default-features` | `--features legacy-predict` | default (`predict` feature) |
+| macOS / Windows | `make PREDICT=0` / `build.ps1 -Lite` | `make LEGACY_PREDICT=1` / `build.ps1 -Legacy` | `make` / `build.ps1` |
+| Ranking | — | the rules (§10.3) | the learned ranker (§10.13) on top of the rules |
+| Model files | — | `ranker.bin`, word lists | also `learned.bin` (2 MB) |
+| Run time | — | prediction is on only after the host loads a predictor (`jk_predictor_new`, `jk_set_predictor`); with none set, behaves exactly like lite | the same; without `jk_predictor_with_learned` the rules rank, as in legacy |
+| What the user gets | §1–§7 only: Space commits the JIS Korean reading | ranked readings to choose from, in addition | the same readings, ranked better |
 
 Hosts choose per user setting. Turning it off is always a complete fallback: no state, no model,
 no behavior change.
@@ -726,7 +729,7 @@ no behavior change.
 | Standard 2-set | plain 2-set on the mode's stock keyboard (JIS, or US ANSI in Mode B): no implied ㅇ, no double press, Shift+vowel is just the vowel, number-row keys type digits | `bb` → ㅠㅠ (JIS Korean: 유유); `rk1` → 가1 |
 | Korean, finals kept | each vowel after a final starts its own syllable on ㅇ | `akfl` → 말이 (JIS Korean: 마리) |
 | Bare vowels | JIS Korean without the implied ㅇ (§10.3) | `bb` → ㅠㅠ, `nn` → ㅜㅜ |
-| English + particle | an English start with a Korean particle or ending (§10.3) | Anthropic에서, report에, RLHF에, server를 |
+| English + particle | an English start with a Korean particle or ending (§10.3); after an acronym, a Korean word; or a Korean start with an acronym | Anthropic에서, report에, RLHF에, server를; LG에너지솔루션은; 한전KPS |
 | Hanja | the top dictionary form of the **whole** Korean reading, 2+ syllables only; plus the everyday exceptions (§10.4) | 학교 → 學校, 2026년 → 2026年 |
 
 Duplicates are removed (most readings coincide for most words), and **at most 4** are offered.
@@ -745,9 +748,14 @@ Scores are in bits per key, positive leaning Korean:
 2. **Rules:** a capital at the start of a word on a key Korean never shifts means English. On a
    vowel key it may be Shift+vowel starting the word (있습니다 as `L T t m q s l e k`): unless the
    keys spell a known English word, it then leans English by 2 bits instead of settling it, and a
-   known Korean word cancels the lean. Two capitals in a row (an acronym: KPI와) still settle it.
+   known Korean word cancels the lean. Two capitals in a row (an acronym) still settle it: a word
+   typed in capitals only, two letters or more, is English (KB, not 아유; OEM, not 얘뜨), unless
+   its Korean reading is a common word (a count of 20 or more, §10.9: 쓰 typed `⇧T ⇧M`, 빠 typed
+   `⇧Q ⇧K`), and so is an English start of two capitals before a particle (KPI와).
    After any key of the word, a number-row key included (있 as `l 5`), a capital on a vowel key is
-   Shift+vowel. Exact
+   Shift+vowel. **Digits then a Korean counter** (개 년 월 일 원 명 건 억 조 배 개월 년간 분기 …,
+   maybe with a particle: 3년간, 2개의) or a known Korean word are Korean, at least one step: 2개,
+   not `2ro`; 3년, not `3sus`. Exact
    matches in `predict/common-ko.txt` / `common-en.txt` lean their way; leftover bare jamo count
    against Korean; a command name (after `/`) is English; the previous committed word's language
    tips close calls. A known Korean word against keys that spell no known English word or noun is
@@ -763,8 +771,10 @@ Scores are in bits per key, positive leaning Korean:
    offers one variant per place the keys moved a final, with that one kept and the vowel on ㅇ
    (기준입니다 for 기주닙니다 typed `rlwnslqslek`, 당신이, 어린이). Each kept final scores:
    - at least +1.5 bits when the reading up to it is a known word of two syllables or more (not a
-     하다/되다 modifier such as 반영한) and the rest begins with a particle or ending on ㅇ (이 은 을
-     의 에 에서 으로 입니다 이에요 아 어 았 었 으면 음 …);
+     하다/되다 modifier such as 반영한) and the rest is a particle or ending on ㅇ (이 은 을
+     의 에 에서 으로 입니다 이에요 아 어 았 었 으면 음 …), maybe followed by a short ending (다 요
+     니다 습니다 서 는 도 고 며 면 의 에 를 …). A rest that only starts like one doesn't count:
+     엔지니어링, not 엔진 + 이어링; 트레이딩, not 틀 + 에이딩;
    - else the corpus odds learned for ㄴ and ㄹ (`#!implied-after` lines in common-ko.txt, by the
      next syllable's vowel: 입 counts as 이; 의 strongly kept, 아 and 와 mostly moved), or −2 bits
      for other finals;
@@ -782,15 +792,34 @@ Scores are in bits per key, positive leaning Korean:
    one row weighed by both. A single vowel key is its syllable, never a letter: ㅗ alone is 오, not
    `h`, since a lone lowercase letter is hardly ever an English word.
 5. **English + particle:** the keys split into an English start and a Korean ending that is a known
-   particle (에, 에서, 를, 이라는, 부터는, …) or a known word made of 하다 / 되다 forms (push했어). The split counts when the start reads clearly more English than
+   particle (에, 에서, 를, 이라는, 부터는, and business text's 로부터, 로서, 와의, 이자, 이란, 등 …:
+   FDA로부터, Licensee로서, Dynamics와의) or a known word made of 하다 / 되다 forms (push했어). The split counts when the start reads clearly more English than
    the whole keys (0.5 bits per key; a capitalized start such as Anthropic or RLHF always
    qualifies) and the whole isn't a known English word or noun, so `small` never becomes smal이 and
-   Goodwill never Goodwil이. Among capitalized starts the longer start wins (Android에, not Androi에 with `d p` read as 에; SSD에, Docker와), except an acronym trailing off in a lowercase letter, whose letter goes to the ending (API를, not APIf을).
+   Goodwill never Goodwil이. A start is letters, or letters and digits typed as digits with a
+   capital in them (APR1400은); never a number-row jamo key (Dynamics와의, not Dynamics0의 with ㅘ
+   as `0`), and not capitals that only go on with more capitals (CCL, not CC이). Among capitalized starts a known English word wins (Frontier를, not Frontierf을), else the longer start (Android에, not Androi에 with `d p` read as 에; SSD에, Docker와), except an acronym trailing off in lowercase keys, which go to the ending (API를, not APIf을), and among such starts the shorter wins (GWh를, not GWhf을).
+   - **An acronym, then a Korean word:** after a start of two capitals or more (digits allowed),
+     the split is also made where the case changes, however long the rest, and the rest counts as
+     the ending when it reads as a Korean word: two lowercase keys or more (then capitals Korean
+     typing makes too: ㅖ as `⇧P`), no bare jamo, two syllables or a particle, reading as Korean
+     on the key model or a known word: LG에너지솔루션은, KB국민카드의, IT서비스 (not 얐서비스),
+     KB증권은, ESG경영, AI플랫폼. Not the lowercase end of a unit or name, alone or before a
+     particle (MMBtu로, not MMB셔로).
+   - **A Korean word, then an acronym:** where lowercase keys first meet two capitals, the keys
+     before them read as Korean, the capitals as typed, and any keys after them as Korean
+     (한전KPS, 에너지ICT, 삼성SDI의), one step above a split of the same keys, when the start reads
+     as Korean (or is a known word) and the rest is empty, a particle or a Korean word. Not when
+     every capital is one Korean typing makes too (`QWERTOP`, or a Shift+vowel) and the Korean
+     reading has no bare jamo: 등록되어있으며 typed with 있 as `⇧L ⇧T` stays Korean.
+   - **A known Korean start holds a split back:** a split with a lowercase start isn't offered when
+     the Korean reading is a known word and the split's ending (소요되는, not thy되는).
    The start must also read as English on its own (1 bit per key), and when the whole keys make a
    Korean word (in the lexicon or the hanja dictionary: `kanxms` is 아무튼, not kanx은) the split is
    only an alternative below it; junk Korean (slack에 as 님차에) doesn't hold it back. Otherwise it
    ranks above the whole-word English reading. A regression test types 8,700+ real Korean words the
-   JIS Korean way, with the hanja dictionary: 0.13% rank as mixed (mostly fragments such as 년까지).
+   JIS Korean way, with the hanja dictionary: 0.07% rank as mixed (fragments such as 노드는; 0.13%
+   before the business-text rules, with 년까지).
 6. **Hanja are lean:** one dictionary candidate at most, whole words of 2+ syllables only, and a
    heavy penalty that keeps it last. It shows only when there's room. The exceptions (§10.4) aren't
    penalized.
@@ -913,7 +942,9 @@ saved − bias), clamped to 2–98%.
 - **Pieces:** punctuation typed inside a staged word (anything that isn't a letter or digit) splits
   it into pieces, each ranked on its own. The pieces' top readings, joined with their punctuation,
   form one more reading (Research(이하, AI)를, 기여(contribute)하는, SaaS(Software-as-a-Service)에),
-  ranked above the whole-word readings.
+  ranked above the whole-word readings. A piece that is one capital, maybe with digits, next to a
+  piece whose top reading starts with a Latin letter is that letter as typed, not the jamo its key
+  types: K-IFRS (not 아-IFRS), CT-P13 (not CT-예13). A lowercase one stays Korean: (USD)에.
 - **The trusting typist** (`engine/src/trust.rs`, `tests/corpora.rs`) types a text with the fewest
   presses and lets the predictions do the rest: Hangul by JIS Korean's optimized route, Latin
   letter by letter (a capital Z as z, since Shift+Z is F10), hanja by their reading, symbols by their
@@ -938,7 +969,8 @@ saved − bias), clamped to 2–98%.
   and `extended/` their continuations by AI agents, marked "human corpus extended by AI" on the
   first line (not typed). They weigh ¼ in the weighted failure rate and have their own ratchet.
   2026-10-19: owner's texts 0/115 failed (effort 2.7% below no predictions on the mixed one),
-  AI-extended 3/2008, weighted 0.12%. `examples/trust.rs` runs any texts with all three rankers.
+  AI-extended 3/2008, weighted 0.12%; 2026-10-27, with the business-text rules (§10.3): AI-extended
+  2/2008, weighted 0.08%. `examples/trust.rs` runs any texts with all three rankers.
 
 ### 10.11 Learning from the user's choices (opt-in, on the device)
 
@@ -1324,3 +1356,58 @@ in the browser until "Forget training words"; learned examples expire with the 2
 macOS reads `~/Library/Application Support/JIS Korean/training.json` on activation when it changed
 (input menu → Learned Weights → Open Training Folder), and forgets its words when it's removed;
 Windows does the same with `%APPDATA%\JIS Korean\training.json` (§8.4).
+
+### 10.13 Learned ranker
+
+The full build ranks the readings (§10.2, unchanged) with a linear model learned from text typed
+through the engine. It corrects the rules' order rather than replacing it: the rules still make
+every reading and score it, the model nudges, and the hard guarantees are rules applied after it.
+
+- **Score:** a reading's score is its rules' score (§10.3, computed with neutral weights, within
+  ±20 bits) plus the model's correction, `reach · tanh(w·x / reach)`: at most `reach` (2) bits either
+  way. Then the user's weights (§10.5) and the learned ones (§10.11) add their bits for the
+  reading's scenario, times twice the reach: the model can move two readings apart by twice its
+  reach, and a weight at the learner's clamp (2×) can always undo that. Duplicates are one
+  reading, with the kind of the copy the weights lift most.
+- **Features** (`engine/src/learned.rs`; about 130 per reading, hashed with FNV-1a into 2^20
+  weights): the rules' score, rank and gap to the top; where the reading came from (Korean,
+  English, case variants, 2-set, kept finals, implied ㄹ, hanja, bare vowels, English + particle,
+  Korean + acronym, pieces) and its other copies; the key model's margin; lexicon counts of the
+  reading, of the Korean reading and of the keys as English, and WordNet nouns; the keys' capitals
+  (initial, acronym, all capitals, capitals Korean shifts too, Shift+vowel inside), digits, digits
+  then a counter, punctuation; the previous word's language; lengths; implied ㅇ, kept-final and
+  implied-ㄹ counts; bare jamo; for English + particle, the split's shape (ending, its length,
+  particle or 하다/되다 ending, acronym tail, the start's lexicon count and margin); for Korean +
+  acronym, its parts; the keys' n-grams (1–5) and case shape crossed with the reading's class; the
+  reading's character classes (1–4), syllables (1–2) and last syllables. Deterministic: a fixed
+  hash, no hash-map order.
+- **Still rules, after scoring:** a reading a rule ruled out (rules' score −50 or less: a capital
+  that settles English, an acronym in capitals, a command name) stays below the rest; one vowel key
+  alone is its syllable, never a letter; the dictionary's hanja come last and an everyday hanja
+  (§10.4) right after the Korean reading; hanja and strongly avoided words are never on top; the
+  avoid list's 4 bits (§10.12); a scenario weighed 0 is off; at most 4. The experimental travel and
+  route rankers (§10.7, §10.8) aren't affected.
+- **Model file:** `engine/predict/learned.bin`: `JKLR`, format version, feature-set version, table
+  bits, scale and reach, then one 16-bit weight per entry. A host loads it after the predictor with
+  `jk_predictor_with_learned` (macOS, Windows and the web do); a model trained on other features,
+  or malformed, is refused (the rules rank). The legacy build ignores it.
+- **Training** (`python3 engine/tools/train_learned.py`, one command, deterministic; rerun after
+  `ranker.bin` or the word lists change): samples about 1.8 million words from `corpora/derived/*/`
+  (each source by its `weight`) and `corpora/` chat: Korean and English sentences, word lists,
+  business terms and mixed Latin + Hangul tokens. `examples/learn_data.rs` types them through the
+  engine the trusting way (§10.10) in the planner's styles (cheapest 40%, every jamo 20%, mixed
+  40%), and a third of the words with a final before a syllable on ㅇ also lazily (당신이 typed as
+  당시니, rule 4), recording each word's readings, features and which one it is. Words with hanja,
+  words with one reading, and **every word of the evaluation texts** are left out. Identical
+  records merge (816,000 lists, 4.4 million readings). Listwise logistic loss (softmax over each
+  word's readings), weighted by source, L2 300, L-BFGS. 1 word in 20 (by a hash of the word) is
+  held out.
+- **Evaluation** (never trained on): the owner's texts and the AI-extended ones (§10.10), the
+  Samsung robot corpus, and the DART audit corpus (10 KOSPI 200 business reports, 76,600 words,
+  never picking from the list). 2026-10-27, words wrong (rules → learned): owner's 0 → 0 of 115 in
+  every style; AI-extended 2 → 2 of 2,008 (styles: every jamo 1 → 1, mixed 5/5/4 → 4/4/4);
+  Samsung 47 → 41 of 4,713 (every jamo 60 → 55, mixed 63 → 57); DART 584 → 499 (every jamo
+  579 → 492, mixed 728 → 594). Held-out words: top-1 95.75% → 95.84% (lazily typed finals included).
+- **Legacy:** `cargo build --features legacy-predict` (macOS `make LEGACY_PREDICT=1`, Windows
+  `build.ps1 -Legacy`) leaves the model out: the rules rank, as before this section.
+

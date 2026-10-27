@@ -47,6 +47,7 @@ interface Exports {
   jk_predictor_free(p: number): void;
   jk_predictor_with_words(base: number, k: number, kl: number, e: number, el: number): number;
   jk_predictor_with_avoided(base: number, k: number, kl: number, e: number, el: number): number;
+  jk_predictor_with_learned(base: number, m: number, ml: number): number;
   jk_learn_example(h: number, t: number, tl: number, keys: number, kl: number): number;
   jk_predict(h: number): number;
   jk_prediction_ptr(h: number, i: number): number;
@@ -239,6 +240,18 @@ export class Engine {
     x.jk_dealloc(k, korean.length);
     x.jk_dealloc(n, nouns.length);
     if (!this.predictor) throw new Error("predictor model is malformed");
+    // The learned ranker (spec §10.13): optional, the rules rank without it.
+    const learned = await fetch(base + "learned.bin").then((r) => (r.ok ? r.arrayBuffer() : null)).catch(() => null);
+    if (learned) {
+      const bytes = new Uint8Array(learned);
+      const l = put(bytes);
+      const ranked = x.jk_predictor_with_learned(this.predictor, l, bytes.length);
+      x.jk_dealloc(l, bytes.length);
+      if (ranked) {
+        x.jk_predictor_free(this.predictor);
+        this.predictor = ranked;
+      }
+    }
     this.basePredictor = this.predictor;
   }
 

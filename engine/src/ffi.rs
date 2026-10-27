@@ -541,6 +541,26 @@ mod predict_ffi {
         })
     }
 
+    /// A new predictor: `base` ranking with the learned model (`predict/learned.bin`, spec §10.13).
+    /// `base` stays valid and unchanged. Null if `base` is null or the model is malformed (or was
+    /// trained on other features). The legacy build (`legacy-predict`) ignores the model: a copy
+    /// of `base`, ranking by the rules.
+    ///
+    /// # Safety
+    /// `base` must come from `jk_predictor_new` or a `jk_predictor_with_*` function; `model` must
+    /// point to `model_len` readable bytes.
+    #[unsafe(no_mangle)]
+    pub unsafe extern "C" fn jk_predictor_with_learned(base: *const JkPredictor, model: *const u8, model_len: usize) -> *mut JkPredictor {
+        // SAFETY: per the contract above.
+        let Some(base) = (unsafe { base.as_ref() }) else { return std::ptr::null_mut() };
+        // SAFETY: per the contract above.
+        let Some(m) = (unsafe { text(model, model_len) }) else { return std::ptr::null_mut() };
+        guard(std::ptr::null_mut(), || match base.0.with_learned(m) {
+            Ok(p) => Box::into_raw(Box::new(JkPredictor(Arc::new(p)))),
+            Err(_) => std::ptr::null_mut(),
+        })
+    }
+
     /// A new predictor: `base` with the user's own words added (training contract, spec §10.12),
     /// UTF-8 lines of `word` or `word<TAB>count` for Korean and English (either may be empty).
     /// `base` stays valid and unchanged. Null if `base` is null or a list isn't UTF-8.

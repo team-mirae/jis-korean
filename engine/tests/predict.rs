@@ -10,7 +10,10 @@ fn predictor() -> Arc<Predictor> {
     let dir = concat!(env!("CARGO_MANIFEST_DIR"), "/predict/");
     let read = |f: &str| std::fs::read_to_string(format!("{dir}{f}")).unwrap();
     let model = std::fs::read(format!("{dir}ranker.bin")).unwrap();
-    Arc::new(Predictor::parse(&model, &read("common-en.txt"), &read("common-ko.txt"), &read("english-nouns.txt")).unwrap())
+    let learned = std::fs::read(format!("{dir}learned.bin")).unwrap();
+    // The learned ranker (spec §10.13); the legacy build ignores it and ranks by the rules.
+    let p = Predictor::parse(&model, &read("common-en.txt"), &read("common-ko.txt"), &read("english-nouns.txt")).unwrap();
+    Arc::new(p.with_learned(&learned).unwrap())
 }
 
 /// Types keys (`S-` = Shift) into an engine with the predictor, returning it.
@@ -198,6 +201,7 @@ fn english_word_with_a_particle_is_one_reading() {
         ("Docker", "KeyH KeyK", "Docker와"),
         ("Google", "KeyM KeyF", "Google을"),
         ("PNG", "KeyH KeyK", "PNG와"),
+        ("Frontier", "KeyF KeyM KeyF", "Frontier를"),
     ] {
         assert_eq!(top(&keys(word, particle)), (want.into(), Kind::Mixed), "{want}");
     }
@@ -400,7 +404,8 @@ fn noun_lemmas_lean_english_more_than_other_forms() {
     let dir = concat!(env!("CARGO_MANIFEST_DIR"), "/predict/");
     let read = |f: &str| std::fs::read_to_string(format!("{dir}{f}")).unwrap();
     let model = std::fs::read(format!("{dir}ranker.bin")).unwrap();
-    let without = Arc::new(Predictor::parse(&model, &read("common-en.txt"), &read("common-ko.txt"), "").unwrap());
+    let learned = std::fs::read(format!("{dir}learned.bin")).unwrap();
+    let without = Arc::new(Predictor::parse(&model, &read("common-en.txt"), &read("common-ko.txt"), "").unwrap().with_learned(&learned).unwrap());
     let english_score = |p: &Arc<Predictor>, keys: &str| {
         let mut e = Engine::new();
         e.set_predictor(Some(p.clone()));
@@ -644,4 +649,109 @@ fn resolving_follows_predictions() {
     for route in &found {
         assert_eq!(type_keys(&predicting, route).as_deref(), Some("hello"), "{route:?}");
     }
+}
+
+// Business text (spec §10.3 rules 2, 4, 5 and 7; §10.10): acronyms, counters and kept finals as
+// DART filings use them, typed the cheapest JIS Korean way.
+
+#[test]
+fn an_acronym_then_a_korean_word_is_one_mixed_reading() {
+    for (keys, want) in [
+        ("S-KeyL S-KeyG KeyP KeyS KeyJ KeyW KeyL KeyT KeyH KeyF KeyF KeyN KeyT KeyU KeyS KeyM KeyM KeyS", "LG에너지솔루션은"),
+        ("S-KeyK S-KeyB KeyR KeyN KeyR KeyA KeyL KeyS KeyZ KeyK KeyE KeyM Digit9", "KB국민카드의"),
+        // Capitals Korean typing makes too (I T, K B) don't make it Korean: 얐서비스, 아유증권은.
+        ("S-KeyI S-KeyT KeyT KeyJ KeyQ KeyL KeyT KeyM", "IT서비스"),
+        ("S-KeyK S-KeyB KeyW KeyM KeyD KeyR Digit7 KeyS KeyM KeyM KeyS", "KB증권은"),
+        ("S-KeyE S-KeyS S-KeyG KeyR KeyU KeyD KeyU KeyU KeyD", "ESG경영"),
+        ("S-KeyA S-KeyI KeyV KeyM KeyF KeyF KeyO KeyT KeyV KeyH KeyA", "AI플랫폼"),
+    ] {
+        assert_eq!(top(keys), (want.into(), Kind::Mixed), "{want}");
+    }
+    // A unit's lowercase end stays English (MMBtu로, not MMB셔로).
+    assert_eq!(top("S-KeyM S-KeyM S-KeyB KeyT KeyU KeyF KeyH"), ("MMBtu로".into(), Kind::Mixed));
+}
+
+#[test]
+fn a_korean_word_then_an_acronym_is_one_mixed_reading() {
+    for (keys, want) in [
+        ("KeyG KeyK KeyS KeyW KeyJ KeyS S-KeyK S-KeyP S-KeyS", "한전KPS"),
+        ("KeyP KeyS KeyJ KeyW KeyL S-KeyI S-KeyC S-KeyT", "에너지ICT"),
+        ("KeyT KeyK KeyA KeyT KeyJ KeyD S-KeyS S-KeyD S-KeyI Digit9", "삼성SDI의"),
+    ] {
+        assert_eq!(top(keys), (want.into(), Kind::Mixed), "{want}");
+    }
+    // Capitals that are Korean typing's own (있 as ⇧L ⇧T) stay Korean.
+    let keys = "KeyE KeyM KeyD KeyF KeyH KeyR KeyE Digit8 KeyJ S-KeyL S-KeyT KeyM KeyM KeyA KeyU";
+    assert_eq!(top(keys), ("등록되어있으며".into(), Kind::Korean));
+}
+
+#[test]
+fn business_particles_follow_english_words() {
+    assert_eq!(top("S-KeyF S-KeyD S-KeyA KeyF KeyH KeyQ KeyN KeyX KeyJ"), ("FDA로부터".into(), Kind::Mixed));
+    assert_eq!(top("S-KeyL KeyI KeyC KeyE KeyN KeyS KeyE KeyE KeyF KeyH KeyT KeyJ"), ("Licensee로서".into(), Kind::Mixed));
+    // ㅘ on its number-row key (0) belongs to the ending, never to the English start.
+    assert_eq!(top("S-KeyD KeyY KeyN KeyA KeyM KeyI KeyC KeyS Digit0 Digit9"), ("Dynamics와의".into(), Kind::Mixed));
+}
+
+#[test]
+fn an_acronym_with_digits_takes_a_particle() {
+    assert_eq!(top("S-KeyA S-KeyP S-KeyR S-Digit1 S-Digit4 S-Digit0 S-Digit0 KeyM KeyS"), ("APR1400은".into(), Kind::Mixed));
+    // A unit trailing off in lowercase keeps them; the ending takes the rest (GWh를, not GWhf을).
+    assert_eq!(top("S-KeyG S-KeyW KeyH KeyF KeyM KeyF"), ("GWh를".into(), Kind::Mixed));
+    assert_eq!(top("S-Digit7 S-Digit9 S-Digit1 S-KeyG S-KeyW KeyH KeyF KeyM KeyF"), ("791GWh를".into(), Kind::Mixed));
+}
+
+#[test]
+fn a_number_and_a_counter_are_korean() {
+    assert_eq!(top("S-Digit2 KeyR KeyO"), ("2개".into(), Kind::Korean));
+    assert_eq!(top("S-Digit3 KeyS KeyU KeyS"), ("3년".into(), Kind::Korean));
+    // With a particle, or a longer counter.
+    assert_eq!(top("S-Digit2 KeyR KeyO Digit9"), ("2개의".into(), Kind::Korean));
+    assert_eq!(top("S-Digit3 KeyS KeyU KeyS KeyR KeyK KeyS"), ("3년간".into(), Kind::Korean));
+}
+
+#[test]
+fn a_word_in_capitals_is_an_acronym() {
+    assert_eq!(top("S-KeyK S-KeyB"), ("KB".into(), Kind::English));
+    assert_eq!(top("S-KeyO S-KeyE S-KeyM"), ("OEM".into(), Kind::English));
+    // Not two capitals that end in one Korean typing makes (CCL, not CC이).
+    assert_eq!(top("S-KeyC S-KeyC S-KeyL"), ("CCL".into(), Kind::English));
+    // A common Korean word stays Korean: 쓰 typed ⇧T ⇧M, 빠 typed ⇧Q ⇧K.
+    assert_eq!(top("S-KeyT S-KeyM"), ("쓰".into(), Kind::Korean));
+    assert_eq!(top("S-KeyQ S-KeyK"), ("빠".into(), Kind::Korean));
+}
+
+#[test]
+fn a_lone_capital_beside_latin_pieces_is_a_letter() {
+    assert_eq!(top("S-KeyK S-Semicolon S-KeyI S-KeyF S-KeyR S-KeyS").0, "K-IFRS");
+    assert_eq!(top("S-KeyC S-KeyT S-Semicolon S-KeyP S-Digit1 S-Digit3").0, "CT-P13");
+    // A lowercase one stays Korean: (USD)에.
+    assert_eq!(top("Equal S-KeyU S-KeyS S-KeyD S-Equal KeyP").0, "(USD)에");
+}
+
+#[test]
+fn a_known_korean_start_holds_back_an_english_split() {
+    // 소요 + 되는, not thy되는.
+    assert_eq!(top("KeyT KeyH KeyY KeyE Digit8 KeyS KeyM KeyS"), ("소요되는".into(), Kind::Korean));
+}
+
+#[test]
+fn a_kept_final_needs_the_rest_to_be_an_ending() {
+    // 엔진 + 이어링 and 틀 + 에이딩 only start like a particle: the typed words stay first.
+    assert_eq!(top("KeyP KeyS KeyW KeyL KeyS KeyL KeyJ KeyF KeyL KeyD").0, "엔지니어링");
+    assert_eq!(top("KeyX KeyM KeyF KeyP KeyL KeyE KeyL KeyD").0, "트레이딩");
+}
+
+#[test]
+fn the_learned_ranker_refuses_a_malformed_model() {
+    // The default build ranks with predict/learned.bin (spec §10.13); the legacy build ignores it.
+    let p = predictor();
+    assert_eq!(p.is_learned(), cfg!(not(feature = "legacy-predict")));
+    let mut truncated = std::fs::read(concat!(env!("CARGO_MANIFEST_DIR"), "/predict/learned.bin")).unwrap();
+    truncated.pop();
+    for bad in [&b""[..], b"JKLR", &[0u8; 64][..], &truncated[..]] {
+        assert_eq!(p.with_learned(bad).is_err(), p.is_learned(), "{} bytes", bad.len());
+    }
+    // Dropping it gives the rules back.
+    assert!(!p.without_learned().is_learned());
 }

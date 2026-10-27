@@ -1,4 +1,5 @@
-//! Types text files the trusting way (spec §10.10) with each ranker and reports the failures.
+//! Types text files the trusting way (spec §10.10) with each ranker (the learned one first, when
+//! predict/learned.bin is there) and reports the failures.
 //! `{keys=word}` tokens (from examples/abc.rs) are read as the word.
 //! Usage: cargo run --release --example trust -- [--failures] [--style optimal|every-jamo|mixed:<seed>] <text files…>
 
@@ -20,7 +21,14 @@ fn main() {
     let root = env!("CARGO_MANIFEST_DIR");
     let read = |f: &str| std::fs::read_to_string(format!("{root}/predict/{f}")).unwrap();
     let model = std::fs::read(format!("{root}/predict/ranker.bin")).unwrap();
-    let p = Arc::new(Predictor::parse(&model, &read("common-en.txt"), &read("common-ko.txt"), &read("english-nouns.txt")).unwrap());
+    let rules = Predictor::parse(&model, &read("common-en.txt"), &read("common-ko.txt"), &read("english-nouns.txt")).unwrap();
+    // The learned ranker (spec §10.13), when its model is there and this isn't the legacy build.
+    let learned = std::fs::read(format!("{root}/predict/learned.bin"))
+        .ok()
+        .and_then(|m| rules.with_learned(&m).ok())
+        .filter(Predictor::is_learned)
+        .map(Arc::new);
+    let p = Arc::new(rules);
     let d = Arc::new(Dictionary::parse(&std::fs::read_to_string(format!("{root}/dict/hanja.tsv")).unwrap()));
     let text: String = args
         .iter()
@@ -31,14 +39,19 @@ fn main() {
         .map(|t| without_keys(&t))
         .collect::<Vec<_>>()
         .join("\n");
-    for (name, ranker) in [("rules", Ranker::Rules), ("travel", Ranker::Travel(Effort::default())), ("route", Ranker::Route(Preference::default()))] {
-        let t = type_text(&text, p.clone(), Some(d.clone()), ranker, style, false, None).0;
+    let rankers = [
+        ("rules", p.clone(), Ranker::Rules),
+        ("travel", p.clone(), Ranker::Travel(Effort::default())),
+        ("route", p.clone(), Ranker::Route(Preference::default())),
+    ];
+    for (name, p, ranker) in learned.map(|l| ("learned", l, Ranker::Rules)).into_iter().chain(rankers) {
+        let t = type_text(&text, p, Some(d.clone()), ranker, style, false, None).0;
         println!(
             "{name:7} {}/{} words failed ({:.2}%), {} chars wrong, {} hanja on top; effort {} vs {} without predictions ({:+.1}%)",
             t.failures.len(), t.words, 100.0 * t.failures.len() as f64 / t.words as f64, t.char_errors, t.hanja_on_top.len(),
             t.effort(), t.deterministic, 100.0 * (t.effort() as f64 / t.deterministic as f64 - 1.0)
         );
-        if show && name == "rules" {
+        if show && (name == "rules" || name == "learned") {
             for f in &t.failures {
                 println!("  ✗ {:22} → {:22} [{}]  {}", f.want, f.got, f.keys, f.list.join(" · "));
             }

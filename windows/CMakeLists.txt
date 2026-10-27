@@ -4,6 +4,7 @@ cmake_minimum_required(VERSION 3.28)
 project(jiskorean LANGUAGES CXX RC)
 
 option(JK_PREDICT "Build with the predictive layer (spec §10); the engine must match" ON)
+option(JK_LEARNED "Embed the learned ranker's model (spec §10.13); off for the legacy engine" ON)
 set(JK_ENGINE_LIB "" CACHE FILEPATH "jis_korean.lib, built by cargo for this architecture")
 if(NOT EXISTS "${JK_ENGINE_LIB}")
     message(FATAL_ERROR "JK_ENGINE_LIB not found: '${JK_ENGINE_LIB}'. Build with tools/build.ps1.")
@@ -30,6 +31,9 @@ add_compile_options(/W4 /utf-8 /permissive- /EHsc)
 add_compile_definitions(UNICODE _UNICODE NOMINMAX WIN32_LEAN_AND_MEAN _WIN32_WINNT=0x0A00)
 if(JK_PREDICT)
     add_compile_definitions(JK_PREDICT)
+    if(JK_LEARNED)
+        add_compile_definitions(JK_LEARNED)
+    endif()
 endif()
 
 # The engine and what Rust's standard library links against on Windows.

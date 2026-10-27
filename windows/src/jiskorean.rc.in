@@ -18,6 +18,9 @@ IDR_RANKER RCDATA "@JK_ENGINE_DIR@/predict/ranker.bin"
 IDR_COMMON_EN RCDATA "@JK_ENGINE_DIR@/predict/common-en.txt"
 IDR_COMMON_KO RCDATA "@JK_ENGINE_DIR@/predict/common-ko.txt"
 IDR_NOUNS RCDATA "@JK_ENGINE_DIR@/predict/english-nouns.txt"
+#ifdef JK_LEARNED
+IDR_LEARNED RCDATA "@JK_ENGINE_DIR@/predict/learned.bin"
+#endif
 #endif
 
 VS_VERSION_INFO VERSIONINFO

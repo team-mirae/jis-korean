@@ -75,6 +75,23 @@ pub fn type_text(
     attentive: bool,
     learner: Option<Learner>,
 ) -> (Trusting, Option<Learner>) {
+    type_text_observed(text, predictor, dictionary, ranker, style, attentive, learner, &mut |_, _, _| {})
+}
+
+/// [`type_text`], calling `observe` before each word is committed with the engine, the word, and
+/// what of it is staged (the word without what was committed before, when a pasted symbol
+/// committed part of it): the training data's view (spec §10.13).
+#[allow(clippy::too_many_arguments)]
+pub fn type_text_observed(
+    text: &str,
+    predictor: Arc<Predictor>,
+    dictionary: Option<Arc<Dictionary>>,
+    ranker: Ranker,
+    style: Style,
+    attentive: bool,
+    learner: Option<Learner>,
+    observe: &mut dyn FnMut(&Engine, &str, &str),
+) -> (Trusting, Option<Learner>) {
     let (text, _) = normalize(text);
     let robot = Robot::new(dictionary.clone());
     let mut engine = Engine::new();
@@ -104,7 +121,7 @@ pub fn type_text(
                 Style::Mixed(seed) => Style::Mixed(seed ^ (report.words as u64 + 1).wrapping_mul(0x9E37_79B9)),
                 other => other,
             };
-            type_word(word, &robot, &mut engine, dictionary.clone(), style, attentive, &mut report);
+            type_word(word, &robot, &mut engine, dictionary.clone(), style, attentive, &mut report, observe);
         }
     }
     let learned = learner.map(|_| engine.learner().clone());
@@ -120,6 +137,7 @@ fn type_word(
     style: Style,
     attentive: bool,
     report: &mut Trusting,
+    observe: &mut dyn FnMut(&Engine, &str, &str),
 ) {
     let mut got = String::new();
     let mut keys = String::new();
@@ -171,6 +189,9 @@ fn type_word(
         };
         press(engine, &presses, &mut got, &mut keys, report);
         i = end;
+    }
+    if let Some(staged) = word.strip_prefix(got.as_str()) {
+        observe(engine, word, staged);
     }
     let list: Vec<(String, Kind)> = engine.predictions().into_iter().map(|p| (p.text, p.kind)).collect();
     if list.first().is_some_and(|(_, kind)| *kind == Kind::Hanja) {

@@ -16,6 +16,8 @@ pub mod resolve;
 pub mod travel;
 #[cfg(feature = "predict")]
 pub mod learn;
+#[cfg(all(feature = "predict", not(feature = "legacy-predict")))]
+pub mod learned;
 #[cfg(feature = "predict")]
 pub mod predict;
 #[cfg(feature = "predict")]

@@ -25,7 +25,13 @@ the Minecraft mod copies them into its jar at build time.
 
 Usage: python3 -I build_ranker.py <words_alpha.txt> --nouns <wordnet dict/index.noun>
                                   [--corpora <dir>] [--eval-korean <text file>]
-Writes engine/predict/ranker.bin.
+                                  [--order 3|4] [--out <dir>] [--derived <corpora/derived>]
+Writes engine/predict/ranker.bin (or into --out, with the generated lists, for experiments).
+--order 4: key 4-grams (format version 2), Witten-Bell smoothed; 3 (default): the trigram table.
+--derived: the open corpora, each extracted by minecraft/tools/open_corpora/<source>.py into
+corpora/derived/<source>/ (ko.txt, en.txt, ko_words.tsv, en_words.tsv, terms.tsv, meta.json with
+its tier and weight, from the per-source evaluation). Each source counts as a share of the word
+frequencies by its weight (high-quality sources weigh more), mixed with --corpora's at weight 1.
 """
 
 import bz2
@@ -45,7 +51,13 @@ ROOT = os.path.dirname(HERE)
 HANJA_TSV = os.path.join(ROOT, "..", "engine", "dict", "hanja.tsv")
 # Shared with the engine's predictor; the mod copies these in at build time.
 PREDICT = os.path.join(ROOT, "..", "engine", "predict")
-OUT = os.path.join(PREDICT, "ranker.bin")
+# --out <dir>: write the model and the generated lists there instead (the hand-written parts are
+# still read from engine/predict), so an experiment doesn't touch the shipped files.
+OUT_DIR = sys.argv[sys.argv.index("--out") + 1] if "--out" in sys.argv else PREDICT
+OUT = os.path.join(OUT_DIR, "ranker.bin")
+# Key n-gram order: 3 (format version 1) or 4 (format version 2).
+ORDER = int(sys.argv[sys.argv.index("--order") + 1]) if "--order" in sys.argv else 3
+assert ORDER in (3, 4), "--order is 3 or 4"
 
 # --- Hand-written lists (shared with the mod): frequent words the big lists miss or under-weight ---
 
@@ -66,12 +78,11 @@ def read_list(name):
 def write_generated(name, words, directives=()):
     """Replaces the generated part of a list with `words`: (word, count) pairs, written as
     `word<TAB>count` (the predictor compares counts when two readings are both words)."""
-    path = os.path.join(LISTS, name)
-    with open(path, encoding="utf-8") as f:
+    with open(os.path.join(LISTS, name), encoding="utf-8") as f:
         hand = f.read().split(GENERATED)[0].rstrip("\n")
     hand_words = set(read_list(name))
     extra = [f"{w}\t{n}" for w, n in words if w not in hand_words]
-    with open(path, "w", encoding="utf-8") as f:
+    with open(os.path.join(OUT_DIR, name), "w", encoding="utf-8") as f:
         f.write(hand + "\n\n" + GENERATED + "\n")
         f.writelines(f"{d}\n" for d in directives)
         f.write("\n".join(extra) + ("\n" if extra else ""))
@@ -161,6 +172,89 @@ def business_terms(corpora):
             if label and label == label.lower():
                 english.update(w for w in ENGLISH_TOKEN.findall(label) if len(w) >= 3)
     return sorted(korean), sorted(english)
+
+# --- Open corpora (--derived): weighted word frequencies and terms ---
+
+# The mixed frequencies are scaled to the --corpora token total times this, so the lexicon
+# thresholds (LEXICON_MIN_*) keep meaning "this common in the training text".
+DERIVED_SCALE = 1.0
+# Types rarer than this (after scaling) don't train the key model: the tail is mostly noise.
+DERIVED_MIN_COUNT = 0.5
+# The generated lexicons stay this size at most (the shells load them into every engine).
+LEXICON_CAP_KO = 100_000
+LEXICON_CAP_EN = 40_000
+
+
+def derived_sources(root):
+    """(name, weight, uses, folder) for every extracted source with a positive weight."""
+    for name in sorted(os.listdir(root)):
+        folder = os.path.join(root, name)
+        meta = os.path.join(folder, "meta.json")
+        if not os.path.isfile(meta):
+            continue
+        with open(meta, encoding="utf-8") as f:
+            info = json.load(f)
+        weight = float(info.get("weight", 0))
+        if weight > 0:
+            yield name, weight, set(info.get("uses", [])), folder
+
+
+def read_lines(path):
+    if os.path.isfile(path):
+        with open(path, encoding="utf-8", errors="replace") as f:
+            for line in f:
+                yield line.rstrip("\n")
+
+
+def read_counts(path, normalize):
+    counts = Counter()
+    for line in read_lines(path):
+        word, _, n = line.partition("\t")
+        word = normalize(word.strip())
+        try:
+            counts[word] += max(float(n), 0.0) if n else 1.0
+        except ValueError:
+            continue
+    return counts
+
+
+def derived_counts(root, base, pattern, normalize, text, words):
+    """`base` (the --corpora counts) mixed with every source's word frequencies: each source's
+    relative frequencies times its weight, `base` at weight 1, scaled to `base`'s total."""
+    total_base = sum(base.values()) or 1.0
+    mixed = Counter({w: n / total_base for w, n in base.items()})
+    weights = 1.0
+    for name, weight, _, folder in derived_sources(root):
+        counts = Counter()
+        for line in read_lines(os.path.join(folder, text)):
+            for token in pattern.findall(line):
+                counts[normalize(token)] += 1
+        # Word lists hold whatever their source had (café, e-mail, 3D): only whole tokens count.
+        counts.update({w: n for w, n in read_counts(os.path.join(folder, words), normalize).items() if pattern.fullmatch(w)})
+        total = sum(counts.values())
+        if not total:
+            continue
+        print(f"  {name}: {len(counts)} types, weight {weight}")
+        for w, n in counts.items():
+            mixed[w] += weight * n / total
+        weights += weight
+    scale = total_base * DERIVED_SCALE / weights
+    return Counter({w: r * scale for w, r in mixed.items() if r * scale >= DERIVED_MIN_COUNT})
+
+
+def derived_terms(root):
+    """Business and technical terms from sources the evaluation marked for them."""
+    korean, english = set(), set()
+    for _, _, uses, folder in derived_sources(root):
+        if "business-terms" not in uses:
+            continue
+        for line in read_lines(os.path.join(folder, "terms.tsv")):
+            ko, _, en = line.partition("\t")
+            if re.fullmatch(r"[가-힣]{2,}", ko.strip()):
+                korean.add(ko.strip())
+            english.update(w.lower() for w in ENGLISH_TOKEN.findall(en) if len(w) >= 3)
+    return korean, english
+
 
 PARTICLES = "은 는 이 가 을 를 에 에서 의 도 만 으로 로 와 과 이다 입니다 하다 했다 해요 하는 하고 적 들".split()
 
@@ -295,14 +389,56 @@ def train(weighted_words):
     return table
 
 
+def train4(weighted_words):
+    """Key 4-grams, Witten-Bell smoothed down to trigrams, bigrams and unigrams: each order trusts
+    its context in proportion to how often it was seen against how many different keys followed it.
+    Works with the fractional weights the words carry. One byte per entry, as `train`."""
+    from collections import defaultdict
+    counts = [defaultdict(float) for _ in range(5)]  # counts[n][(ctx..., c)], n = 1..4
+    ctx = [defaultdict(float) for _ in range(5)]  # ctx[n][ctx]: total weight after that context
+    follow = [defaultdict(set) for _ in range(5)]  # follow[n][ctx]: distinct next keys
+    for word, w in weighted_words:
+        hist = [START, START, START]
+        for ch in word + "$":
+            c = END if ch == "$" else code(ch)
+            for n in range(1, 5):
+                h = tuple(hist[3 - (n - 1):]) if n > 1 else ()
+                counts[n][h + (c,)] += w
+                ctx[n][h] += w
+                follow[n][h].add(c)
+            hist = hist[1:] + [c]
+
+    def prob(h, c):
+        p = 1 / 27
+        for n in range(1, len(h) + 2):
+            hh = h[len(h) - (n - 1):] if n > 1 else ()
+            total = ctx[n].get(hh, 0.0)
+            if total:
+                t = len(follow[n][hh])
+                p = (counts[n].get(hh + (c,), 0.0) + t * p) / (total + t)
+        return p
+
+    table = bytearray(27 ** 4)
+    for a in range(27):
+        for b in range(27):
+            for d in range(27):
+                for c in range(27):
+                    p = prob((a, b, d), c)
+                    table[((a * 27 + b) * 27 + d) * 27 + c] = min(255, round(-math.log2(p) * 16))
+    return table
+
+
 def score(table, keys):
     """Average log2 probability per key (higher = more likely)."""
-    a = b = START
+    hist = [START] * (ORDER - 1)
     total = 0.0
     for ch in keys + "$":
         c = END if ch == "$" else code(ch)
-        total -= table[(a * 27 + b) * 27 + c] / 16
-        a, b = b, c
+        i = 0
+        for k in hist + [c]:
+            i = i * 27 + k
+        total -= table[i] / 16
+        hist = hist[1:] + [c]
     return total / (len(keys) + 1)
 
 
@@ -314,6 +450,7 @@ def main():
     words_alpha = sys.argv[1]
     eval_korean = sys.argv[sys.argv.index("--eval-korean") + 1] if "--eval-korean" in sys.argv else None
     corpora = sys.argv[sys.argv.index("--corpora") + 1] if "--corpora" in sys.argv else None
+    derived = sys.argv[sys.argv.index("--derived") + 1] if "--derived" in sys.argv else None
     nouns = set()
     with open(sys.argv[sys.argv.index("--nouns") + 1], encoding="utf-8") as f:
         for line in f:
@@ -341,6 +478,14 @@ def main():
         ko_counts, ko_held = count_tokens(korean_sentences(corpora), KOREAN_TOKEN, lambda t: t)
         en_counts, en_held = count_tokens(english_sentences(corpora), ENGLISH_TOKEN, str.lower)
         biz_ko, biz_en = business_terms(corpora)
+        if derived:
+            print("open corpora, Korean:")
+            ko_counts = derived_counts(derived, ko_counts, KOREAN_TOKEN, lambda t: t, "ko.txt", "ko_words.tsv")
+            print("open corpora, English:")
+            en_counts = derived_counts(derived, en_counts, ENGLISH_TOKEN, str.lower, "en.txt", "en_words.tsv")
+            terms_ko, terms_en = derived_terms(derived)
+            biz_ko = sorted(set(biz_ko) | terms_ko)
+            biz_en = sorted(set(biz_en) | terms_en)
         print(f"corpora: {len(ko_counts)} Korean, {len(en_counts)} English word types; "
               f"business terms: {len(biz_ko)} Korean, {len(biz_en)} English")
         ko_words += [(w, math.log2(1 + n)) for w, n in ko_counts.items()]
@@ -354,9 +499,10 @@ def main():
                      or (single and len(w) == 1 and "가" <= w <= "힣" and n >= single)}
             for w in business:
                 words[w] = max(words.get(w, 0), counts.get(w, 0), BUSINESS_COUNT)
+            words = {w: round(n) for w, n in words.items() if round(n) >= 1}
             return sorted(words.items(), key=lambda item: (-item[1], item[0]))
-        lexicon_ko = lexicon(ko_counts, LEXICON_MIN_KO, 2, biz_ko, LEXICON_MIN_KO_SINGLE)
-        lexicon_en = lexicon(en_counts, LEXICON_MIN_EN, 3, biz_en)
+        lexicon_ko = lexicon(ko_counts, LEXICON_MIN_KO, 2, biz_ko, LEXICON_MIN_KO_SINGLE)[:LEXICON_CAP_KO]
+        lexicon_en = lexicon(en_counts, LEXICON_MIN_EN, 3, biz_en)[:LEXICON_CAP_EN]
         odds = implied_after_finals(ko_counts)
         print("implied ㅇ after a kept final, log2 odds:", {f + s: round(v, 2) for (f, s), v in odds.items()})
         # "#!" lines: read by the predictor, skipped as comments by every other reader.
@@ -377,8 +523,9 @@ def main():
             if is_keys(k):
                 ko_data.append((k, weight * share))
 
-    en_table = train(en_data)
-    ko_table = train(ko_data)
+    trainer = train4 if ORDER == 4 else train
+    en_table = trainer(en_data)
+    ko_table = trainer(ko_data)
 
     def accuracy(name, keys_list, want_korean):
         keys_list = [k for k in keys_list if is_keys(k)]
@@ -401,7 +548,7 @@ def main():
 
     # The noun lexicon for the predictor's exact-word bonus: WordNet noun lemmas, 3+ letters (short
     # "nouns" like al would steal Korean syllables such as 미).
-    with open(os.path.join(PREDICT, "english-nouns.txt"), "w", encoding="utf-8") as f:
+    with open(os.path.join(OUT_DIR, "english-nouns.txt"), "w", encoding="utf-8") as f:
         f.write("# English nouns in normalized form (Princeton WordNet 3.0 index.noun lemmas, 3+ letters).\n")
         f.write("# Generated by minecraft/tools/build_ranker.py; license in LICENSE-wordnet.txt.\n")
         f.write("\n".join(sorted(w for w in nouns if len(w) >= 3)) + "\n")
@@ -409,7 +556,7 @@ def main():
     os.makedirs(os.path.dirname(OUT), exist_ok=True)
     with open(OUT, "wb") as f:
         f.write(b"JKRK")
-        f.write(struct.pack(">HH", 1, 27))
+        f.write(struct.pack(">HH", 1 if ORDER == 3 else 2, 27))
         f.write(en_table)
         f.write(ko_table)
     print(f"{OUT}: {os.path.getsize(OUT)} bytes")

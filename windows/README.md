@@ -14,6 +14,7 @@ Windows 10 or 11, Visual Studio 2022 Build Tools (C++ x64/x86), CMake 3.28+, Nin
 rustup target add i686-pc-windows-msvc
 tools/build.ps1               # x64 + x86 (32-bit apps load the x86 DLL), runs the shell tests
 tools/build.ps1 -Lite         # without the predictive layer (build/<arch>-lite)
+tools/build.ps1 -Legacy       # predictions ranked by the rules alone, no learned ranker (build/<arch>-legacy)
 tools/build.ps1 -Arch x64     # one architecture
 python -I tools/make-icons.py # only after the logo changes: icons/taegeuk.ico from docs/logo
 ```

@@ -213,6 +213,10 @@ enum {
 JkPredictor *jk_predictor_new(const uint8_t *model, size_t model_len, const uint8_t *english_words,
                               size_t english_len, const uint8_t *korean_words, size_t korean_len,
                               const uint8_t *english_nouns, size_t nouns_len); /* nouns may be NULL */
+/* The learned ranker (spec §10.13): a new predictor ranking with predict/learned.bin (the base
+ * stays). NULL if the model is malformed; the legacy build (`legacy-predict`) ignores the model and
+ * returns a copy of the base. Without it, the rules rank (§10.3). */
+JkPredictor *jk_predictor_with_learned(const JkPredictor *base, const uint8_t *model, size_t model_len);
 void jk_predictor_free(JkPredictor *predictor);
 void jk_set_predictor(JkEngine *engine, const JkPredictor *predictor); /* NULL: lite */
 size_t jk_predict(JkEngine *engine); /* ranks the staged text; returns the count */

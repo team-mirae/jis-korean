@@ -6,7 +6,7 @@ use crate::hangul::{self, Composer, Options};
 #[cfg(feature = "predict")]
 use crate::learn::{self, Event, Learner};
 #[cfg(feature = "predict")]
-use crate::predict::{Context, Language, Piece, Prediction, Predictor, Ranker, Readings, Split, Weight, Weights};
+use crate::predict::{Context, Head, Language, Piece, Prediction, Predictor, Ranker, Readings, Split, Weight, Weights};
 use crate::hanja::{Candidate, Dictionary};
 use crate::key::{Key, Mods};
 use crate::layout::{self, Layout, Mode, Out};
@@ -699,9 +699,40 @@ impl Engine {
         });
         // Every way to read the keys as an English start plus a Korean ending (report에), ending
         // short: the predictor keeps the ones whose ending is a particle.
-        let splits = (segment.len().saturating_sub(MAX_ENDING_KEYS).max(1)..segment.len())
+        let first = segment.len().saturating_sub(MAX_ENDING_KEYS).max(1);
+        // Not after a number-row jamo (ㅘ as 0 in Dynamics와의): that key is the ending's, and an
+        // English start's digits are typed as digits (APR1400은).
+        let jamo_digit = |t: &Token| matches!(*t, Token::Jamo { raw: Some(c), .. } | Token::IeungVowel { raw: Some(c), .. } if c.is_ascii_digit());
+        let mut splits: Vec<Split> = (first..segment.len())
+            .filter(|&k| !segment[..k].iter().any(jamo_digit))
             .map(|k| Split { english: typed_of(&segment[..k]), korean: compose(&segment[k..]) })
             .collect();
+        // The keys token by token, to find where the case changes.
+        let keys: Vec<Option<char>> = segment.iter().map(typed_key).collect();
+        let upper = |k: usize| keys[k].is_some_and(|c| c.is_ascii_uppercase());
+        let lower = |k: usize| keys[k].is_some_and(|c| c.is_ascii_lowercase());
+        // A digit typed as a digit, not a number-row jamo (ㅢ as 9).
+        let digit = |k: usize| matches!(segment[k], Token::Text(c) | Token::Typed(c, _) if c.is_ascii_digit());
+        let capital_run = |from: usize| (from..keys.len()).take_while(|&k| upper(k) || digit(k)).count();
+        // An acronym start then lowercase keys (LG에너지솔루션은, KB국민카드의): also split where the
+        // case changes, however far from the end, so the rest can be read as Korean.
+        let acronym = capital_run(0);
+        if acronym >= 2 && acronym < first && lower(acronym) {
+            splits.push(Split { english: typed_of(&segment[..acronym]), korean: compose(&segment[acronym..]) });
+        }
+        // A Korean start then an acronym (한전KPS, 에너지ICT): the first place lowercase keys are
+        // followed by two capitals.
+        let head = (1..keys.len().saturating_sub(1))
+            .find(|&k| (lower(k - 1) || keys[k - 1].is_some_and(|c| c.is_ascii_digit())) && upper(k) && upper(k + 1))
+            .map(|k| {
+                let end = k + capital_run(k);
+                Head {
+                    korean: compose(&segment[..k]),
+                    keys: typed_of(&segment[..k]),
+                    acronym: typed_of(&segment[k..end]),
+                    rest: compose(&segment[end..]),
+                }
+            });
         Readings {
             english: typed_of(segment),
             two_set: compose_with(&two_set_tokens(segment), Options { standard: true, ..Options::default() }),
@@ -714,6 +745,7 @@ impl Engine {
             hanja,
             korean,
             pieces: Vec::new(),
+            head,
         }
     }
 
@@ -721,11 +753,24 @@ impl Engine {
     #[cfg(feature = "predict")]
     pub fn predictions(&self) -> Vec<Prediction> {
         match &self.predictor {
-            Some(p) if !self.segment.is_empty() => p.predict(
-                &self.readings(),
-                Context { previous: self.previous, command: false, weights: self.effective_weights(), ranker: self.ranker },
-                self.dictionary.as_deref(),
-            ),
+            Some(p) if !self.segment.is_empty() => p.predict(&self.readings(), self.prediction_context(), self.dictionary.as_deref()),
+            _ => Vec::new(),
+        }
+    }
+
+    #[cfg(feature = "predict")]
+    fn prediction_context(&self) -> Context {
+        Context { previous: self.previous, command: false, weights: self.effective_weights(), ranker: self.ranker }
+    }
+
+    /// The staged text's distinct readings with the learned ranker's features (spec §10.13), in a
+    /// table of 2^`bits`: what the training data records. Empty without a predictor.
+    #[cfg(all(feature = "predict", not(feature = "legacy-predict")))]
+    pub fn prediction_features(&self, bits: u32) -> Vec<crate::learned::Featured> {
+        match &self.predictor {
+            Some(p) if !self.segment.is_empty() => {
+                crate::learned::featurize(p, &self.readings(), self.prediction_context(), self.dictionary.as_deref(), bits)
+            }
             _ => Vec::new(),
         }
     }
@@ -983,14 +1028,17 @@ fn implied_l_variants(segment: &[Token]) -> Vec<String> {
 /// typed (a ; typed is ;, where F10 would give the stock JIS key's character).
 #[cfg(feature = "predict")]
 fn typed_of(segment: &[Token]) -> String {
-    segment
-        .iter()
-        .filter_map(|t| match *t {
-            Token::Jamo { jamo, raw } | Token::IeungVowel { jamo, raw } => Some(raw.unwrap_or(jamo)),
-            Token::Text(c) | Token::Typed(c, _) => Some(c),
-            Token::Bare => None,
-        })
-        .collect()
+    segment.iter().filter_map(typed_key).collect()
+}
+
+/// One token's key as [`typed_of`] reads it; none for a bare-vowel marker.
+#[cfg(feature = "predict")]
+fn typed_key(token: &Token) -> Option<char> {
+    match *token {
+        Token::Jamo { jamo, raw } | Token::IeungVowel { jamo, raw } => Some(raw.unwrap_or(jamo)),
+        Token::Text(c) | Token::Typed(c, _) => Some(c),
+        Token::Bare => None,
+    }
 }
 
 /// Punctuation that separates the pieces of a staged word (spec §10.10): anything typed that isn't

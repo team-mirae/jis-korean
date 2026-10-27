@@ -78,6 +78,22 @@ pub struct Readings {
     /// The pieces between punctuation typed inside the word, each with its own readings (empty
     /// when there's no such punctuation).
     pub pieces: Vec<Piece>,
+    /// A Korean start then an acronym (한전KPS, 에너지ICT), at the first place lowercase keys meet
+    /// two capitals.
+    pub head: Option<Head>,
+}
+
+/// A staged word read as a Korean start, an acronym and maybe more Korean (한전KPS은).
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct Head {
+    /// The start, as Korean (한전).
+    pub korean: String,
+    /// The start's keys (gkswjs).
+    pub keys: String,
+    /// The capitals, as typed (KPS).
+    pub acronym: String,
+    /// The keys after them, as Korean (은; empty if none).
+    pub rest: String,
 }
 
 /// A piece of a staged word between punctuation, and the punctuation after it.
@@ -262,6 +278,40 @@ pub struct Prediction {
     pub score: f64,
 }
 
+/// Where a candidate reading came from: finer than [`Kind`] (the learned ranker's features, spec
+/// §10.13).
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
+pub enum Origin {
+    Korean,
+    English,
+    Capitalized,
+    Upper,
+    TwoSet,
+    KeepFinals,
+    /// One final kept before the vowel after it (산이 for 사니).
+    Kept,
+    ImpliedL,
+    Hanja,
+    /// An everyday hanja (§10.4: 2026年, 韓美).
+    EverydayHanja,
+    Bare,
+    /// An English start and a Korean ending (report에).
+    Mixed,
+    /// A Korean start and an acronym (한전KPS).
+    Head,
+    /// The pieces between punctuation, each read on its own.
+    Pieces,
+}
+
+/// A reading before ranking: its prediction with the rule-based (legacy) score, where it came
+/// from, and for an English + particle reading, the split.
+#[derive(Clone, Debug, PartialEq)]
+pub struct Candidate {
+    pub prediction: Prediction,
+    pub origin: Origin,
+    pub split: Option<Split>,
+}
+
 /// At most this many predictions are offered.
 pub const MAX_PREDICTIONS: usize = 4;
 
@@ -269,8 +319,8 @@ const SIZE: usize = 27;
 const START: usize = 26;
 const END: usize = 26;
 /// Shift on these can be Korean (tense consonants, ㅒ ㅖ); Shift on others mid-word too (Shift+vowel).
-const KOREAN_SHIFTS: &str = "QWERTOP";
-const IEUNG_SHIFTS: &str = "YUIHJKLBNM";
+pub(crate) const KOREAN_SHIFTS: &str = "QWERTOP";
+pub(crate) const IEUNG_SHIFTS: &str = "YUIHJKLBNM";
 /// Canonical 2-set keys for the dedicated number-row jamo (0 is ㅘ, 1–5 ㅃ ㅉ ㄸ ㄲ ㅆ, 6–9 ㅟ ㅝ ㅚ ㅢ).
 const DIGIT_KEYS: [&str; 10] = ["hk", "q", "w", "e", "r", "t", "nl", "nj", "hl", "ml"];
 
@@ -281,6 +331,8 @@ const HAND_COUNT: u32 = 1000;
 /// and other forms, which get no bonus. A little less than the hand-written lists.
 const NOUN: f64 = 1.5;
 const STICKY: f64 = 0.5;
+/// A word count from which a Korean word is common: the business terms' count (§10.9).
+const COMMON: u32 = 20;
 const BARE_JAMO: f64 = 1.5;
 /// Alternatives rank below the reading they're an alternative to.
 const ALTERNATIVE: f64 = 1.0;
@@ -295,15 +347,37 @@ const SPLIT_EDGE: f64 = 0.5;
 const SPLIT_START: f64 = 1.0;
 /// A word the user never means (training file `avoid`, spec §10.12): its readings drop this far.
 /// A strong one is also never on top.
-const AVOIDED: f64 = 4.0;
+pub(crate) const AVOIDED: f64 = 4.0;
 
 /// Particles and endings that attach to English words in mixed Korean text.
-const PARTICLES: &[&str] = &[
+pub(crate) const PARTICLES: &[&str] = &[
     "은", "는", "이", "가", "을", "를", "의", "에", "에서", "에게", "에는", "에서는", "에서의", "에도",
     "과", "와", "도", "만", "로", "으로", "로는", "으로는", "로도", "으로도", "까지", "부터", "까지는", "까지의", "부터는", "부터의", "부로", "처럼", "보다",
     "이나", "나", "랑", "이랑", "한테", "께서", "이다", "입니다", "이고", "이며", "이라고", "라고", "이라는",
     "라는", "인", "적", "적인", "적으로", "들", "들이", "들은", "들을", "들의", "하는", "한", "하고", "했다",
     "하다", "해서", "하면", "된", "되는", "화", "화된", "용", "형", "급", "씨", "님",
+    // Business text (DART filings): FDA로부터, Dynamics와의, Licensee로서, CRO이자, Innovation이란.
+    "로부터", "으로부터", "로부터의", "로서", "으로서", "로써", "으로써", "로의", "으로의", "와의", "과의", "와는",
+    "과는", "와도", "과도", "와를", "과를", "에서와", "에게서", "에서도", "만의", "이자", "이란", "란", "이라", "라",
+    "등", "등의", "등을", "등이", "등과", "등은", "였다", "이었다", "였으며", "이었으며", "이지만", "임", "임을",
+];
+
+/// Lowercase ends of units and names that follow capitals (MWh, MMBtu, Ltd, Inc): after an acronym
+/// they're English, not a Korean word.
+pub(crate) const UNIT_ENDS: &[&str] = &["h", "tu", "td", "nc", "o", "s", "b", "bps", "wh", "m", "g", "t"];
+
+/// Korean counters and words that follow a number (2개, 3년, '23년, 3년간): after digits, Korean.
+pub(crate) const COUNTERS: &[&str] = &[
+    "개", "년", "월", "일", "원", "명", "차", "건", "억", "조", "만", "배", "곳", "종", "위", "대", "호", "회", "층", "주", "시",
+    "분", "초", "세", "개월", "개사", "개국", "년간", "년도", "년말", "년부터", "년까지", "년에", "년의", "년은", "척", "기", "톤",
+    "억원", "조원", "만원", "천", "백", "개소", "차례", "번째", "등", "위권", "주년", "분기", "반기", "회차",
+];
+
+/// After a kept final's particle or ending, what may still follow it for the final to count as
+/// kept (대해서는 is 대해서 + 는; 엔진 + 이어링 isn't): nothing, or a short ending.
+const ENDING_TAILS: &[&str] = &[
+    "", "다", "요", "니다", "습니다", "서", "도", "는", "고", "며", "면", "나", "만", "의", "에", "를", "가", "지", "죠", "야", "라",
+    "란", "로", "었", "었다", "었습니다",
 ];
 
 /// `word` or `word<TAB>count` lines (`#` lines are comments) into word counts; a word without a
@@ -367,6 +441,8 @@ const DATES: &[(char, &str)] = &[
 /// The trained model and word lists.
 #[derive(Clone)]
 pub struct Predictor {
+    /// Key n-gram order of the model: 3 or 4.
+    order: usize,
     english: Vec<u8>,
     korean: Vec<u8>,
     /// Lexicon words with their counts in the training sentences (hand-written ones: [`HAND_COUNT`]).
@@ -379,6 +455,9 @@ pub struct Predictor {
     /// Words the user never means, each `true` if strong (never on top). English ones lowercase.
     avoided_korean: HashMap<String, bool>,
     avoided_english: HashMap<String, bool>,
+    /// The learned ranker's weights (spec §10.13); none: the rules rank (legacy).
+    #[cfg(not(feature = "legacy-predict"))]
+    learned: Option<std::sync::Arc<crate::learned::Model>>,
 }
 
 #[derive(Debug, PartialEq, Eq)]
@@ -388,12 +467,19 @@ impl Predictor {
     /// `model`: `predict/ranker.bin`. `english_words` / `korean_words`: `predict/common-*.txt`.
     /// `english_nouns`: `predict/english-nouns.txt` (may be empty: no noun bonus).
     pub fn parse(model: &[u8], english_words: &str, korean_words: &str, english_nouns: &str) -> Result<Predictor, BadModel> {
-        let table = SIZE * SIZE * SIZE;
-        if model.len() != 8 + 2 * table || &model[..4] != b"JKRK" || model[4..8] != [0, 1, 0, SIZE as u8] {
+        // Version 1: key trigrams; version 2: key 4-grams. One byte per entry, English then Korean.
+        let order = match model.get(4..8) {
+            Some([0, 1, 0, s]) if *s as usize == SIZE => 3,
+            Some([0, 2, 0, s]) if *s as usize == SIZE => 4,
+            _ => return Err(BadModel),
+        };
+        let table = SIZE.pow(order as u32);
+        if model.len() != 8 + 2 * table || &model[..4] != b"JKRK" {
             return Err(BadModel);
         }
         let words = word_counts;
         Ok(Predictor {
+            order,
             english: model[8..8 + table].to_vec(),
             korean: model[8 + table..].to_vec(),
             english_words: words(english_words),
@@ -412,7 +498,63 @@ impl Predictor {
                 .collect(),
             avoided_korean: HashMap::new(),
             avoided_english: HashMap::new(),
+            #[cfg(not(feature = "legacy-predict"))]
+            learned: None,
         })
+    }
+
+    /// This predictor ranking with the learned model `model` (`predict/learned.bin`, spec §10.13).
+    /// The legacy build (`legacy-predict` feature) ignores it and keeps the rules: the same
+    /// predictor back.
+    pub fn with_learned(&self, model: &[u8]) -> Result<Predictor, BadModel> {
+        #[cfg(not(feature = "legacy-predict"))]
+        {
+            let mut next = self.clone();
+            next.learned = Some(std::sync::Arc::new(crate::learned::Model::parse(model)?));
+            Ok(next)
+        }
+        #[cfg(feature = "legacy-predict")]
+        {
+            let _ = model;
+            Ok(self.clone())
+        }
+    }
+
+    /// A Korean word's count in the lexicon (hand-written words count [`HAND_COUNT`]).
+    #[cfg_attr(feature = "legacy-predict", allow(dead_code))]
+    pub(crate) fn korean_count(&self, word: &str) -> Option<u32> {
+        self.korean_words.get(word).copied()
+    }
+
+    /// An English word's count in the lexicon, by its lowercase form.
+    #[cfg_attr(feature = "legacy-predict", allow(dead_code))]
+    pub(crate) fn english_count(&self, lowercase: &str) -> Option<u32> {
+        self.english_words.get(lowercase).copied()
+    }
+
+    /// Whether a lowercase English word is a noun (WordNet).
+    #[cfg_attr(feature = "legacy-predict", allow(dead_code))]
+    pub(crate) fn is_noun(&self, lowercase: &str) -> bool {
+        self.english_nouns.contains(lowercase)
+    }
+
+    /// Whether the learned ranker ranks (a model is loaded, and this isn't the legacy build).
+    pub fn is_learned(&self) -> bool {
+        #[cfg(not(feature = "legacy-predict"))]
+        return self.learned.is_some();
+        #[cfg(feature = "legacy-predict")]
+        false
+    }
+
+    /// This predictor ranking by the rules only (the learned model, if any, dropped).
+    pub fn without_learned(&self) -> Predictor {
+        #[allow(unused_mut)]
+        let mut next = self.clone();
+        #[cfg(not(feature = "legacy-predict"))]
+        {
+            next.learned = None;
+        }
+        next
     }
 
     /// This predictor with the user's own words added (spec §10.12, the training contract): lines of
@@ -453,7 +595,7 @@ impl Predictor {
 
     /// Whether a prediction is a word the user never means, and if so whether strongly. `keys`: the
     /// English reading, the keys as typed.
-    fn avoided(&self, p: &Prediction, keys: &str) -> Option<bool> {
+    pub(crate) fn avoided(&self, p: &Prediction, keys: &str) -> Option<bool> {
         // A word, alone or followed by a particle.
         let find = |list: &HashMap<String, bool>, text: &str| {
             list.get(text).copied().or_else(|| {
@@ -479,8 +621,28 @@ impl Predictor {
     }
 
     /// The readings, ranked, without duplicates, at most [`MAX_PREDICTIONS`]. The dictionary (if
-    /// any) is only used for stems in front of 曰.
+    /// any) is only used for stems in front of 曰. With a learned model (spec §10.13) and the
+    /// rules ranker, the model ranks; otherwise the rules do.
     pub fn predict(&self, readings: &Readings, context: Context, dictionary: Option<&Dictionary>) -> Vec<Prediction> {
+        #[cfg(not(feature = "legacy-predict"))]
+        if let Some(model) = &self.learned
+            && context.ranker == Ranker::Rules
+        {
+            return crate::learned::rank(self, model, readings, context, dictionary);
+        }
+        self.predict_by_rules(readings, context, dictionary)
+    }
+
+    /// [`Predictor::predict`] by the rules only (the legacy ranker), whatever model is loaded.
+    pub fn predict_by_rules(&self, readings: &Readings, context: Context, dictionary: Option<&Dictionary>) -> Vec<Prediction> {
+        let candidates = self.candidates(readings, context, dictionary);
+        self.finish_by_rules(candidates.into_iter().map(|c| c.prediction).collect(), &readings.english)
+    }
+
+    /// Every reading of the staged text with its rule-based score, before the avoid list, the
+    /// hard guards, duplicates and the cut to [`MAX_PREDICTIONS`]. A scenario weighed 0 scores
+    /// −∞ (or isn't generated).
+    pub fn candidates(&self, readings: &Readings, context: Context, dictionary: Option<&Dictionary>) -> Vec<Candidate> {
         if readings.korean.is_empty() && readings.english.is_empty() {
             return Vec::new();
         }
@@ -491,11 +653,13 @@ impl Predictor {
             Prediction { text: readings.korean.clone(), kind: Kind::Korean, score: margin },
             Prediction { text: english.clone(), kind: Kind::English, score: -margin },
         ];
+        let mut origins: Vec<(Origin, Option<Split>)> = vec![(Origin::Korean, None), (Origin::English, None)];
         // Case variants only when the word reads as English: otherwise they'd just be clutter.
         let lowercase = english.chars().any(|c| c.is_ascii_lowercase());
         if margin < 0.0 && lowercase {
             out.push(Prediction { text: capitalized(english), kind: Kind::EnglishCapitalized, score: -margin - ALTERNATIVE });
             out.push(Prediction { text: english.to_uppercase(), kind: Kind::EnglishUpper, score: -margin - 2.0 * ALTERNATIVE });
+            origins.extend([(Origin::Capitalized, None), (Origin::Upper, None)]);
         }
         // The bare-vowel reading is usually the 2-set one too (ㅏㅣ for k l): then it's one row,
         // weighed by both, so the implied ㅇ weight moves it either way.
@@ -538,6 +702,7 @@ impl Predictor {
                 _ => margin - ALTERNATIVE + known,
             };
             out.push(Prediction { text: text.clone(), kind, score: score + w.bits(weight) });
+            origins.push((if kind == Kind::TwoSet { Origin::TwoSet } else { Origin::KeepFinals }, None));
         }
         // A ㄴ or ㄹ final kept before 이 / 의 / 와 / 에 / 아 on an implied ㅇ (산이 against 사니), by the
         // odds learned from the corpora. Same row as the kept finals; the higher copy stays.
@@ -548,6 +713,7 @@ impl Predictor {
             let known = self.lexicon_odds(readings, kept);
             let score = margin - ALTERNATIVE + bits + known + w.bits(Weight::KeepFinals);
             out.push(Prediction { text: kept.clone(), kind: Kind::KoreanKeepFinals, score });
+            origins.push((Origin::Kept, None));
         }
         // An implied ㄹ after a ㄴ final (전력 for 저녁): an alternative, one step below unless a
         // known word; the counts decide between two known words.
@@ -555,17 +721,23 @@ impl Predictor {
             for text in &readings.implied_l {
                 let score = margin - ALTERNATIVE + self.lexicon_odds(readings, text) + w.bits(Weight::ImpliedL);
                 out.push(Prediction { text: text.clone(), kind: Kind::ImpliedL, score });
+                origins.push((Origin::ImpliedL, None));
             }
         }
         if let Some(hanja) = &readings.hanja {
             out.push(Prediction { text: hanja.clone(), kind: Kind::Hanja, score: margin - HANJA + w.bits(Weight::Hanja) });
+            origins.push((Origin::Hanja, None));
         }
         // Everyday hanja aren't penalized: they tie with the Korean reading and follow it.
         for text in hanja_exceptions(&readings.korean, dictionary) {
             out.push(Prediction { text, kind: Kind::Hanja, score: margin + w.bits(Weight::Hanja) });
+            origins.push((Origin::EverydayHanja, None));
         }
-        out.extend(bare);
-        if let Some(mut mixed) = self.mixed(readings, -margin) {
+        if let Some(bare) = bare {
+            out.push(bare);
+            origins.push((Origin::Bare, None));
+        }
+        if let Some((mut mixed, split)) = self.mixed(readings, -margin) {
             // When the whole keys make a Korean word (kanxms is 아무튼; a word in the lexicon or in
             // the hanja dictionary), a split is only an alternative to it, never ahead of it. Junk
             // Korean (slack에 as 님차에) doesn't hold it back.
@@ -578,16 +750,36 @@ impl Predictor {
             }
             mixed.score += w.bits(Weight::Mixed);
             out.push(mixed);
+            origins.push((Origin::Mixed, Some(split)));
+        }
+        if let Some(mut head) = self.korean_head(readings, margin) {
+            head.score += w.bits(Weight::Mixed);
+            out.push(head);
+            origins.push((Origin::Head, None));
         }
 
         // Punctuation inside the word: each piece read on its own (Research(이하, AI)를).
         if readings.pieces.len() > 1 {
+            let tops: Vec<String> = readings
+                .pieces
+                .iter()
+                .map(|piece| self.predict(&piece.readings, context, dictionary).into_iter().next().map_or(String::new(), |p| p.text))
+                .collect();
+            let latin = |text: &str| text.starts_with(|c: char| c.is_ascii_alphabetic());
             let text: String = readings
                 .pieces
                 .iter()
-                .map(|piece| {
-                    let top = self.predict(&piece.readings, context, dictionary).into_iter().next();
-                    top.map_or(String::new(), |p| p.text) + &piece.separator
+                .enumerate()
+                .map(|(i, piece)| {
+                    // One capital (maybe with digits) next to a Latin piece is a letter, not the jamo
+                    // its key types: M&A, O&M, CT-P13, K-IFRS. A lowercase one stays Korean ((USD)에).
+                    let keys = &piece.readings.english;
+                    let letter = keys.starts_with(|c: char| c.is_ascii_uppercase())
+                        && keys.chars().all(|c| c.is_ascii_alphanumeric())
+                        && keys.chars().filter(char::is_ascii_alphabetic).count() == 1;
+                    let beside_latin = (i > 0 && latin(&tops[i - 1])) || tops.get(i + 1).is_some_and(|t| latin(t));
+                    let top = if letter && beside_latin { keys } else { &tops[i] };
+                    top.clone() + &piece.separator
                 })
                 .collect();
             // Also when it's a whole-word reading (work), 있습니다.): there the punctuation drags
@@ -600,8 +792,14 @@ impl Predictor {
                 Kind::Mixed
             };
             out.push(Prediction { text, kind, score: margin.abs() + PIECEWISE });
+            origins.push((Origin::Pieces, None));
         }
+        out.into_iter().zip(origins).map(|(prediction, (origin, split))| Candidate { prediction, origin, split }).collect()
+    }
 
+    /// The rules' last steps: the avoid list, a scenario weighed 0 off, ranked, duplicates
+    /// removed, the hard guards, at most [`MAX_PREDICTIONS`]. `english`: the keys as typed.
+    fn finish_by_rules(&self, mut out: Vec<Prediction>, english: &str) -> Vec<Prediction> {
         // Words the user never means drop, and a strong one is never on top (below).
         let mut strong = HashSet::new();
         for p in &mut out {
@@ -760,7 +958,12 @@ impl Predictor {
                 // 한글 맞춤법 제14·15항: a final is spelled where it is when a particle or ending
                 // follows the word it ends (기준 + 입니다, 당신 + 이, 바둑 + 이). Within one morpheme
                 // it moves (사람, 지난주).
-                let boundary = known(&stem) && VOWEL_PARTICLES_AND_ENDINGS.iter().any(|p| rest.starts_with(p));
+                // The rest must be that particle or ending, maybe with a short ending after it
+                // (대해서는): 엔진 + 이어링 only starts like one.
+                let boundary = known(&stem)
+                    && VOWEL_PARTICLES_AND_ENDINGS
+                        .iter()
+                        .any(|p| rest.strip_prefix(p).is_some_and(|after| ENDING_TAILS.contains(&after)));
                 // A ㅇ final "moved" leaves the next syllable as it is (량은 → 랴은), so a particle
                 // that only follows consonants (은 을 이 과 으로 …) proves it was kept: 소비량은.
                 if final_ == 'ㅇ' && AFTER_CONSONANT_ONLY.contains(&rest.as_str()) {
@@ -777,7 +980,7 @@ impl Predictor {
     /// against an unknown one leans its way; when both are words, their counts decide, within two
     /// lexicon steps (ㅠㅠ is far more common than 유유; 저녁 and 전역 are both common, so the
     /// reading the keys spell keeps its place).
-    fn lexicon_odds(&self, readings: &Readings, alternative: &str) -> f64 {
+    pub(crate) fn lexicon_odds(&self, readings: &Readings, alternative: &str) -> f64 {
         match (self.korean_words.get(alternative), self.korean_words.get(readings.korean.as_str())) {
             (Some(_), None) => 2.0 * LEXICON,
             (None, Some(_)) => -LEXICON,
@@ -801,7 +1004,7 @@ impl Predictor {
     /// ([`SPLIT_EDGE`]; a capitalized name always qualifies) and the whole isn't a known English
     /// word. Then the particle is the better explanation for the last keys, and the split ranks
     /// above the whole-word English reading (`english_score`).
-    fn mixed(&self, readings: &Readings, english_score: f64) -> Option<Prediction> {
+    fn mixed(&self, readings: &Readings, english_score: f64) -> Option<(Prediction, Split)> {
         // Measured the way the starts are, so a Shift+vowel capital weighs the same on both.
         let whole = -self.start_margin(&readings.english);
         let lower = readings.english.to_lowercase();
@@ -811,25 +1014,107 @@ impl Predictor {
         readings
             .splits
             .iter()
-            .filter(|s| self.is_ending(&s.korean))
-            .filter(|s| s.english.chars().all(|c| c.is_ascii_alphabetic()) && s.english.len() >= 2)
-            // Among starts that are surely English (capitals), the longer start wins (Android에, not
-            // Androi에 with d p as 에; SSD에, Docker와), except an acronym that trails off in a
-            // lowercase letter: that letter belongs to the ending (API를, not APIf을).
+            // A particle or ending, or after an acronym a Korean word (LG에너지솔루션은).
+            .filter(|s| self.is_ending(&s.korean) || self.acronym_tail(readings, s))
+            // Letters, or letters and digits with a capital (APR1400은, GWh의).
+            .filter(|s| {
+                s.english.len() >= 2
+                    && (s.english.chars().all(|c| c.is_ascii_alphabetic())
+                        || (s.english.chars().all(|c| c.is_ascii_alphanumeric()) && s.english.chars().any(|c| c.is_ascii_uppercase())))
+            })
+            .filter(|s| !self.known_head(readings, s))
+            // Not capitals after capitals: the acronym goes on (4CCL, not 4CC이).
+            .filter(|s| {
+                let rest = &readings.english[s.english.len()..];
+                !(s.english.ends_with(|c: char| c.is_ascii_uppercase()) && rest.chars().all(|c| c.is_ascii_uppercase()))
+            })
+            // Among starts that are surely English (capitals), a known English word wins, else the
+            // longer start (Android에, not Androi에 with d p as 에; SSD에, Docker와), except an acronym that trails off in
+            // lowercase keys: those belong to the ending (API를, not APIf을), and among such
+            // starts, digits before them or not, the shorter wins (GWh를 and 791GWh를, not GWhf을).
             .map(|s| {
-                let acronym = s.english.chars().take(2).all(|c| c.is_ascii_uppercase());
-                let tail = acronym && s.english.ends_with(|c: char| c.is_ascii_lowercase());
-                (-self.start_margin(&s.english), (!tail, s.english.len()), format!("{}{}", s.english, s.korean))
+                let trailing = is_acronym(s.english.trim_start_matches(|c: char| c.is_ascii_digit()))
+                    && s.english.chars().any(|c| c.is_ascii_lowercase());
+                let length = s.english.len() as isize;
+                // A start that is a known English word beats a longer one that isn't (Frontier를,
+                // not Frontierf을).
+                let lower = s.english.to_lowercase();
+                let known = self.english_words.contains_key(&lower) || self.english_nouns.contains(&lower);
+                let rank = (!trailing, known, if trailing { -length } else { length });
+                (-self.start_margin(&s.english), rank, s)
             })
             .filter(|(start, _, _)| *start >= 99.0 || (*start >= SPLIT_START && *start - whole >= SPLIT_EDGE))
             .max_by(|a, b| a.0.min(99.0).total_cmp(&b.0.min(99.0)).then(a.1.cmp(&b.1)))
-            .map(|(start, _, text)| Prediction { text, kind: Kind::Mixed, score: start.max(english_score) + PARTICLE })
+            .map(|(start, _, s)| {
+                let text = format!("{}{}", s.english, s.korean);
+                (Prediction { text, kind: Kind::Mixed, score: start.max(english_score) + PARTICLE }, s.clone())
+            })
+    }
+
+    /// After an acronym start (two capitals or more), the rest of the keys read as a Korean word
+    /// (LG에너지솔루션은, KB국민카드의, IT서비스): two lowercase keys or more, no bare jamo, two
+    /// syllables or an ending, reading as Korean (or a known word), and not the lowercase end of a
+    /// unit or name (MWh, MMBtu, Ltd).
+    pub(crate) fn acronym_tail(&self, readings: &Readings, split: &Split) -> bool {
+        if !split.english.chars().all(|c| c.is_ascii_uppercase() || c.is_ascii_digit()) || !is_acronym(&split.english) {
+            return false;
+        }
+        let Some(tail) = readings.english.get(split.english.len()..) else { return false };
+        // A unit, alone or with an ending (MMBtu로: MMBtu + 로, not MMB + 셔로).
+        let unit = UNIT_ENDS.contains(&tail)
+            || readings.splits.iter().any(|other| {
+                other.english.strip_prefix(split.english.as_str()).is_some_and(|end| UNIT_ENDS.contains(&end)) && self.is_ending(&other.korean)
+            });
+        // Lowercase keys, then any Korean typing shifts too (IT계열사 with ㅖ as ⇧P, LNG수입 with ⇧L).
+        let korean_keys = tail.starts_with(|c: char| c.is_ascii_lowercase())
+            && tail.chars().all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || KOREAN_SHIFTS.contains(c) || IEUNG_SHIFTS.contains(c));
+        tail.len() >= 2
+            && !unit
+            && korean_keys
+            && (split.korean.chars().count() >= 2 || self.is_ending(&split.korean))
+            && !split.korean.chars().any(is_jamo)
+            && (self.key_margin(tail) > 0.0 || self.korean_words.contains_key(split.korean.as_str()))
+    }
+
+    /// The Korean reading is a known word and the split's ending: a split with a lowercase start
+    /// then isn't offered (소요되는 is 소요 + 되는, not thy되는).
+    fn known_head(&self, readings: &Readings, split: &Split) -> bool {
+        if split.english.chars().any(|c| c.is_ascii_uppercase()) {
+            return false;
+        }
+        let Some(head) = readings.korean.strip_suffix(split.korean.as_str()) else { return false };
+        !head.is_empty() && self.korean_words.contains_key(head)
+    }
+
+    /// A Korean start, then an acronym, maybe with Korean after it (한전KPS, 에너지ICT, 삼성SDI의):
+    /// one step above a mixed split of the same keys (gkswjsKPS은), since it explains both scripts.
+    /// The start must read as Korean (or be a known word), and the rest be an ending or a Korean
+    /// word. Not when every capital is one Korean typing shifts too (있 as ⇧L ⇧T in
+    /// 등록되어있으며) and the Korean reading has no bare jamo: that's Korean.
+    fn korean_head(&self, readings: &Readings, margin: f64) -> Option<Prediction> {
+        let head = readings.head.as_ref()?;
+        let korean_capitals = head.acronym.chars().all(|c| KOREAN_SHIFTS.contains(c) || IEUNG_SHIFTS.contains(c) || c.is_ascii_digit())
+            && !readings.korean.chars().any(is_jamo);
+        let start = head.keys.starts_with(|c: char| c.is_ascii_lowercase())
+            && head.keys.chars().all(|c| c.is_ascii_lowercase() || c.is_ascii_digit())
+            && !head.korean.chars().any(is_jamo)
+            && (self.key_margin(&head.keys) > 0.0 || self.korean_words.contains_key(head.korean.as_str()));
+        let rest = head.rest.is_empty() || self.is_ending(&head.rest) || (head.rest.chars().count() >= 2 && !head.rest.chars().any(is_jamo));
+        if korean_capitals || !start || !rest {
+            return None;
+        }
+        let mut score = margin.abs() + PARTICLE + ALTERNATIVE;
+        // A known Korean word as a whole still comes first, as for a mixed split.
+        if margin > 0.0 && (self.korean_words.contains_key(readings.korean.as_str()) || readings.hanja.is_some()) {
+            score = score.min(margin - ALTERNATIVE);
+        }
+        Some(Prediction { text: format!("{}{}{}", head.korean, head.acronym, head.rest), kind: Kind::Mixed, score })
     }
 
     /// [`Predictor::english_margin`] for the English start of a split: a Shift+vowel capital at the
     /// start (오픈 as H v m s) only leans English, unless the start is a known English word, so it
     /// doesn't make the split certain the way Anthropic's A does.
-    fn start_margin(&self, start: &str) -> f64 {
+    pub(crate) fn start_margin(&self, start: &str) -> f64 {
         let margin = self.english_margin(start);
         let lower = start.to_lowercase();
         // Two capitals in a row is an acronym (KPI와, UI가): that settles it as before.
@@ -847,7 +1132,7 @@ impl Predictor {
 
     /// The keys start with a Shift+vowel capital that doesn't settle English: not an acronym, not a
     /// known English word.
-    fn shift_vowel_start(&self, english: &str) -> bool {
+    pub(crate) fn shift_vowel_start(&self, english: &str) -> bool {
         let lower = english.to_lowercase();
         english.starts_with(|c: char| IEUNG_SHIFTS.contains(c))
             && english.chars().take(2).filter(char::is_ascii_uppercase).count() < 2
@@ -857,13 +1142,13 @@ impl Predictor {
 
     /// A Korean ending that can follow an English word: a particle, or a known word made of 하다 /
     /// 되다 forms (push했어, deploy했는데).
-    fn is_ending(&self, korean: &str) -> bool {
+    pub(crate) fn is_ending(&self, korean: &str) -> bool {
         PARTICLES.contains(&korean)
             || (korean.starts_with(|c: char| VERB_STARTS.contains(c)) && self.korean_words.contains_key(korean))
     }
 
     /// Korean minus English, with the rules on top of the model.
-    fn margin(&self, readings: &Readings, context: Context) -> f64 {
+    pub(crate) fn margin(&self, readings: &Readings, context: Context) -> f64 {
         let (korean, english) = (&readings.korean, &readings.english);
         if context.command {
             return -99.0;
@@ -888,6 +1173,25 @@ impl Predictor {
             margin += LEXICON;
         } else {
             margin -= BARE_JAMO * korean.chars().filter(|&c| is_jamo(c)).count() as f64;
+        }
+        // Digits then a Korean counter or known word (2개, '23년, 3년간): Korean.
+        if margin > -99.0 && english.starts_with(|c: char| c.is_ascii_digit() || c == '\'') {
+            let rest = korean.trim_start_matches(|c: char| c.is_ascii_digit() || ".,'~".contains(c));
+            let counter = COUNTERS.contains(&rest)
+                || COUNTERS.iter().any(|c| rest.strip_prefix(c).is_some_and(|p| PARTICLES.contains(&p)))
+                || self.korean_words.contains_key(rest);
+            if !rest.is_empty() && rest.len() < korean.len() && !rest.chars().any(is_jamo) && counter {
+                margin = margin.max(ALTERNATIVE);
+            }
+        }
+        // A word in capitals only (KB, OEM, IT) is an acronym: English, unless its Korean reading is
+        // a common word (있 typed ⇧L ⇧T).
+        let letters: Vec<char> = english.chars().filter(char::is_ascii_alphabetic).collect();
+        if letters.len() >= 2
+            && letters.iter().all(char::is_ascii_uppercase)
+            && self.korean_words.get(korean.as_str()).copied().unwrap_or(0) < COMMON
+        {
+            return -99.0;
         }
         match context.previous {
             Some(Language::Korean) => margin += STICKY,
@@ -916,7 +1220,7 @@ impl Predictor {
 
     /// Korean minus English for keys read as English: the Shift rule, the model and the English
     /// word list (the Korean-side rules need the Korean reading).
-    fn english_margin(&self, english: &str) -> f64 {
+    pub(crate) fn english_margin(&self, english: &str) -> f64 {
         self.english_margin_with(english, false)
     }
 
@@ -943,7 +1247,7 @@ impl Predictor {
     }
 
     /// Korean minus English in average log2 probability per key, over the letter runs.
-    fn key_margin(&self, english: &str) -> f64 {
+    pub(crate) fn key_margin(&self, english: &str) -> f64 {
         let (mut total, mut keys) = (0.0, 0usize);
         let mut run = String::new();
         for c in english.chars().chain([' ']) {
@@ -952,7 +1256,7 @@ impl Predictor {
             } else if let Some(d) = c.to_digit(10) {
                 run.push_str(DIGIT_KEYS[d as usize]);
             } else if !run.is_empty() {
-                total += log_probability(&self.korean, &run) - log_probability(&self.english, &run);
+                total += log_probability(&self.korean, self.order, &run) - log_probability(&self.english, self.order, &run);
                 keys += run.len() + 1;
                 run.clear();
             }
@@ -961,12 +1265,18 @@ impl Predictor {
     }
 }
 
-fn log_probability(table: &[u8], keys: &str) -> f64 {
-    let (mut a, mut b) = (START, START);
+fn log_probability(table: &[u8], order: usize, keys: &str) -> f64 {
+    // The keys before this one, oldest first, START-padded: order − 1 of them.
+    let mut history = [START; 3];
+    let history = &mut history[..order - 1];
     let mut total = 0.0;
     for c in keys.bytes().map(|k| (k - b'a') as usize).chain([END]) {
-        total -= table[(a * SIZE + b) * SIZE + c] as f64 / 16.0;
-        (a, b) = (b, c);
+        let index = history.iter().fold(0, |i, &k| i * SIZE + k) * SIZE + c;
+        total -= table[index] as f64 / 16.0;
+        history.rotate_left(1);
+        if let Some(last) = history.last_mut() {
+            *last = c;
+        }
     }
     total
 }
@@ -1037,7 +1347,7 @@ fn repeated_implied(korean: &str) -> Option<char> {
 }
 
 /// Whether the keys have a Shift+vowel after another key (a capital on a vowel key mid-word).
-fn has_shift_vowel(english: &str) -> bool {
+pub(crate) fn has_shift_vowel(english: &str) -> bool {
     let chars: Vec<char> = english.chars().collect();
     (1..chars.len()).any(|i| IEUNG_SHIFTS.contains(chars[i]) && chars[i - 1].is_alphanumeric())
 }
@@ -1047,7 +1357,13 @@ fn capitalized(s: &str) -> String {
     chars.next().map(|c| c.to_uppercase().chain(chars.as_str().to_lowercase().chars()).collect()).unwrap_or_default()
 }
 
-fn is_jamo(c: char) -> bool {
+/// Two capitals at the start, before any lowercase letter (KB, LG, K2O): an acronym.
+pub(crate) fn is_acronym(s: &str) -> bool {
+    s.starts_with(|c: char| c.is_ascii_uppercase())
+        && s.chars().filter(char::is_ascii_alphabetic).take(2).filter(char::is_ascii_uppercase).count() == 2
+}
+
+pub(crate) fn is_jamo(c: char) -> bool {
     ('\u{3131}'..='\u{318E}').contains(&c)
 }
 

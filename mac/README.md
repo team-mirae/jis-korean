@@ -9,10 +9,11 @@ Built without Xcode: the Command Line Tools are enough.
 ```sh
 make                 # build/full/JISKorean.app, universal (arm64 + x86_64), with predictions
 make PREDICT=0       # build/lite/JISKorean.app: the predictive layer stripped out entirely
+make LEGACY_PREDICT=1  # build/full-legacy/JISKorean.app: predictions ranked by the rules only, no learned ranker
 make ENGLISH=1       # build/full-english/JISKorean.app: adds JIS English (works with PREDICT=0 too)
 make install         # copy to ~/Library/Input Methods, register it, restart it (PREDICT=0 and ENGLISH=1 work too)
 make uninstall
-make dist            # build/<variant>/JISKorean-<version>[-lite].zip
+make dist            # build/<variant>/JISKorean-<version>[-lite|-legacy].zip
 ```
 
 ## Predictions (spec §10)
@@ -34,6 +35,12 @@ defaults write me.sjun.inputmethod.JISKorean Weight.English -float 0.8   # Engli
 defaults write me.sjun.inputmethod.JISKorean Weight.Korean -float 1.2
 # Also Weight.Implied, Weight.Mixed, Weight.TwoSet, Weight.KeepFinals, Weight.Hanja (default 1.0)
 ```
+
+The full build ranks the readings with the **learned ranker** (spec §10.13): a linear model over
+features of each reading, `Resources/predict/learned.bin` (about 2 MB), with the rules' hard
+guarantees kept (hanja never first, a capital at the start of a word is English, …).
+`make LEGACY_PREDICT=1` builds the lighter legacy version, ranked by the hand-written rules and the
+key n-gram model alone (engine feature `legacy-predict`), without `learned.bin`.
 
 Turn it off with **Predictions** in the input menu (on by default): the input method then behaves
 exactly like the lite build. `make PREDICT=0` builds that lite version, with no prediction code in

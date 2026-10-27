@@ -16,7 +16,10 @@ fn predictor() -> Arc<Predictor> {
     let dir = concat!(env!("CARGO_MANIFEST_DIR"), "/predict/");
     let read = |f: &str| std::fs::read_to_string(format!("{dir}{f}")).unwrap();
     let model = std::fs::read(format!("{dir}ranker.bin")).unwrap();
-    Arc::new(Predictor::parse(&model, &read("common-en.txt"), &read("common-ko.txt"), &read("english-nouns.txt")).unwrap())
+    let learned = std::fs::read(format!("{dir}learned.bin")).unwrap();
+    // The learned ranker (spec §10.13); the legacy build ignores it and ranks by the rules.
+    let p = Predictor::parse(&model, &read("common-en.txt"), &read("common-ko.txt"), &read("english-nouns.txt")).unwrap();
+    Arc::new(p.with_learned(&learned).unwrap())
 }
 
 fn dictionary() -> Arc<Dictionary> {

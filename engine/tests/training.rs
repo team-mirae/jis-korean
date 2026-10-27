@@ -13,7 +13,10 @@ fn predictor() -> Arc<Predictor> {
     let dir = concat!(env!("CARGO_MANIFEST_DIR"), "/predict/");
     let read = |f: &str| std::fs::read_to_string(format!("{dir}{f}")).unwrap();
     let model = std::fs::read(format!("{dir}ranker.bin")).unwrap();
-    Arc::new(Predictor::parse(&model, &read("common-en.txt"), &read("common-ko.txt"), &read("english-nouns.txt")).unwrap())
+    let learned = std::fs::read(format!("{dir}learned.bin")).unwrap();
+    // The learned ranker (spec §10.13); the legacy build ignores it and ranks by the rules.
+    let p = Predictor::parse(&model, &read("common-en.txt"), &read("common-ko.txt"), &read("english-nouns.txt")).unwrap();
+    Arc::new(p.with_learned(&learned).unwrap())
 }
 
 fn top(p: &Arc<Predictor>, keys: &str) -> String {
@@ -83,7 +86,13 @@ fn an_avoided_word_steps_aside_with_every_particle() {
     let (god, god_eul) = ("KeyG KeyO KeyD", "KeyG KeyO KeyD KeyD KeyM KeyF");
     let base = predictor();
     assert_eq!(top(&base, god), "god");
-    assert_eq!(top(&base, god_eul), "god을");
+    // The rules put god을 first; the learned ranker (spec §10.13) prefers 행을 (행 + 을, a Korean
+    // noun and its particle) there, with god을 next.
+    if base.is_learned() {
+        assert_eq!(all(&base, god_eul)[1], "god을");
+    } else {
+        assert_eq!(top(&base, god_eul), "god을");
+    }
     // One entry covers the word and every particle after it.
     let mine = Arc::new(base.with_avoided("", "god\n"));
     assert_eq!(top(&mine, god), "행");

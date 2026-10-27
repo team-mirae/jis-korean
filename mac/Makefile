@@ -1,6 +1,8 @@
 # Builds JISKorean.app (universal arm64 + x86_64) without Xcode: Command Line Tools are enough.
 #   make                 build build/full/JISKorean.app (with the predictive layer)
 #   make PREDICT=0       build build/lite/JISKorean.app: the predictive layer stripped out entirely
+#   make LEGACY_PREDICT=1  build build/full-legacy/JISKorean.app: predictions ranked by the rules
+#                        alone (spec §10.3), without the learned ranker (§10.13) or its model
 #   make ENGLISH=1       also the English input modes (JIS English, US and UK English, JIS Dvorak and
 #                        JIS Colemak; spec §3.6.2, §3.6.4):
 #                        build/full-english/JISKorean.app (combines with PREDICT=0: lite-english)
@@ -10,7 +12,15 @@
 
 # 1: with prediction (engine `predict` feature, spec §10). 0: the lean deterministic engine only.
 PREDICT    ?= 1
-ifeq ($(PREDICT),1)
+# With PREDICT=1: 1 ranks predictions by the rules alone (engine `legacy-predict` feature, spec
+# §10.13); 0 (the default) adds the learned ranker and its model, predict/learned.bin.
+LEGACY_PREDICT ?= 0
+ifeq ($(PREDICT)$(LEGACY_PREDICT),11)
+  VARIANT        := full-legacy
+  CARGO_FEATURES := --features legacy-predict
+  SWIFT_DEFINES  := -D PREDICT
+  DIST_SUFFIX    := -legacy
+else ifeq ($(PREDICT),1)
   VARIANT        := full
   CARGO_FEATURES :=
   SWIFT_DEFINES  := -D PREDICT
@@ -152,6 +162,9 @@ DICT    := $(ENGINE)/dict
 PREDICT_FILES := $(ENGINE)/predict/ranker.bin $(ENGINE)/predict/common-en.txt $(ENGINE)/predict/common-ko.txt \
                  $(ENGINE)/predict/english-nouns.txt $(ENGINE)/predict/LICENSE-wordnet.txt \
                  $(ENGINE)/predict/LICENSE-corpora.txt
+ifneq ($(LEGACY_PREDICT),1)
+  PREDICT_FILES += $(ENGINE)/predict/learned.bin
+endif
 
 $(APP): $(BUILD)/JISKorean $(ICONS) Info.plist $(DICT)/hanja.tsv $(KEYLAYOUTS) \
        Resources/JISKoreanKeyboardLayouts-Info.plist Resources/en.lproj/InfoPlist.strings Resources/ko.lproj/InfoPlist.strings
@@ -189,7 +202,8 @@ install: $(APP)
 	@# Only the installed copy may be known to LaunchServices: input methods are launched by bundle
 	@# id, and a build copy (or a deleted one) can be picked instead, so the input method never starts.
 	@for app in build/JISKorean.app build/full/JISKorean.app build/lite/JISKorean.app \
-		build/full-english/JISKorean.app build/lite-english/JISKorean.app; do \
+		build/full-english/JISKorean.app build/lite-english/JISKorean.app build/full-legacy/JISKorean.app \
+		build/full-legacy-english/JISKorean.app; do \
 		$(LSREGISTER) -u "$(CURDIR)/$$app" 2>/dev/null || true; done
 	$(LSREGISTER) -f "$(INSTALL_TO)/JISKorean.app"
 	swift tools/register.swift "$(INSTALL_TO)/JISKorean.app"
