@@ -183,8 +183,7 @@ fn search(
 }
 
 /// The presses a search for `text` tries, plain before Shift: the keys whose character (in the
-/// mode's layout or its F8 escape) or letter is part of `text`, F6 and F8 / Shift+F8 (which leaves
-/// the escape), and only where `text` needs them F7 (hanja), F9 (full-width), F10 (letters), Space
+/// mode's layout) or letter is part of `text`, F6, and only where `text` needs them F7 (hanja), F9 (full-width), F10 (letters), Space
 /// and Enter. Backspace, Esc, the arrows, Tab and Shift+Enter are left out: they never shorten a way
 /// to type something.
 fn alphabet(template: &Engine, text: &str, targets: &[Vec<char>]) -> Vec<Press> {
@@ -192,21 +191,21 @@ fn alphabet(template: &Engine, text: &str, targets: &[Vec<char>]) -> Vec<Press> 
     let wanted: std::collections::HashSet<char> = targets.iter().flatten().copied().collect();
     let part_of_text = |c: char| stream(&c.to_string()).iter().all(|c| wanted.contains(c));
     let useful = |p: Press| {
-        [Layout::JisKorean, Layout::Escaped].iter().any(|&l| output_with(mode, symbols, l, p.key, p.shift).is_some_and(|out| part_of_text(out.char())))
+        output_with(mode, symbols, Layout::JisKorean, p.key, p.shift).is_some_and(|out| part_of_text(out.char()))
             || p.key.letter().or(p.key.digit()).is_some_and(|c| wanted.contains(&c))
     };
     let mut presses = Vec::new();
     for shift in [false, true] {
         presses.extend(Key::ALL.iter().map(|&key| Press { key, shift }).filter(|&p| {
-            [Layout::JisKorean, Layout::Escaped].iter().any(|&l| output_with(mode, symbols, l, p.key, false).is_some()) && useful(p)
+            output_with(mode, symbols, Layout::JisKorean, p.key, false).is_some() && useful(p)
         }));
     }
     let has = |f: &dyn Fn(char) -> bool| text.chars().any(f);
-    let mut keys = vec![Key::F6, Key::F8];
+    let mut keys = vec![Key::F6];
     if has(&is_hanja) {
         keys.push(Key::F7);
     }
-    if has(&|c| ('\u{FF01}'..='\u{FF5E}').contains(&c) || c == '\u{3000}') {
+    if has(&|c| crate::half_width(c) != c) {
         keys.push(Key::F9);
     }
     if has(&|c| c.is_ascii_alphanumeric()) {
@@ -219,7 +218,6 @@ fn alphabet(template: &Engine, text: &str, targets: &[Vec<char>]) -> Vec<Press> 
         keys.push(Key::Enter);
     }
     presses.extend(keys.into_iter().map(|key| Press { key, shift: false }));
-    presses.push(Press { key: Key::F8, shift: true });
     presses
 }
 
@@ -243,9 +241,8 @@ impl Field {
     /// A key that types nothing in the current layout would pass through to the app, whose text
     /// we can't know: those aren't pressed.
     fn can_press(&self, p: Press) -> bool {
-        let layout = if self.engine.is_escaped() { Layout::Escaped } else { Layout::JisKorean };
-        matches!(p.key, Key::F6 | Key::F7 | Key::F8 | Key::F9 | Key::F10 | Key::Space | Key::Enter)
-            || output_with(self.engine.mode(), self.engine.dedicated_symbols(), layout, p.key, p.shift).is_some()
+        matches!(p.key, Key::F6 | Key::F7 | Key::F9 | Key::F10 | Key::Space | Key::Enter)
+            || output_with(self.engine.mode(), self.engine.dedicated_symbols(), Layout::JisKorean, p.key, p.shift).is_some()
     }
 
     /// The top prediction, when the marked text shows it instead of the Korean reading.
@@ -286,7 +283,6 @@ impl Field {
         self.committed == before.committed
             && self.engine.preedit() == before.engine.preedit()
             && self.engine.english() == before.engine.english()
-            && self.engine.is_escaped() == before.engine.is_escaped()
             && self.engine.hanja_open() == before.engine.hanja_open()
             && !self.engine.hanja_open()
     }

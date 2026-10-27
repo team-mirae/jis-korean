@@ -60,7 +60,7 @@ export function EnginePage() {
         </li>
         <li>
           <strong>Function keys</strong>: F7 opens hanja candidates for the longest dictionary word at the end of the
-          segment, F8 escapes to standard 2-set on the plain keys, F9 and F10 convert the word to full- and half-width
+          segment, F8 is reserved, F9 and F10 convert the word to full- and half-width
           letters, cycling the case. Shift+Z is F10.
         </li>
         <li>
@@ -91,7 +91,7 @@ let out = engine.flush();                  // focus loss: commits "한"
         rows={[
           ["Engine::key(key, mods) -> Output", "One key press. Output: commit, preedit, consumed, the hanja candidates, and the English reading."],
           ["flush() / clear()", "Commit everything unconfirmed / discard it."],
-          ["activate()", "The input method was switched back to: leaves the F8 escape."],
+          ["activate()", "The input method was switched back to (nothing to reset since the F8 escape was retired)."],
           ["set_mode(Mode)", "Mode A (JIS), Mode B (US ANSI) or Mode C (UK ISO). Mode::ALL lists them, with id(), code() and name(); Mode::from_id(id) is None for an id the build doesn't have."],
           ["set_dedicated_symbols(bool)", "Mode C's Dedicated symbol keys, on by default. Off, [ ] and the ISO extra key type their UK characters."],
           ["set_enter_commits(bool)", "Plain Enter commits without a new line, as Shift+Enter does."],
@@ -124,14 +124,14 @@ let out = engine.flush();                  // focus loss: commits "한"
         head={["Group", "Functions"]}
         rows={[
           ["Lifecycle", <code>jk_new, jk_free</code>],
-          ["Keys", <code>jk_key, jk_flush, jk_clear, jk_activate, jk_set_enter_commits, jk_set_dedicated_symbols, jk_is_escaped</code>],
+          ["Keys", <code>jk_key, jk_flush, jk_clear, jk_activate, jk_set_enter_commits, jk_set_dedicated_symbols, jk_key_commits, jk_is_escaped (always 0)</code>],
           ["Results", <code>jk_commit_*, jk_preedit_*, jk_english_*, jk_candidate_*</code>],
           ["Modes", <code>jk_set_mode, jk_mode_count, jk_mode_id_at, jk_mode_name_*, jk_mode_code_*, jk_mode_is_english, jk_legend, jk_legend_in</code>],
           ["Keys by name", <code>jk_key_count, jk_key_code_ptr, jk_key_code_len</code>],
           ["Resolving", <code>jk_resolve_key_input, jk_resolve_key_input_after, jk_resolve_keys_for_output, jk_resolved_*</code>],
           ["Hanja", <code>jk_dict_new, jk_dict_free, jk_set_dictionary</code>],
           ["Predictions", <code>jk_predictor_new, jk_predictor_free, jk_set_predictor, jk_predict, jk_prediction_*, jk_commit_prediction, jk_key_after_prediction, jk_flush_prediction, jk_set_prediction_weight, jk_clear_prediction_weight, jk_set_ranker</code>],
-          ["Learning", <code>jk_set_learning, jk_set_recording, jk_learned_weight, jk_learner_*, jk_learn_example, jk_predictor_with_words</code>],
+          ["Learning", <code>jk_set_learning, jk_set_recording, jk_learned_weight, jk_learner_*, jk_learn_example, jk_predictor_with_words, jk_predictor_with_avoided</code>],
           ["Key counts", <code>jk_plan, jk_plan_jis, jk_plan_conventional, jk_plan_chars, jk_plan_off_keyboard, jk_plan_dropped</code>],
         ]}
       />

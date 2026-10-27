@@ -1,5 +1,6 @@
 // The JIS Korean engine, loaded from wasm through its C ABI (engine/include/jis_korean.h).
 import wasmUrl from "./engine.wasm?url";
+import type { WordLists } from "./training";
 
 interface Exports {
   memory: WebAssembly.Memory;
@@ -45,6 +46,7 @@ interface Exports {
   jk_set_predictor(h: number, p: number): void;
   jk_predictor_free(p: number): void;
   jk_predictor_with_words(base: number, k: number, kl: number, e: number, el: number): number;
+  jk_predictor_with_avoided(base: number, k: number, kl: number, e: number, el: number): number;
   jk_learn_example(h: number, t: number, tl: number, keys: number, kl: number): number;
   jk_predict(h: number): number;
   jk_prediction_ptr(h: number, i: number): number;
@@ -174,8 +176,20 @@ export class Engine {
     return this.x.jk_candidate_page_size();
   }
 
-  /** Loads the hanja dictionary (dict/hanja.tsv) so F7 works. */
-  async loadDictionary(url: string): Promise<void> {
+  private dictionaryLoad?: Promise<void>;
+  private predictorLoad?: Promise<void>;
+
+  /** Loads the hanja dictionary (dict/hanja.tsv) so F7 works. Once per engine: a remounted
+   * playground gets the same promise. A failed load can be tried again. */
+  loadDictionary(url: string): Promise<void> {
+    this.dictionaryLoad ??= this.fetchDictionary(url).catch((error) => {
+      this.dictionaryLoad = undefined;
+      throw error;
+    });
+    return this.dictionaryLoad;
+  }
+
+  private async fetchDictionary(url: string): Promise<void> {
     const bytes = new Uint8Array(await (await fetch(url)).arrayBuffer());
     const { x } = this;
     const ptr = x.jk_alloc(bytes.length);
@@ -194,8 +208,17 @@ export class Engine {
   private predictionsOn = false;
   private ranker: RankerName = "rules";
 
-  /** Loads the predictive layer (ranker model and word lists). Turn it on with `setPredictions`. */
-  async loadPredictor(base: string): Promise<void> {
+  /** Loads the predictive layer (ranker model and word lists). Turn it on with `setPredictions`.
+   * Once per engine, as `loadDictionary`: loading again would leak the predictor it replaces. */
+  loadPredictor(base: string): Promise<void> {
+    this.predictorLoad ??= this.fetchPredictor(base).catch((error) => {
+      this.predictorLoad = undefined;
+      throw error;
+    });
+    return this.predictorLoad;
+  }
+
+  private async fetchPredictor(base: string): Promise<void> {
     const get = async (file: string) => new Uint8Array(await (await fetch(base + file)).arrayBuffer());
     const [model, english, korean, nouns] = await Promise.all([
       get("ranker.bin"),
@@ -225,20 +248,29 @@ export class Engine {
     this.x.jk_set_predictor(this.handle, on ? this.predictor : 0);
   }
 
-  /** Adds the user's own words (training contract): lines of `word` or `word<TAB>count`. Replaces
-   * any added before. */
-  setUserWords(korean: string, english: string): void {
+  /** Adds the user's own words (training contract): lines of `word` or `word<TAB>count`, and the
+   * words they never mean: lines of `word` or `word<TAB>strong`. Replaces any added before. */
+  setUserWords(lists: WordLists): void {
     const { x } = this;
-    const k = encoder.encode(korean);
-    const e = encoder.encode(english);
-    const kp = x.jk_alloc(k.length);
-    const ep = x.jk_alloc(e.length);
-    new Uint8Array(x.memory.buffer, kp, k.length).set(k);
-    new Uint8Array(x.memory.buffer, ep, e.length).set(e);
-    const next = x.jk_predictor_with_words(this.basePredictor, kp, k.length, ep, e.length);
-    x.jk_dealloc(kp, k.length);
-    x.jk_dealloc(ep, e.length);
-    if (!next) throw new Error("words are not UTF-8");
+    const withLists = (base: number, build: typeof x.jk_predictor_with_words, korean: string, english: string) => {
+      const k = encoder.encode(korean);
+      const e = encoder.encode(english);
+      const kp = x.jk_alloc(k.length);
+      const ep = x.jk_alloc(e.length);
+      new Uint8Array(x.memory.buffer, kp, k.length).set(k);
+      new Uint8Array(x.memory.buffer, ep, e.length).set(e);
+      const next = build.call(x, base, kp, k.length, ep, e.length);
+      x.jk_dealloc(kp, k.length);
+      x.jk_dealloc(ep, e.length);
+      if (!next) throw new Error("words are not UTF-8");
+      return next;
+    };
+    let next = withLists(this.basePredictor, x.jk_predictor_with_words, lists.korean, lists.english);
+    if (lists.avoidKorean || lists.avoidEnglish) {
+      const avoided = withLists(next, x.jk_predictor_with_avoided, lists.avoidKorean ?? "", lists.avoidEnglish ?? "");
+      x.jk_predictor_free(next);
+      next = avoided;
+    }
     this.usePredictor(next);
   }
 
@@ -467,8 +499,16 @@ export class Engine {
     this.x.jk_activate(this.handle);
   }
 
+  private enterCommitsOn = false;
+
   setEnterCommits(on: boolean): void {
+    this.enterCommitsOn = on;
     this.x.jk_set_enter_commits(this.handle, on ? 1 : 0);
+  }
+
+  /** The "Enter commits" setting as last set (the engine has no getter). */
+  get enterCommits(): boolean {
+    return this.enterCommitsOn;
   }
 
   get escaped(): boolean {

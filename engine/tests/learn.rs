@@ -159,6 +159,25 @@ fn a_manual_weight_wins_over_the_learned_one_and_regret_counts() {
 }
 
 #[test]
+fn deleting_only_the_space_after_an_accepted_word_is_no_regret() {
+    let mut e = Engine::new();
+    e.set_predictor(Some(predictor()));
+    e.set_learning(true);
+    for c in "dkssud".chars() {
+        e.key(Key::from_code(&format!("Key{}", c.to_ascii_uppercase())), Mods::NONE);
+    }
+    // Space takes the top prediction and adds a space.
+    assert!(e.key_after_prediction(0, Key::Space, Mods::NONE).commit.ends_with(' '));
+    let before = e.learner().clone();
+    // The first Backspace only deletes the space…
+    e.key(Key::Backspace, Mods::NONE);
+    assert_eq!(*e.learner(), before);
+    // …the next one goes into the word: that's regret.
+    e.key(Key::Backspace, Mods::NONE);
+    assert_ne!(*e.learner(), before);
+}
+
+#[test]
 fn the_owners_texts_stay_clean_while_learning() {
     // An attentive typist with learning on types the owner's texts five times over, in several
     // styles: no failures, and no more ↓ in the last round (the cheapest way) than in the first.

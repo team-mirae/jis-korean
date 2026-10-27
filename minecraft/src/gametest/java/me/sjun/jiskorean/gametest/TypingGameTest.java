@@ -2,6 +2,8 @@ package me.sjun.jiskorean.gametest;
 
 import java.util.Map;
 
+import com.mojang.blaze3d.platform.InputConstants;
+
 import net.fabricmc.fabric.api.client.gametest.v1.FabricClientGameTest;
 import net.fabricmc.fabric.api.client.gametest.v1.context.ClientGameTestContext;
 import net.fabricmc.fabric.api.client.gametest.v1.context.TestSingleplayerContext;
@@ -38,6 +40,11 @@ public class TypingGameTest implements FabricClientGameTest {
 			check(context, "dkssud{F7} ", "dkssud ");
 			check(context, "1k 7 ", "빠 워 "); // 7 is ㅝ; on its own it gets the implied ㅇ
 
+			// Focus loss commits (spec §5.1): a click, another field, a resize keeps it.
+			clickCommitsBeforeTheButtonReadsTheField(context);
+			clickingAnotherFieldCommitsIntoTheFirst(context);
+			resizeKeepsTheStagingArea(context);
+
 			// The candidate window, mid-word.
 			openChat(context);
 			type(context, "gksrmf");
@@ -48,6 +55,71 @@ public class TypingGameTest implements FabricClientGameTest {
 			context.takeScreenshot("jiskorean-candidates-english");
 			closeChat(context);
 		}
+	}
+
+	private void clickCommitsBeforeTheButtonReadsTheField(ClientGameTestContext context) {
+		FieldsScreen screen = openFields(context);
+		type(context, "gkrry");
+		click(context, FieldsScreen.BUTTON_Y);
+		String done = context.computeOnClient(client -> screen.done);
+		closeFields(context);
+		if (!"학교".equals(done)) {
+			throw new AssertionError("Done read \"" + done + "\", expected \"학교\"");
+		}
+	}
+
+	private void clickingAnotherFieldCommitsIntoTheFirst(ClientGameTestContext context) {
+		FieldsScreen screen = openFields(context);
+		// (Not dkssud: F7 made that English for the session, above.)
+		type(context, "gksrmf");
+		click(context, FieldsScreen.SECOND_Y);
+		type(context, "hello ");
+		String first = context.computeOnClient(client -> screen.first.getValue());
+		String second = context.computeOnClient(client -> screen.second.getValue());
+		closeFields(context);
+		if (!"한글".equals(first) || !"hello ".equals(second)) {
+			throw new AssertionError("fields \"" + first + "\", \"" + second + "\", expected \"한글\", \"hello \"");
+		}
+	}
+
+	private void resizeKeepsTheStagingArea(ClientGameTestContext context) {
+		// Chat rebuilds its field on a resize; what's staged moves on to the new one.
+		openChat(context);
+		type(context, "gksrmf");
+		context.runOnClient(client -> client.gui.screen().resize(
+				client.getWindow().getGuiScaledWidth(), client.getWindow().getGuiScaledHeight()));
+		context.waitTick();
+		type(context, " ");
+		String actual = context.computeOnClient(client -> field(client.gui.screen()).getValue());
+		closeChat(context);
+		if (!"한글 ".equals(actual)) {
+			throw new AssertionError("after a resize: expected \"한글 \", got \"" + actual + "\"");
+		}
+	}
+
+	private FieldsScreen openFields(ClientGameTestContext context) {
+		context.setScreen(FieldsScreen::new);
+		context.waitForScreen(FieldsScreen.class);
+		context.waitTick();
+		return context.computeOnClient(client -> (FieldsScreen) client.gui.screen());
+	}
+
+	private void closeFields(ClientGameTestContext context) {
+		context.setScreen(() -> null);
+		context.waitForScreen(null);
+	}
+
+	/** Clicks the middle of the widget at GUI row {@code y} of {@link FieldsScreen}. */
+	private void click(ClientGameTestContext context, int y) {
+		double[] at = context.computeOnClient(client -> {
+			double scale = (double) client.getWindow().getScreenWidth() / client.getWindow().getGuiScaledWidth();
+			return new double[] {
+				(FieldsScreen.X + FieldsScreen.WIDTH / 2.0) * scale,
+				(y + FieldsScreen.HEIGHT / 2.0) * scale};
+		});
+		context.getInput().setCursorPos(at[0], at[1]);
+		context.getInput().pressMouse(InputConstants.MOUSE_BUTTON_LEFT);
+		context.waitTick();
 	}
 
 	private void check(ClientGameTestContext context, String keys, String expected) {

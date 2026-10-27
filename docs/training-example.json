@@ -16,6 +16,10 @@
     ],
     "english": [{ "word": "paradox", "count": 20 }]
   },
+  "avoid": [
+    { "word": "god", "language": "english" },
+    { "word": "마리", "language": "korean", "strength": "strong" }
+  ],
   "examples": [
     { "text": "기준입니다" },
     { "text": "산이", "keys": "KeyT KeyK KeyS KeyL", "count": 2, "note": "typed lazily, no double press" },

@@ -67,3 +67,59 @@ fn keys_parse_and_plan() {
     let planned = keys_for_word("report를").unwrap();
     assert_eq!(planned.len(), "reportfmf".len());
 }
+
+fn all(p: &Arc<Predictor>, keys: &str) -> Vec<String> {
+    let mut e = Engine::new();
+    e.set_predictor(Some(p.clone()));
+    for press in parse_keys(keys).unwrap() {
+        e.key(press.key, if press.shift { Mods::SHIFTED } else { Mods::NONE });
+    }
+    e.predictions().iter().map(|p| p.text.clone()).collect()
+}
+
+#[test]
+fn an_avoided_word_steps_aside_with_every_particle() {
+    // g o d reads as god (a common English word) above 행, and god을 above 행을.
+    let (god, god_eul) = ("KeyG KeyO KeyD", "KeyG KeyO KeyD KeyD KeyM KeyF");
+    let base = predictor();
+    assert_eq!(top(&base, god), "god");
+    assert_eq!(top(&base, god_eul), "god을");
+    // One entry covers the word and every particle after it.
+    let mine = Arc::new(base.with_avoided("", "god\n"));
+    assert_eq!(top(&mine, god), "행");
+    assert_eq!(top(&mine, god_eul), "행을");
+    assert_eq!(top(&mine, "KeyG KeyO KeyD KeyD KeyP KeyT KeyJ"), "행에서");
+    // Still listed, to be picked on purpose.
+    assert!(all(&mine, god).contains(&"god".to_string()));
+    // English ignores case, but a capital typed at the start asked for it.
+    let upper = Arc::new(base.with_avoided("", "GOD\n"));
+    assert_eq!(top(&upper, god), "행");
+    assert_eq!(top(&mine, "S-KeyG KeyO KeyD"), top(&base, "S-KeyG KeyO KeyD"));
+    // The base predictor is unchanged.
+    assert_eq!(top(&base, god), "god");
+}
+
+#[test]
+fn a_strongly_avoided_word_is_never_on_top() {
+    // 바두기 (바둑이 typed lazily): avoided strongly, the next reading moves up, and it's still listed.
+    let keys = "KeyQ KeyK KeyE KeyN KeyR KeyL";
+    let base = predictor();
+    assert_eq!(top(&base, keys), "바두기");
+    let mine = Arc::new(base.with_avoided("바두기\tstrong\n", ""));
+    let readings = all(&mine, keys);
+    assert_ne!(readings[0], "바두기");
+    assert!(readings.contains(&"바두기".to_string()));
+    // Avoid wins over the user's own vocabulary.
+    let both = Arc::new(base.with_user_words("바두기\t1000\n", "").with_avoided("바두기\tstrong\n", ""));
+    assert_eq!(top(&base.with_user_words("바두기\t1000\n", "").into(), keys), "바두기");
+    assert_ne!(top(&both, keys), "바두기");
+}
+
+#[test]
+fn avoiding_a_word_leaves_unrelated_readings_alone() {
+    let base = predictor();
+    let mine = Arc::new(base.with_avoided("마리\tstrong\n행\n", "god\nsmall\n"));
+    for keys in ["KeyG KeyK KeyS KeyR KeyM KeyF", "KeyQ KeyK KeyE KeyN KeyR KeyL", "KeyR KeyO KeyD", "KeyD KeyK KeyS KeyS KeyU KeyD", "KeyS KeyE KeyR KeyV KeyE KeyR KeyF KeyM KeyF"] {
+        assert_eq!(all(&mine, keys), all(&base, keys), "{keys}");
+    }
+}

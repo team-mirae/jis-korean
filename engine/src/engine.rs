@@ -85,7 +85,6 @@ pub struct Engine {
     segment: Vec<Token>,
     conversion: Option<Conversion>,
     hanja: Option<HanjaList>,
-    layout: Layout,
     /// The mode: which keyboard's key map (spec §3.6).
     mode: Mode,
     /// Setting: Dedicated symbol keys (spec §3.6), for modes with optional symbol keys.
@@ -121,7 +120,9 @@ pub struct Engine {
     manual: [bool; Weight::ALL.len()],
     /// The scenario of a top prediction just accepted, for a Backspace right after (regret).
     #[cfg(feature = "predict")]
-    accepted: Option<Weight>,
+    /// With how many characters were typed after it (Space's space, a passed-on Enter's line): a
+    /// Backspace deleting those isn't regret yet.
+    accepted: Option<(Weight, usize)>,
     /// The learner changed since the host last exported it.
     #[cfg(feature = "predict")]
     learned_changed: bool,
@@ -139,7 +140,6 @@ impl Engine {
             segment: Vec::new(),
             conversion: None,
             hanja: None,
-            layout: Layout::JisKorean,
             mode: Mode::A,
             symbols: true,
             enter_commits: false,
@@ -212,15 +212,14 @@ impl Engine {
         self.hanja.is_some()
     }
 
-    /// Whether F8 has escaped to standard 2-set.
+    /// Always false: the F8 escape is retired (spec §6). Kept for hosts built against it.
     pub fn is_escaped(&self) -> bool {
-        self.layout == Layout::Escaped
+        false
     }
 
-    /// The IME was switched back to: leave any F8 escape (spec §6.1).
-    pub fn activate(&mut self) {
-        self.layout = Layout::JisKorean;
-    }
+    /// The IME was switched back to. Nothing to reset since the F8 escape was retired; kept for
+    /// hosts that call it.
+    pub fn activate(&mut self) {}
 
     /// Commits everything unconfirmed. Call on focus loss, app switch and IME switch.
     /// An open hanja list commits its selected candidate.
@@ -275,22 +274,27 @@ impl Engine {
         }
         // Backspace right after accepting a top prediction: a weak sign it was wrong.
         #[cfg(feature = "predict")]
-        if let Some(kind) = self.accepted.take()
+        if let Some((kind, after)) = self.accepted.take()
             && key == Key::Backspace
             && self.segment.is_empty()
         {
-            self.learn(&Event::Regret(kind));
+            if after == 0 {
+                self.learn(&Event::Regret(kind));
+            } else {
+                self.accepted = Some((kind, after - 1));
+            }
         }
         // Shift+Z is F10 (spec §6): F10 isn't reachable everywhere (Windows browsers take it for
-        // their menu), and Shift adds nothing to ㅋ. Standard 2-set (the F8 escape) keeps it as ㅋ.
-        if key == Key::KeyZ && mods.shift && !mods.is_shortcut() && self.layout == Layout::JisKorean {
+        // their menu), and Shift adds nothing to ㅋ.
+        if key == Key::KeyZ && mods.shift && !mods.is_shortcut() {
             // With predictions on, when the top prediction is already exactly what F10 would give,
             // Shift+Z skips ahead: F10 twice (gks → GKS). F10 itself is unchanged.
             #[cfg(feature = "predict")]
             if self.conversion.is_none() && self.top_prediction_is_f10() {
                 self.key(Key::F10, Mods::NONE);
             }
-            return self.key(Key::F10, Mods::NONE);
+            // A JIS Korean key, not a real F10: taken even with nothing to convert.
+            return Output { consumed: true, ..self.key(Key::F10, Mods::NONE) };
         }
         if self.hanja.is_some()
             && let Some(out) = self.hanja_key(key, mods)
@@ -299,6 +303,12 @@ impl Engine {
         }
         if mods.is_shortcut() {
             return self.commit(String::new(), false);
+        }
+        // With nothing unconfirmed, the function keys are the app's (F6 the address bar, F7 caret
+        // browsing): spec §6.
+        if matches!(key, Key::F6 | Key::F7 | Key::F8 | Key::F9 | Key::F10) && self.segment.is_empty() {
+            self.conversion = None;
+            return self.unchanged(false);
         }
         if !matches!(key, Key::F6 | Key::F9 | Key::F10) {
             self.conversion = None;
@@ -317,10 +327,8 @@ impl Engine {
                 self.open_hanja();
                 self.unchanged(true)
             }
-            Key::F8 => {
-                self.layout = if mods.shift { Layout::JisKorean } else { Layout::Escaped };
-                self.unchanged(true)
-            }
+            // Reserved (spec §6): does nothing.
+            Key::F8 => self.unchanged(true),
             Key::F9 => {
                 self.convert(Width::Full);
                 self.unchanged(true)
@@ -340,16 +348,23 @@ impl Engine {
                 self.segment.pop();
                 self.unchanged(true)
             }
-            _ => match layout::output_with(self.mode, self.symbols, self.layout, key, mods.shift) {
+            _ => match layout::output_with(self.mode, self.symbols, Layout::JisKorean, key, mods.shift) {
                 Some(Out::Jamo(jamo)) => {
                     let raw = key.letter().map(|c| if mods.shift { c.to_ascii_uppercase() } else { c });
                     let raw = raw.or(key.digit());
                     // Shift on a vowel key whose Shift types nothing else (all but O P): the vowel
                     // starts its own syllable on ㅇ (spec §4.2).
+                    // Not right after ㄲ or ㅆ typed with Shift: that Shift may still be held, and the
+                    // double moves to start the vowel's syllable as any final does (가 ⇧ㄲ ⇧ㅏ → 가까,
+                    // as on 2-set).
+                    let held = matches!(
+                        self.segment.last(),
+                        Some(Token::Jamo { jamo: 'ㄲ' | 'ㅆ', raw: Some(c) }) if c.is_ascii_uppercase()
+                    );
                     let ieung = mods.shift
-                        && self.layout == Layout::JisKorean
+                        && !held
                         && hangul::is_medial(jamo)
-                        && layout::output_with(self.mode, self.symbols, self.layout, key, false) == Some(Out::Jamo(jamo));
+                        && layout::output_with(self.mode, self.symbols, Layout::JisKorean, key, false) == Some(Out::Jamo(jamo));
                     self.segment.push(if ieung { Token::IeungVowel { jamo, raw } } else { Token::Jamo { jamo, raw } });
                     self.unchanged(true)
                 }
@@ -449,8 +464,9 @@ impl Engine {
         }
     }
 
-    /// F9/F10: the current word as its keys' alphanumerics, or a run of ASCII symbols and
-    /// digits in the other width, cycling case on repeat presses.
+    /// F9/F10: the current word as its keys' alphanumerics, or a run of typed symbols and digits,
+    /// in the other width, cycling case on repeat presses. Every character with a form in that
+    /// width takes it; one without stays as it is (spec §5.3).
     fn convert(&mut self, width: Width) {
         match &mut self.conversion {
             Some(conversion) => {
@@ -461,10 +477,11 @@ impl Engine {
             }
             None => {
                 // A symbol run (spec §5.3) is typed symbols and digits, and symbols an earlier
-                // conversion left; letters and digits it left belong to a word, which never mixes in.
+                // conversion left; letters and digits it left belong to a word, which never mixes in,
+                // and so do hanja picks.
                 let in_run = |t: &Token| match *t {
-                    Token::Typed(c, _) => c.is_ascii_graphic(),
-                    Token::Text(c) => c.is_ascii_punctuation(),
+                    Token::Typed(c, _) => !c.is_whitespace(),
+                    Token::Text(c) => !c.is_alphanumeric() && !c.is_whitespace(),
                     _ => false,
                 };
                 let symbols = self.segment.last().is_some_and(in_run);
@@ -511,7 +528,7 @@ impl Engine {
         let width = conversion.width;
         self.segment.truncate(start);
         self.segment.extend(cased.chars().map(|c| {
-            Token::Text(if width == Width::Full { full_width(c) } else { c })
+            Token::Text(if width == Width::Full { full_width(c) } else { half_width(c) })
         }));
     }
 
@@ -720,7 +737,7 @@ impl Engine {
         let Some(chosen) = shown.get(index).cloned() else { return self.unchanged(true) };
         let kinds = shown.iter().map(|p| learn::scenario(p.kind)).collect();
         self.learn(&Event::Chose { shown: kinds, chosen: index });
-        self.accepted = (index == 0 && self.learning).then(|| learn::scenario(chosen.kind));
+        self.accepted = (index == 0 && self.learning).then(|| (learn::scenario(chosen.kind), 0));
         self.previous = Some(Language::of(chosen.kind));
         self.take_segment();
         Output { commit: chosen.text, consumed: true, ..Output::default() }
@@ -744,10 +761,32 @@ impl Engine {
         let learning = std::mem::replace(&mut self.learning, false);
         let out = self.key(key, mods);
         self.learning = learning;
-        // After the key, which clears what was accepted before it and sets the context.
-        self.accepted = (index == 0 && self.learning).then(|| learn::scenario(chosen.kind));
+        // After the key, which clears what was accepted before it and sets the context. What the
+        // key typed after the word (Space's space, a passed-on Enter) goes before regret can.
+        let after = out.commit.chars().count().saturating_sub(chosen.text.chars().count()) + !out.consumed as usize;
+        self.accepted = (index == 0 && self.learning).then(|| (learn::scenario(chosen.kind), after));
         self.previous = Some(Language::of(chosen.kind));
         out
+    }
+
+    /// Whether `key` commits the unconfirmed text as it stands: a shortcut, Space, Enter, Esc, an
+    /// arrow, a key outside the mode's map. While a prediction shows instead of the Korean reading,
+    /// hosts send these through [`Engine::key_after_prediction`] so what's shown is what commits;
+    /// other keys (jamo, symbols, Backspace, F6–F10) go to [`Engine::key`]. Keeping the list here
+    /// keeps the shells from deciding what a key does.
+    pub fn commits(&self, key: Key, mods: Mods) -> bool {
+        if self.hanja.is_some() || matches!(key, Key::Modifier) {
+            return false;
+        }
+        if mods.is_shortcut() {
+            return true;
+        }
+        match key {
+            Key::Space | Key::Enter | Key::Escape | Key::ArrowUp | Key::ArrowDown | Key::ArrowLeft | Key::ArrowRight | Key::Other => true,
+            Key::Backspace | Key::F6 | Key::F7 | Key::F8 | Key::F9 | Key::F10 => false,
+            Key::KeyZ if mods.shift => false,
+            _ => layout::output_with(self.mode, self.symbols, Layout::JisKorean, key, mods.shift).is_none(),
+        }
     }
 
     /// Commits prediction `index` because the host must (focus loss, a click elsewhere): like
@@ -778,7 +817,6 @@ impl Engine {
     fn english_key(&mut self, key: Key, mods: Mods) -> Output {
         // Whatever a Korean mode left unconfirmed commits before the key, as on any switch.
         let mut commit = if self.held.is_none() { self.take_segment() } else { String::new() };
-        self.layout = Layout::JisKorean;
         // ⌥ alone (Shift allowed): ⌘ and Ctrl make it a shortcut.
         let option = mods.alt && !mods.ctrl && !mods.meta;
         if let Some(held) = self.held.as_mut() {
@@ -859,7 +897,8 @@ impl Engine {
             {
                 let kinds = shown.iter().map(|p| learn::scenario(p.kind)).collect();
                 self.learn(&Event::Chose { shown: kinds, chosen: 0 });
-                self.accepted = self.learning.then_some(Weight::Korean);
+                let after = suffix.chars().count() + !consumed as usize;
+                self.accepted = self.learning.then_some((Weight::Korean, after));
             }
             self.previous = Some(Language::Korean);
         }
@@ -1005,11 +1044,27 @@ fn two_set_tokens(segment: &[Token]) -> Vec<Token> {
         .collect()
 }
 
-/// The full-width form of a printable ASCII character (spec §5.3).
+/// Characters with a full-width and a half-width form beyond printable ASCII (Unicode's
+/// Halfwidth and Fullwidth Forms block): (half, full).
+const WIDTH_PAIRS: &[(char, char)] = &[
+    ('¢', '￠'), ('£', '￡'), ('¬', '￢'), ('¯', '￣'), ('¦', '￤'), ('¥', '￥'), ('₩', '￦'),
+    ('｡', '。'), ('｢', '「'), ('｣', '」'), ('､', '、'), ('･', '・'),
+];
+
+/// The full-width form of a character, or the character itself when it has none (spec §5.3).
 pub fn full_width(c: char) -> char {
     match c {
         '!'..='~' => char::from_u32(c as u32 + 0xFEE0).unwrap_or(c),
         ' ' => '\u{3000}',
-        _ => c,
+        _ => WIDTH_PAIRS.iter().find(|&&(half, _)| half == c).map_or(c, |&(_, full)| full),
+    }
+}
+
+/// The half-width form of a character, or the character itself when it has none (spec §5.3).
+pub fn half_width(c: char) -> char {
+    match c {
+        '\u{FF01}'..='\u{FF5E}' => char::from_u32(c as u32 - 0xFEE0).unwrap_or(c),
+        '\u{3000}' => ' ',
+        _ => WIDTH_PAIRS.iter().find(|&&(_, full)| full == c).map_or(c, |&(half, _)| half),
     }
 }

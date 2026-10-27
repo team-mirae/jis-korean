@@ -1,7 +1,7 @@
 //! Typing a text the trusting way (spec §10.10): the fewest presses, letting predictions do the
 //! rest. Each word is typed by its cheapest keys: Hangul by JIS Korean's optimized route, Latin
-//! letter by letter (no F10), hanja by their reading (no F7), symbols by their key (or the F8
-//! escape when no JIS Korean legend has them). Space or Enter then commits the top prediction, as
+//! letter by letter (no F10), hanja by their reading (no F7), symbols by their key (pasted when
+//! no JIS Korean legend has them). Space or Enter then commits the top prediction, as
 //! the shells do. A word fails when what's committed isn't the word. Hanja are the exception: they
 //! are never the top prediction (spec §10.3), so a word with hanja is picked with ↓ from the list,
 //! each ↓ a press; it fails only when it isn't listed.
@@ -23,7 +23,7 @@ pub struct Failure {
     pub got: String,
     /// The predictions shown when it was committed.
     pub list: Vec<String>,
-    /// The keys pressed for it, spelled as Latin (a capital is Shift; F8 escapes shown as ⟨ ⟩).
+    /// The keys pressed for it, spelled as Latin (a capital is Shift).
     pub keys: String,
 }
 
@@ -124,12 +124,7 @@ fn type_word(
     let mut got = String::new();
     let mut keys = String::new();
     let press = |engine: &mut Engine, presses: &[Press], got: &mut String, keys: &mut String, report: &mut Trusting| {
-        // A symbol through the F8 escape counts a flat OFF_LEGEND, as in plan.rs.
-        report.presses += if presses.first().is_some_and(|p| p.key == Key::F8) {
-            plan::OFF_LEGEND
-        } else {
-            presses.iter().map(|p| p.cost()).sum()
-        };
+        report.presses += presses.iter().map(|p| p.cost()).sum::<usize>();
         for p in presses {
             got.push_str(&engine.key(p.key, if p.shift { Mods::SHIFTED } else { Mods::NONE }).commit);
             keys.push_str(&spell(*p));
@@ -228,12 +223,8 @@ fn commit_top(engine: &mut Engine) -> (String, Vec<String>) {
 
 fn spell(p: Press) -> String {
     let code = p.key.code();
-    let s = match p.key {
-        Key::F8 if p.shift => "⟩".to_string(),
-        Key::F8 => "⟨".to_string(),
-        _ => code.strip_prefix("Key").or_else(|| code.strip_prefix("Digit")).unwrap_or(code).to_string(),
-    };
-    if p.shift && p.key != Key::F8 { s.to_uppercase() } else if p.key.letter().is_some() { s.to_lowercase() } else { s }
+    let s = code.strip_prefix("Key").or_else(|| code.strip_prefix("Digit")).unwrap_or(code).to_string();
+    if p.shift { s.to_uppercase() } else if p.key.letter().is_some() { s.to_lowercase() } else { s }
 }
 
 fn edit_distance(a: &str, b: &str) -> usize {

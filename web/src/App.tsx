@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import type { KeyboardEvent as ReactKeyboardEvent } from "react";
 import type { Candidates, Counts, Engine, Mods, Output, Prediction, PredictionKind, RankerName, WeightName } from "./engine";
 import { WEIGHTS } from "./engine";
-import type { TrainingFile, TrainingSummary } from "./training";
+import type { TrainingFile, TrainingSummary, WordLists } from "./training";
 import { check, learnExamples, wordLists } from "./training";
 import { ghost } from "./ghost";
 import { Keyboard } from "./Keyboard";
@@ -34,9 +34,10 @@ const FLOAT_AFTER_LINES = 15;
 export function App({ engine }: { engine: Engine }) {
   const [doc, setDoc] = useState("");
   const [preedit, setPreedit] = useState("");
-  const [escaped, setEscaped] = useState(false);
+  // From the engine, which outlives the playground (Docs and back remounts it).
+  const [escaped, setEscaped] = useState(() => engine.escaped);
   const [shift, setShift] = useState(false);
-  const [enterCommits, setEnterCommits] = useState(false);
+  const [enterCommits, setEnterCommits] = useState(() => engine.enterCommits);
   // The mode (spec §3.6): 0 Mode A (JIS), 1 Mode B (US ANSI), 2 Mode C (UK ISO). Remembered per
   // browser. The engine's mode is set before the first render, so the key legends match it.
   const [mode, setMode] = useState(() => {
@@ -108,7 +109,7 @@ export function App({ engine }: { engine: Engine }) {
         const saved = loadLearned();
         if (saved) engine.importLearner(saved.state);
         const words = loadTrainingWords();
-        if (words) engine.setUserWords(words.korean, words.english);
+        if (words) engine.setUserWords(words);
         engine.setLearning(learningOn);
         setLearned(learnedWeights(engine));
       })
@@ -147,12 +148,15 @@ export function App({ engine }: { engine: Engine }) {
     return () => clearTimeout(timer);
   }, [engine, counted]);
 
-  function apply(out: Output, code: string, mods: Mods) {
+  // `typed`: the character the browser reports for a physical key press (KeyboardEvent.key), which a
+  // key the engine lets through types, as it would in any app. On-screen keys have none.
+  function apply(out: Output, code: string, mods: Mods, typed = "") {
     setDoc((d) => {
       let next = d + out.commit;
       if (!out.consumed && !(mods.ctrl || mods.alt || mods.meta)) {
         if (code === "Enter") next += "\n";
         else if (code === "Backspace") next = [...next].slice(0, -1).join("");
+        else if ([...typed].length === 1) next += typed;
       }
       return next;
     });
@@ -172,9 +176,9 @@ export function App({ engine }: { engine: Engine }) {
     }
   }
 
-  function type(code: string, mods: Mods): Output {
+  function type(code: string, mods: Mods, typed = ""): Output {
     const out = engine.key(code, mods);
-    apply(out, code, mods);
+    apply(out, code, mods, typed);
     return out;
   }
 
@@ -197,7 +201,7 @@ export function App({ engine }: { engine: Engine }) {
       pick(0, " ");
       return;
     }
-    const out = type(e.code, { shift: e.shiftKey || shift, ctrl: e.ctrlKey, alt: e.altKey, meta: e.metaKey });
+    const out = type(e.code, { shift: e.shiftKey || shift, ctrl: e.ctrlKey, alt: e.altKey, meta: e.metaKey }, e.key);
     if (!e.code.startsWith("Shift")) setShift(false);
     if (out.consumed || e.code === "Enter" || e.code === "Backspace") e.preventDefault();
   }
@@ -287,8 +291,9 @@ export function App({ engine }: { engine: Engine }) {
     }
     const lists = wordLists(f);
     const count = (f.vocabulary?.korean?.length ?? 0) + (f.vocabulary?.english?.length ?? 0);
-    if (count) {
-      engine.setUserWords(lists.korean, lists.english);
+    const avoided = f.avoid?.length ?? 0;
+    if (count || avoided) {
+      engine.setUserWords(lists);
       saveTrainingWords(lists);
     }
     if (f.examples?.length && !learningOn) toggleLearning(true);
@@ -301,6 +306,7 @@ export function App({ engine }: { engine: Engine }) {
         source: f.source?.tool ?? "training file",
         weights: Object.keys(f.weights ?? {}).length,
         words: count,
+        avoided,
         examples,
       },
     });
@@ -338,6 +344,13 @@ export function App({ engine }: { engine: Engine }) {
   }
 
   function onScreenKey(code: string) {
+    // As on a real keyboard: with predictions showing, Space commits the top one.
+    if (code === "Space" && readings.length) {
+      pick(0, " ");
+      setShift(false);
+      surface.current?.focus();
+      return;
+    }
     type(code, { shift });
     setShift(false);
     surface.current?.focus();
@@ -566,8 +579,8 @@ export function App({ engine }: { engine: Engine }) {
             <dd>{hanjaReady ? "Hanja for the word you just typed. F7 or ↓ for the next, 1–9 to pick, Esc to go back." : "Loading the hanja dictionary…"}</dd>
           </div>
           <div>
-            <dt>F8 두벌식</dt>
-            <dd>Standard 2-set with the stock JIS symbols, until Shift+F8.</dd>
+            <dt>F8</dt>
+            <dd>Reserved: does nothing for now.</dd>
           </div>
           <div>
             <dt>F9 / F10, Shift+Z</dt>
@@ -838,7 +851,7 @@ function learnedWeights(engine: Engine): Record<WeightName, number> {
 // The words from a training file, kept in this browser until forgotten.
 const TRAINING_WORDS_KEY = "jis-korean:training-words";
 
-function loadTrainingWords(): { korean: string; english: string } | null {
+function loadTrainingWords(): WordLists | null {
   try {
     const saved = JSON.parse(localStorage.getItem(TRAINING_WORDS_KEY) ?? "null");
     return saved && typeof saved.korean === "string" && typeof saved.english === "string" ? saved : null;
@@ -847,7 +860,7 @@ function loadTrainingWords(): { korean: string; english: string } | null {
   }
 }
 
-function saveTrainingWords(words: { korean: string; english: string }) {
+function saveTrainingWords(words: WordLists) {
   try {
     localStorage.setItem(TRAINING_WORDS_KEY, JSON.stringify(words));
   } catch {
@@ -996,6 +1009,7 @@ function Tuning({
         {training?.summary && (
           <p className="counts-note">
             From {training.summary.source}: {training.summary.weights} sliders set, {training.summary.words} words added
+            {training.summary.avoided > 0 && `, ${training.summary.avoided} avoided`}
             {training.summary.examples.top + training.summary.examples.listed + training.summary.examples.missed.length > 0 &&
               `, examples learned (${training.summary.examples.top} already on top, ${training.summary.examples.listed} listed lower` +
                 (training.summary.examples.missed.length ? `, not offered: ${training.summary.examples.missed.slice(0, 8).join(" ")}` : "") +

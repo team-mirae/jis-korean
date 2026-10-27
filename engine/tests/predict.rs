@@ -190,6 +190,17 @@ fn english_word_with_a_particle_is_one_reading() {
     for word in ["API", "ID", "GPU", "OS", "UI", "PDF", "USB"] {
         assert_eq!(top(&keys(word, "KeyF KeyM KeyF")), (format!("{word}를"), Kind::Mixed), "{word}를");
     }
+    // A capitalized word keeps its last letter when it and the particle's keys would make a
+    // particle too (d p is 에, r h k is 과, e m f is 들, G h k is 화).
+    for (word, particle, want) in [
+        ("Android", "KeyP", "Android에"),
+        ("SSD", "KeyP", "SSD에"),
+        ("Docker", "KeyH KeyK", "Docker와"),
+        ("Google", "KeyM KeyF", "Google을"),
+        ("PNG", "KeyH KeyK", "PNG와"),
+    ] {
+        assert_eq!(top(&keys(word, particle)), (want.into(), Kind::Mixed), "{want}");
+    }
 }
 
 #[test]

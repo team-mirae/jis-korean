@@ -48,7 +48,8 @@ let sharedPredictor: OpaquePointer? = {
 DiagnosticLog.note("launched from \(Bundle.main.bundlePath)")
 PublicAPI.start()
 #if ENGLISH
-KoreanKeyTap.start()
+// Only if it's of use and already allowed: it never asks for permissions at launch.
+KoreanKeyTap.check()
 #endif
 let server = IMKServer(name: connectionName, bundleIdentifier: Bundle.main.bundleIdentifier)
 _ = server

@@ -151,8 +151,8 @@ modes or forks; their users are expected to keep their own layout as a second in
 | everything else | the UK stock symbol | the UK stock symbol |
 
 The three symbol keys ([, ], `IntlBackslash`) are optional: a setting, **Dedicated symbol keys**,
-turns them off, and then they type their UK ISO characters (`[ {`, `] }`, `\ |`), the same as in
-the F8 escape. They don't pass through to the OS layout, so they type the same whatever it is. The
+turns them off, and then they type their UK ISO characters (`[ {`, `] }`, `\ |`), as the stock
+keyboard does. They don't pass through to the OS layout, so they type the same whatever it is. The
 number row is always dedicated. Default: on.
 `IntlBackslash` isn't in Modes A or B, nor `IntlYen` and `IntlRo` in Mode C: they commit and pass
 through (§3.5). On macOS, ISO keyboards send the extra key and the key left of 1 with each other's
@@ -177,12 +177,11 @@ fork it into a mode of their own that fits their typing or their keyboard (docs/
 The stock keyboard drives everything that reads keys as plain characters, so nothing implies
 JIS in Mode B:
 
-- **F8** (§6.1) escapes to standard 2-set over the stock keys: in Mode B, Shift+2 = `@`.
 - **English readings** (`Engine::english`) and the **standard 2-set reading** (§10.2) use the
   stock characters: in Mode B, `ㅎ ㅏ ㄴ Shift+2` (G K S Shift+2) predicts 한2 and 한@, where Mode A
   predicts 한2 and 한".
 
-Examples (Mode B): `Shift+[` → 「; `Shift+2` → 2, read in English as @; `F8 Shift+2` → @;
+Examples (Mode B): `Shift+[` → 「; `Shift+2` → 2, read in English as @;
 `ㅎ ㅏ ㄴ Shift+Z` → gks.
 
 #### 3.6.1 Mode ids and names
@@ -298,7 +297,7 @@ predictions, hanja or F6–F10: F9 and F10 go to the app, Shift+Z types Z and Sh
 Caps Lock types capitals. The one thing it adds is letter variants on ⌥ (§3.6.3). Switching in commits whatever a Korean mode left unconfirmed. The core principle (§1) is about the Korean modes and
 is unaffected. The engine still names the layout: its key table is the JIS stock table (Mode A's
 stock keyboard), which the macOS keyboard layout is generated from, so the symbols can't drift from
-Mode A's F8 escape.
+Mode A's stock keyboard.
 
 **US English** (`B_QWERTY`, id 9) and **UK English** (`CJ_QWERTY`, id 10) are the same mode on the
 other keyboard families: QWERTY with Mode B's stock symbols (US ANSI: Shift+2 is `@`) and Mode C's
@@ -475,11 +474,12 @@ to the double press, and it also keeps two vowels apart that would otherwise com
 | ㄱ ㅏ ㄴ ⇧ㅗ ㅏ | 간와 (the new vowel can still combine with the next one) |
 | ⇧ㅏ | 아 (same as the implied ㅇ) |
 | ⇧ㄲ ⇧ㅏ | 까: an initial waiting for its vowel takes it as usual, so Shift held over from a double is harmless |
+| ㄱ ㅏ ⇧ㄲ ⇧ㅏ ㅇ ㅣ | 가까이: right after ㄲ or ㅆ typed with Shift, Shift on a vowel may just be held over, so the vowel takes the double as it takes any final (ㄴ, ㄱ), as on 2-set. Also 비싸, 바깥, and `ㅇ ㅣ ⇧ㅆ ⇧ㅓ` → 이써 |
+| ㅇ ㅣ ⇧ㅆ ㅓ ㅓ, ㅇ ㅣ 5 ⇧ㅓ | 있어: the same vowel again keeps the final; after the dedicated ㅆ key (5), a Shift is new |
 | ㄱ ⇧ㅒ, 간 ⇧ㅖ | 걔, 가녜: O and P are unchanged |
 
 The ㅇ was asked for, so F6 commits it as it is (unlike an implied ㅇ). Backspace removes the
-whole Shift+vowel in one press. In the F8 escape, Shift behaves as in standard 2-set. The English
-reading keeps the shifted letter (⇧L → `L`).
+whole Shift+vowel in one press. The English reading keeps the shifted letter (⇧L → `L`).
 
 ### 4.3 Backspace
 
@@ -508,7 +508,8 @@ Korean IME, and it is what F9/F10 need **[decide]**.
 | Enter | Default: commit the segment, then pass Enter to the app. Setting "Enter commits": commit only, as Shift+Enter does. *(planned)* **[decide]** |
 | Focus loss, app switch, IME switch | Commit the segment. |
 | Ctrl/Alt/Cmd/Win shortcuts | Commit, then pass through (§3.5). |
-| Arrow keys, Tab, Esc | Commit, then pass through **[decide]**. |
+| ↓ / Tab, ↑ / Shift+Tab | With predictions showing more than one reading (§10): move through them (↓ and Tab next, ↑ and Shift+Tab previous, wrapping); Enter then commits the chosen one and Esc goes back to none chosen. Otherwise: commit, then pass through. As the macOS shell does; Windows matches. |
+| ← / →, Esc | Commit, then pass through. |
 
 ### 5.2 Words
 
@@ -521,10 +522,15 @@ character `1`).
 ### 5.3 Symbols and digits with F9/F10
 
 Typed symbols and Shift+digits stay in the segment like everything else. When the segment **ends in
-a run of ASCII symbols or digits**, F9/F10 convert that run instead of a word: `2026` F9 →
+a run of typed symbols or digits**, F9/F10 convert that run instead of a word: `2026` F9 →
 `２０２６`, 한! F9 → 한！. The run and a word never mix: a word ends at the first symbol, and a
 symbol run ends at the first jamo. Case cycling and F6 (restore and commit) work the same way.
-The full-width form of U+0021–U+007E is the code point + 0xFEE0; space becomes U+3000.
+
+Symbols convert **as typed**, never as the stock key's character: F9 makes every character that
+has a full-width form full-width, and F10 every character that has a half-width form half-width.
+A character without one stays as it is (· and — have none: `!·!` F9 → `！·！`). The full-width form
+of U+0021–U+007E is the code point + 0xFEE0; space becomes U+3000; the Halfwidth and Fullwidth
+Forms pairs ¢ £ ¬ ¯ ¦ ¥ ₩ and ｡ ｢ ｣ ､ ･ (。「」、・ full-width) convert both ways, so 「 F10 → ｢.
 
 ---
 
@@ -532,20 +538,24 @@ The full-width form of U+0021–U+007E is the code point + 0xFEE0; space becomes
 
 | Key | Label | Behavior | Status |
 |---|---|---|---|
-| F6 | 한글 | **Right after F9/F10:** restore the Hangul of the converted word. **On a plain implied ㅇ:** drop it (§4.2). Then **commit** everything unconfirmed, as switching to English and back does (한 F6 ㅏ → 한 committed, 아 unconfirmed; one more F6 → 한ㅏ). F6 changes nothing else. No-op if nothing is unconfirmed. Also the return path from 한자 (F7). | done in prototype |
+| F6 | 한글 | **Right after F9/F10:** restore the Hangul of the converted word. **On a plain implied ㅇ:** drop it (§4.2). Then **commit** everything unconfirmed, as switching to English and back does (한 F6 ㅏ → 한 committed, 아 unconfirmed; one more F6 → 한ㅏ). F6 changes nothing else. Also the return path from 한자 (F7). | done in prototype |
 | F7 | 한자 | Hanja conversion of the word at the end of the unconfirmed text, with a candidate list (§7). Pairs with F6 (native / borrowed script), mirroring JIS F6 hiragana / F7 katakana. | done |
-| F8 | 두벌식 | Transient escape to standard 2-set on JIS (§6.1). | done in prototype (IME switching not simulated) |
+| F8 | — | **Reserved** (§6.1): does nothing. | retired 2026-10-27 |
 | F9 | 전각영숫자 | Convert the current word to full-width alphanumerics, from the raw characters (§5.2). | done in prototype |
-| F10 | 반각영숫자 | Same, half-width. **Shift+Z does the same**, on every platform, since F10 isn't always reachable (Windows browsers take it for their menu). Not in the F8 escape, where Shift+Z is ㅋ. With predictions on (§10), when the top prediction is already byte-identical to what F10 would give, the first Shift+Z presses F10 twice (hello → HELLO); later presses step the cycle as F10 does. F10 itself never skips. | done |
+| F10 | 반각영숫자 | Same, half-width. **Shift+Z does the same**, on every platform, since F10 isn't always reachable (Windows browsers take it for their menu). Shift+Z is taken even with nothing unconfirmed. With predictions on (§10), when the top prediction is already byte-identical to what F10 would give, the first Shift+Z presses F10 twice (hello → HELLO); later presses step the cycle as F10 does. F10 itself never skips. | done |
 
-### 6.1 F8 escape
+**With nothing unconfirmed, F6–F10 go to the app** (F6 to the browser's address bar, F7 to caret
+browsing): they act only on unconfirmed text. Shift+Z is the exception: it's a JIS Korean key, not a
+real F10, so it's taken either way.
 
-- F8 switches to **standard 2-set over the stock JIS keys**: the letter keys keep 2-set, and every
-  other key types its stock JIS character (1 = `1`, Shift+2 = `"`, @ = `@`, etc.).
-- F8 while already escaped stays escaped (one-way key) *(from prototype)*.
-- Shift+F8, or switching to another IME and back, returns to the JIS Korean layout.
-- The prototype carries a syllable being composed across the switch. Whether F8 should commit first
-  is open.
+### 6.1 F8 (reserved)
+
+F8 used to escape to standard 2-set over the stock keys, for the symbols JIS Korean has no key for.
+It was retired on 2026-10-27, before release: it wasn't standard 2-set (the implied ㅇ, the double
+press and F6 still applied), and symbols off the legends are typed in an English mode (§3.6.2) or
+the platform's English input source. F8 is **reserved for future use**: with something unconfirmed
+it's taken and does nothing (Shift+F8 too); with nothing unconfirmed it goes to the app. The engine
+keeps each mode's stock keyboard for the English and standard 2-set readings (§10.2).
 
 ### 6.2 F9 / F10 cycling *(from prototype)*
 
@@ -555,7 +565,7 @@ The full-width form of U+0021–U+007E is the code point + 0xFEE0; space becomes
 - F6 right after either key restores the original Hangul and commits it.
 - Any other input ends the conversion state. The converted text stays in the segment as plain
   characters.
-- With no word to convert, F9/F10 are no-ops.
+- With no word to convert, F9/F10 do nothing (with nothing unconfirmed they go to the app, §6).
 
 Example: ㅎ ㅏ ㄴ (keys G K S) → 한. F10 → `gks`. F10 → `GKS`. F10 → `Gks`. F9 → `Ｇｋｓ`. F6 → 한, committed.
 
@@ -618,7 +628,11 @@ engine:
 - **Minecraft** (`/minecraft`): a Fabric mod running the engine (as wasm) in-game. It adds its own
   layer on top of the engine: each staging area is read as Korean and as English (`Engine::english`),
   Space/Enter/Tab commit the more likely one, F6 forces Korean and **F7 forces English instead of
-  hanja**. See `minecraft/README.md`.
+  hanja**. A click, a focus change or a screen closing commits the staged text into its field; a
+  mode change commits it first. Esc with staged text drops it (unlike §5.1, where Esc commits): in
+  game screens Esc is the way out of a field. Selecting an English mode in the input method picks
+  the Korean mode on the same keyboard (`A_` → A, `B_QWERTY` → B, `CJ_QWERTY` → C). See
+  `minecraft/README.md`.
 - **Web** (`/web`): a React playground that runs the same engine in the browser, keyed on
   `KeyboardEvent.code`. On non-JIS keyboards, `IntlYen` and `IntlRo` don't exist, so the page needs
   on-screen keys for them.
@@ -648,12 +662,12 @@ they select input modes and never reach the engine.
 From the note:
 
 1. **Symbols with no key.** Compared with stock JIS, these are now unreachable:
-   # $ % & * + = | @ ` { } < > / and ¥. Most urgent: @ and / (email addresses, URLs, dates). The
-   F8 escape covers them for now. ~~( )~~ Settled: on the ^ key (( unshifted, ) with Shift).
+   # $ % & * + = | @ ` { } < > / and ¥. Most urgent: @ and / (email addresses, URLs, dates). They're
+   typed in an English mode since the F8 escape was retired (§6.1); in Mode B, Shift+1–0 type
+   digits, so ! @ # $ % ^ & * need English too. ~~( )~~ Settled: on the ^ key (( unshifted, ) with Shift).
 2. ~~**Free key.**~~ Settled: the ^ key types ( and ); ^ moved to Shift+¥.
 3. ~~**~ vs -.**~~ Settled: ~ stays on the ; key unshifted; the ^ key went to ( ) instead.
-4. **F8 and composition.** The prototype carries the syllable being composed across the F8 switch.
-   Should F8 commit first, like F6 does?
+4. ~~**F8 and composition.**~~ Settled: the F8 escape is retired; F8 is reserved (§6.1).
 5. ~~**F6 vs Shift+Enter.**~~ Settled: F6 commits everything unconfirmed (after dropping a plain
    implied ㅇ or undoing F9/F10). Shift+Enter commits as-is.
 6. **Shift on the jamo number keys.** Shift on 1–0 types digits, and the jamo on those keys exist
@@ -661,15 +675,18 @@ From the note:
 
 Raised by this spec:
 
-7. **Segment model (§5).** Keep the whole segment unconfirmed (Japanese style, needed for F9 over
+7. ~~**Segment model (§5).**~~ Settled 2026-10-27: the whole segment stays unconfirmed. Wrong
+   readings it commits are fixed at the source, by the user's negative vocabulary (§10.12 `avoid`).
+   Keep the whole segment unconfirmed (Japanese style, needed for F9 over
    whole words and for pending symbols), or commit each finished syllable (Korean style, what apps
    and users of Korean IMEs expect)?
 8. **Plain Enter default (§5.1).** Commit + newline by default, with "Enter commits" as the opt-in.
    Is that the intended reading?
 9. **Digits inside a word (§5.2).** Shift+digit ends the F9 word, so `abc123` converts as `abc`
    then `123` (each with its own F9/F10, §5.3). Is that enough?
-10. **Arrows, Tab, Esc (§5.1).** Outside the hanja list they commit then pass through. Should Esc
-    cancel the segment instead?
+10. ~~**Arrows, Tab, Esc (§5.1).**~~ Settled 2026-10-27: with predictions showing, ↓ ↑ Tab move
+    through them as on macOS; otherwise they commit and pass through, and Esc does too (it doesn't
+    cancel). A top reading the user never means is avoided with §10.12 `avoid`.
 11. ~~**Non-JIS hardware.**~~ Settled: Mode B (§3.6) for US ANSI. It keeps Mode A's number row
     and brackets and leaves every other key as US ANSI has it.
 12. ~~**`B_` and `C_` namespaces.**~~ Settled (§3.6.1): `B_` varies Mode B on US ANSI boards,
@@ -678,7 +695,8 @@ Raised by this spec:
     mode of its own. JIS English is a macOS workaround (switching English → Korean through
     Hammerspoon could switch back by itself); Windows has 한/영 inside the one input method, and
     the English modes are only the layout 한/영 types (§8.4), without letter variants (§3.6.3,
-    macOS only). Still open: should the web playground and Minecraft offer `A_QWERTY`?
+    macOS only). Minecraft maps an English mode to the Korean mode on the same keyboard (§8).
+    Still open: should the web playground offer `A_QWERTY`?
 
 ---
 
@@ -767,7 +785,7 @@ Scores are in bits per key, positive leaning Korean:
    particle (에, 에서, 를, 이라는, 부터는, …) or a known word made of 하다 / 되다 forms (push했어). The split counts when the start reads clearly more English than
    the whole keys (0.5 bits per key; a capitalized start such as Anthropic or RLHF always
    qualifies) and the whole isn't a known English word or noun, so `small` never becomes smal이 and
-   Goodwill never Goodwil이. Among capitalized starts the longer ending wins (API를, not APIf을).
+   Goodwill never Goodwil이. Among capitalized starts the longer start wins (Android에, not Androi에 with `d p` read as 에; SSD에, Docker와), except an acronym trailing off in a lowercase letter, whose letter goes to the ending (API를, not APIf을).
    The start must also read as English on its own (1 bit per key), and when the whole keys make a
    Korean word (in the lexicon or the hanja dictionary: `kanxms` is 아무튼, not kanx은) the split is
    only an alternative below it; junk Korean (slack에 as 님차에) doesn't hold it back. Otherwise it
@@ -889,8 +907,9 @@ saved − bias), clamped to 2–98%.
 
 ### 10.10 Punctuation inside a word, and the trusting typist
 
-- **Typed punctuation stays as typed** in the English reading (a `;` typed is `;`; F9/F10 still
-  convert keys to their stock JIS characters).
+- **Typed punctuation stays as typed** in the English reading (a `;` typed is `;`). F9/F10 convert
+  it as typed too (§5.3): number-row jamo keys convert to their digits, typed symbols to their
+  other width where they have one.
 - **Pieces:** punctuation typed inside a staged word (anything that isn't a letter or digit) splits
   it into pieces, each ranked on its own. The pieces' top readings, joined with their punctuation,
   form one more reading (Research(이하, AI)를, 기여(contribute)하는, SaaS(Software-as-a-Service)에),
@@ -898,7 +917,7 @@ saved − bias), clamped to 2–98%.
 - **The trusting typist** (`engine/src/trust.rs`, `tests/corpora.rs`) types a text with the fewest
   presses and lets the predictions do the rest: Hangul by JIS Korean's optimized route, Latin
   letter by letter (a capital Z as z, since Shift+Z is F10), hanja by their reading, symbols by their
-  key or the F8 escape (a flat 3 presses, as in the planner); Space or Enter commits the top
+  key or pasted (a flat 3 presses, as in the planner); Space or Enter commits the top
   prediction. Hanja are the exception: never the top prediction, they're picked with ↓ (each a
   press) and fail only when not listed. A test asserts no hanja is ever on top. Measures: failed
   words, characters wrong, and **effort**: presses plus the cost of fixing failures (↓ to the word
@@ -1067,8 +1086,8 @@ The language keys (§8) on macOS:
 
 | Key | macOS keys |
 |---|---|
-| `LANG_KO` | カタカナ (the Windows JIS keyboards' カタカナ/ひらがな key, read at the hardware level), and the Korean Key (F18 by default) |
-| `LANG_EN` | 英数 |
+| `LANG_KO` | カタカナ (the Windows JIS keyboards' カタカナ/ひらがな key, read at the hardware level): Mode A if it's added, else the Korean mode used last; and the Korean Key (F18 by default): the Korean mode used last |
+| `LANG_EN` | 英数: a JIS English mode (`A_`: the one used last if it was one, else `A_QWERTY`, else another `A_` mode), else the English mode used last |
 | `LANG_JA` | かな, left to macOS |
 
 
@@ -1127,14 +1146,19 @@ that go back to Korean go to the Korean mode used last.
   an Apple keyboard (vendor 1452, product 593); with that configured as JIS, JIS Korean reads
   カタカナ there instead. So カタカナ works with Karabiner on or off for the keyboard, as long as no
   Karabiner rule remaps `japanese_pc_katakana`. (Tested with an HHKB Hybrid Type-S JIS and an HHKB
-  Studio, with Karabiner on and off.) A keyboard configured as JIS later counts once JIS Korean
-  restarts. The type is stored per keyboard (40 ANSI, 41 ISO, 42 JIS), and a JIS keyboard can be
+  Studio, with Karabiner on and off.) A keyboard configured as JIS later counts right away: a
+  Japanese key from a keyboard not on the JIS list re-reads the list (at most once a second). The type is stored per keyboard (40 ANSI, 41 ISO, 42 JIS), and a JIS keyboard can be
   stored as ANSI while typing JIS fine through Karabiner; Karabiner's own JIS setting doesn't write
   it ([troubleshooting](troubleshooting/macos-katakana-and-eisu.md)).
-- **Caught system-wide.** The Korean Key and カタカナ are caught by that tap before any app sees
-  them, so they work in apps that keep keys to themselves (iTerm keeps F1–F19) and from other input
-  sources. Until both permissions are granted, the Korean Key works only in apps that pass it on,
-  and カタカナ acts as かな. Caps Lock was tried and dropped: macOS toggles its light before an
+- **Caught system-wide.** The Korean Key, カタカナ and 英数 (without ⌘, Ctrl or ⌥) are caught by
+  that tap before any app sees them, so they work in apps that keep keys to themselves (iTerm keeps
+  F1–F19) and from other input sources, Japanese included. The tap runs only when it's useful (an
+  English mode is added, or a Korean mode is added and a keyboard is configured as JIS) and the
+  permissions are already granted: JIS Korean never asks for them at launch, only from the input
+  menu's "Allow カタカナ and F18 Everywhere…". It checks again when input sources change and, at most
+  every 30 seconds, when a field activates. A key whose target mode isn't added passes through
+  (F18 and カタカナ with no Korean mode, 英数 with no English mode). Until both permissions are
+  granted, the Korean Key works only in apps that pass it on, and カタカナ acts as かな. Caps Lock was tried and dropped: macOS toggles its light before an
   input method hears of it.
 - 英数, the Korean Key and カタカナ only act when the mode they'd select is added in System Settings;
   otherwise they go on as usual. The switch
@@ -1147,7 +1171,7 @@ same language, whatever is selected:
 
 | From | To | Key |
 |---|---|---|
-| any | Korean (the last Korean mode) | カタカナ (Windows JIS keyboards), or F18 (another key remapped to it, e.g. with Karabiner) |
+| any | Korean (Mode A, or the last Korean mode) | カタカナ (Windows JIS keyboards), or F18 (the last Korean mode; another key remapped to it, e.g. with Karabiner) |
 | any | English (JIS English, or the English mode used last) | 英数, the JIS Romaji key |
 | any | Japanese (Kana) | かな, the JIS Kana key, handled by macOS |
 | Japanese | Korean | カタカナ or F18 too: the tap catches them whatever is selected. Otherwise the Japanese input method owns its keys; Ctrl+Space or the input menu work. |
@@ -1166,8 +1190,10 @@ input sources. macOS needs it for secure input (password fields), where it bypas
 and types through a plain layout. JIS English sits beside it.
 
 Seen on macOS 27.0.1: with Apple's ABC enabled, 英数 selects ABC, not JIS English, although JIS
-Korean's tap sees the key. With ABC – Extended as the plain layout instead of ABC, 英数 goes to JIS
-English. Until JIS Korean wins over ABC by itself, that swap is the documented workaround
+Korean's tap sees the key. The tap now swallows 英数 and selects JIS English itself, which is meant
+to make the swap unnecessary (not yet confirmed on that setup). With ABC – Extended as the plain
+layout instead of ABC, 英数 goes to JIS English. Until JIS Korean is confirmed to win over ABC by
+itself, that swap is the documented workaround
 ([#2](https://github.com/team-mirae/jis-korean/issues/2),
 [troubleshooting](troubleshooting/macos-katakana-and-eisu.md)).
 
@@ -1200,7 +1226,7 @@ also takes a virtual key code (`5`, `S-5`). One press is one key, with or withou
 
 Keys apply as the shell applies them (§10): with predictions on, the marked text shows the top
 prediction unless that is the Korean reading, and Space and Enter commit what is shown. The search
-tries the keys whose characters are part of the text (in the layout or its F8 escape), F6, F8,
+tries the keys whose characters are part of the text (in the layout), F6,
 and F7, F9, F10, Space and Enter only where the text needs them; it skips presses that change
 nothing, and follows only key routes whose text heads toward the target (its jamo, its letters
 before F9/F10, a hanja's reading before F7). Every combination returned is checked by typing it.
@@ -1282,6 +1308,15 @@ AI agent: `docs/training-contract.md` (the contract, with instructions and quest
 - `examples`: words as meant, optionally with the keys typed: each is typed into a scratch engine
   and, where it's listed, learned as a choice (`jk_learn_example`; §10.11's learner, so it counts
   while learning is on, and applying a file with examples turns learning on);
+- `avoid`: words the user never means, Korean or English, each soft or `strong`
+  (`jk_predictor_with_avoided`: a new predictor, the base unchanged). Wherever a reading is an
+  avoided word, alone or followed by a particle (§10.3 rule 5's list: god, god을, god에서, 마리가),
+  it drops 4 bits; a strong one is also never on top, like hanja (the next reading moves up). It
+  stays listed, so it can be picked on purpose. English matches ignore case, except when the keys
+  start with a capital (§10.3 rule 2 settled English: God typed with Shift+G stays). An avoided word
+  wins over the same word in `vocabulary`. Learning is unchanged: picking an avoided reading is
+  learned like any pick, and the avoid list still applies afterwards. Hanja readings are never
+  matched;
 - `typos` and `preferences`: kept, not acted on in version 1.
 
 Applied on the device only: the web playground has a drop zone under "Tune predictions" (words kept

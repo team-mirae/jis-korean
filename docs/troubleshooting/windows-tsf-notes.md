@@ -78,3 +78,44 @@ program names misfires, and the list is already out of captures.
 Parsing the embedded hanja dictionary takes 80–110 ms and the predictor 16–31 ms per process
 (measured). Both now load on a thread-pool thread when JIS Korean activates; the first key waits
 only if they aren't ready yet.
+
+## Open issues: root causes
+
+Read from the code on macOS (2026-10-27, at `b5ed9dd`), not yet built or measured on Windows. Each
+issue's body has the full analysis and the steps to verify it with `type-test.ps1` and the testpad.
+
+- **#3, a key with no context.** With no `ITfContext` and nothing composed, both key handlers still
+  run the engine and eat the key. `UpdateText` drops the text, so the jamo stay invisible in the
+  engine, and `OnSetFocus` only flushes a composition it can see, so they surface in the next field.
+  Fix: no target context → the key isn't eaten, and an invisible segment is cleared, also on focus change.
+- **#4, `VK_PACKET`.** Characters injected with `KEYEVENTF_UNICODE` carry the character, not a scan
+  code, in lParam. `EngineKey` reads it as a position (Space → ㅇ). Fix: `VK_PACKET` →
+  `JK_KEY_OTHER`, which commits first and passes the character on.
+- **#5, `OnTestKeyDown` twice.** The engine runs in `OnTestKeyDown` (above), but nothing makes a
+  second test of the same key-down a no-op. Fix: return the cached result for the same wparam,
+  lParam and `GetMessageTime()`, and clear the cache on that key's key-up.
+- **#6, loose jamo.** A refused `StartComposition` flushes the engine at every key, and a
+  composition the app ends right after the update (no interim selection kept) clears it. With a
+  prediction shown, the refused path also inserts the prediction but flushes the Korean reading.
+  Fix: log both per program first, then keep the range on screen and keep the engine's segment.
+  Which host behaviour the spec wants is the owner's call ([decide]).
+- **#7, edit sessions.**
+  - An async session (`TF_E_SYNCHRONOUS` → `TF_ES_ASYNCDONTCARE`) lands after the key that was
+    passed on.
+  - The session's lambda holds a raw `this` and calls the engine.
+  - `ITfComposition::GetRange` is unchecked.
+
+  Fix: check the range, capture a `ComPtr` and keep engine calls out of the lambda, and report
+  async sessions (then measure before re-injecting keys).
+- **#8, commits through the engine.** The three bugs were fixed in a24d710. The shell's own list of
+  committing keys remains, and goes when the engine decides that per key. Tab/↑/↓ with predictions
+  already move through the list as on macOS (`HandleList`, decided). Tab is `JK_KEY_OTHER` on both
+  platforms.
+- **#9, the rest.**
+  - Correctness: the stale `tested_` (see #5), `DllRelease` inside the thread-pool callback, unclamped
+    `double` → `int` in training, the `Predictor()` free race, scan code 0.
+  - Per-key cost: `PrivateField` and `ApplySettings`, and training on the UI thread.
+  - Unbacked TSF categories: `UIELEMENTENABLED`, `INPUTMODECOMPARTMENT`.
+  - JIS keys (半角/全角, 英数, カタカナ as `VK_KANA`), which need measuring and a spec line.
+
+  With the F8 escape retired, Windows only needs its comment at `OnActivated` updated.

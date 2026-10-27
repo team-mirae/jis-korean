@@ -9,7 +9,6 @@
 //! same keystrokes under two key-trigram models (English spelling vs JIS Korean typing), trained by
 //! `minecraft/tools/build_ranker.py` into `engine/predict/ranker.bin`.
 
-use std::cmp::Reverse;
 use std::collections::{HashMap, HashSet};
 
 use crate::Dictionary;
@@ -294,6 +293,9 @@ const PARTICLE: f64 = 3.0;
 const SPLIT_EDGE: f64 = 0.5;
 /// How English the start must read on its own (bits per key), so random keys (kanx) don't count.
 const SPLIT_START: f64 = 1.0;
+/// A word the user never means (training file `avoid`, spec §10.12): its readings drop this far.
+/// A strong one is also never on top.
+const AVOIDED: f64 = 4.0;
 
 /// Particles and endings that attach to English words in mixed Korean text.
 const PARTICLES: &[&str] = &[
@@ -374,6 +376,9 @@ pub struct Predictor {
     /// Bits for an implied ㅇ after a kept final, per (final, following syllable) (spec §10.3),
     /// learned from the corpora (`#!implied-after` lines in common-ko.txt).
     implied_after: HashMap<(char, char), f64>,
+    /// Words the user never means, each `true` if strong (never on top). English ones lowercase.
+    avoided_korean: HashMap<String, bool>,
+    avoided_english: HashMap<String, bool>,
 }
 
 #[derive(Debug, PartialEq, Eq)]
@@ -405,6 +410,8 @@ impl Predictor {
                 })
                 .map(|(key, odds)| (key, odds.clamp(-2.0 * LEXICON, 2.0 * LEXICON)))
                 .collect(),
+            avoided_korean: HashMap::new(),
+            avoided_english: HashMap::new(),
         })
     }
 
@@ -422,6 +429,53 @@ impl Predictor {
         merge(&mut next.korean_words, korean, false);
         merge(&mut next.english_words, english, true);
         next
+    }
+
+    /// This predictor with words the user never means (spec §10.12, the training contract's
+    /// `avoid`): lines of `word` or `word<TAB>strong`. Wherever a reading is an avoided word, alone
+    /// or with a particle after it (god, god을, 마리가), it drops [`AVOIDED`] bits; a strong one is
+    /// also never on top. English matches ignore case, but keys starting with a capital are taken as
+    /// asked for (God typed with Shift+G stays). An avoided word wins over the same word in the vocabulary.
+    pub fn with_avoided(&self, korean: &str, english: &str) -> Predictor {
+        let mut next = self.clone();
+        let merge = |into: &mut HashMap<String, bool>, text: &str, lowercase: bool| {
+            for line in text.lines().map(str::trim).filter(|l| !l.is_empty() && !l.starts_with('#')) {
+                let (word, strength) = line.split_once('\t').unwrap_or((line, ""));
+                let word = if lowercase { word.trim().to_lowercase() } else { word.trim().to_string() };
+                let strong = into.get(&word).copied().unwrap_or(false) || strength.trim() == "strong";
+                into.insert(word, strong);
+            }
+        };
+        merge(&mut next.avoided_korean, korean, false);
+        merge(&mut next.avoided_english, english, true);
+        next
+    }
+
+    /// Whether a prediction is a word the user never means, and if so whether strongly. `keys`: the
+    /// English reading, the keys as typed.
+    fn avoided(&self, p: &Prediction, keys: &str) -> Option<bool> {
+        // A word, alone or followed by a particle.
+        let find = |list: &HashMap<String, bool>, text: &str| {
+            list.get(text).copied().or_else(|| {
+                PARTICLES.iter().find_map(|particle| text.strip_suffix(particle).and_then(|word| list.get(word).copied()))
+            })
+        };
+        if p.kind == Kind::Hanja {
+            return None;
+        }
+        if p.kind.language() == Language::Korean && p.kind != Kind::Mixed {
+            return if self.avoided_korean.is_empty() { None } else { find(&self.avoided_korean, &p.text) };
+        }
+        // English, or the English start of a mixed word. A capital at the start settled English
+        // (spec §10.3 rule 2): that spelling was asked for.
+        if self.avoided_english.is_empty() || keys.starts_with(|c: char| c.is_ascii_uppercase()) {
+            return None;
+        }
+        let start = p.text.trim_end_matches(|c: char| !c.is_ascii());
+        if start.is_empty() || !start.chars().all(|c| c.is_ascii_alphabetic()) {
+            return None;
+        }
+        self.avoided_english.get(&start.to_lowercase()).copied()
     }
 
     /// The readings, ranked, without duplicates, at most [`MAX_PREDICTIONS`]. The dictionary (if
@@ -548,15 +602,27 @@ impl Predictor {
             out.push(Prediction { text, kind, score: margin.abs() + PIECEWISE });
         }
 
+        // Words the user never means drop, and a strong one is never on top (below).
+        let mut strong = HashSet::new();
+        for p in &mut out {
+            if let Some(is_strong) = self.avoided(p, english) {
+                p.score -= AVOIDED;
+                if is_strong {
+                    strong.insert(p.text.clone());
+                }
+            }
+        }
         // A scenario weighed 0 is off: its readings go.
         out.retain(|p| p.score.is_finite());
         out.sort_by(|a, b| b.score.total_cmp(&a.score));
         let mut seen = HashSet::new();
         out.retain(|p| !p.text.is_empty() && seen.insert(p.text.clone()));
         // Hard guard: a hanja reading is never on top, whatever the weights (a user's 10×, or
-        // learning): hanja are picked with ↓. The first other reading moves up.
-        if out.first().is_some_and(|p| p.kind == Kind::Hanja)
-            && let Some(i) = out.iter().position(|p| p.kind != Kind::Hanja)
+        // learning): hanja are picked with ↓. Nor is a strongly avoided word. The first other
+        // reading moves up.
+        let held = |p: &Prediction| p.kind == Kind::Hanja || strong.contains(&p.text);
+        if out.first().is_some_and(held)
+            && let Some(i) = out.iter().position(|p| !held(p))
         {
             let other = out.remove(i);
             out.insert(0, other);
@@ -747,11 +813,15 @@ impl Predictor {
             .iter()
             .filter(|s| self.is_ending(&s.korean))
             .filter(|s| s.english.chars().all(|c| c.is_ascii_alphabetic()) && s.english.len() >= 2)
-            .map(|s| (-self.start_margin(&s.english), Reverse(s.english.len()), format!("{}{}", s.english, s.korean)))
+            // Among starts that are surely English (capitals), the longer start wins (Android에, not
+            // Androi에 with d p as 에; SSD에, Docker와), except an acronym that trails off in a
+            // lowercase letter: that letter belongs to the ending (API를, not APIf을).
+            .map(|s| {
+                let acronym = s.english.chars().take(2).all(|c| c.is_ascii_uppercase());
+                let tail = acronym && s.english.ends_with(|c: char| c.is_ascii_lowercase());
+                (-self.start_margin(&s.english), (!tail, s.english.len()), format!("{}{}", s.english, s.korean))
+            })
             .filter(|(start, _, _)| *start >= 99.0 || (*start >= SPLIT_START && *start - whole >= SPLIT_EDGE))
-            // Among starts that are surely English (capitals: API를 against APIf을), the longer
-            // ending explains more of the keys. Counted in keys, not syllables: 를 and f을 are both
-            // one syllable.
             .max_by(|a, b| a.0.min(99.0).total_cmp(&b.0.min(99.0)).then(a.1.cmp(&b.1)))
             .map(|(start, _, text)| Prediction { text, kind: Kind::Mixed, score: start.max(english_score) + PARTICLE })
     }

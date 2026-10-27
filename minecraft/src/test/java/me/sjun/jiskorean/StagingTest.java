@@ -42,7 +42,8 @@ class StagingTest {
 			Map.entry("S-4", new int[] {33, Keys.MOD_SHIFT}),
 			Map.entry("S-6", new int[] {35, Keys.MOD_SHIFT}),
 			Map.entry("S-Minus", new int[] {45, Keys.MOD_SHIFT}),
-			Map.entry("Grave", new int[] {53, 0}));
+			Map.entry("Grave", new int[] {53, 0}),
+			Map.entry("Yen", new int[] {Keys.INTERNATIONAL3, 0}));
 
 	private Staging staging;
 	/** The text field, as a game text box would end up after the inserts and passed keys. */
@@ -140,9 +141,10 @@ class StagingTest {
 	}
 
 	@Test
-	void shiftZStaysKieukInTheEscape() {
-		// Spec §6: Shift+Z is F10 except in the F8 escape, where it is ㅋ.
-		check("{F8}zZ{F6}", "ㅋㅋ");
+	void f8IsReserved() {
+		// Spec §6: the F8 escape is retired; F8 does nothing, mid-word or not.
+		check("gks{F8}rmf ", "한글 ");
+		check("{F8}gks ", "한 ");
 	}
 
 	@Test
@@ -260,24 +262,91 @@ class StagingTest {
 	}
 
 	@Test
-	void dedicatedKeysAndEscapeWork() {
+	void dedicatedKeysWork() {
 		check("1k ", "빠 ");
-		check("{F8}1{S-F8}1k ", "1빠 ");
 	}
 
 	@Test
 	void modeBTypesUsSymbols() {
-		// Mode A reads the keys as JIS (Shift+2 is "), Mode B as US ANSI (Shift+2 is @, and ` has a key).
-		check("{F8}{S-2} ", "\" ");
+		// The English reading: Mode A reads the keys as JIS (Shift+2 is "), Mode B as US ANSI
+		// (Shift+2 is @). F7 picks it.
+		check("{S-2}{F7}", "\"");
 		setUp();
-		staging.setMode(1);
-		type("{F8}{S-2}{Grave} ");
-		assertEquals("@` ", field.toString());
+		staging.setMode(1, "");
+		type("{S-2}{F7}");
+		assertEquals("@", field.toString());
 		// Korean is the same in both modes.
 		setUp();
-		staging.setMode(1);
+		staging.setMode(1, "");
 		type("gksrmf ");
 		assertEquals("한글 ", field.toString());
+	}
+
+	@Test
+	void unmappedKeyCommitsTheRankedReading() {
+		// Spec §3.5: a key the mode doesn't map commits and passes through. The commit is the ranked
+		// reading (hello), not the engine's Korean one (ㅗ디ㅣㅐ). Mode B has no ¥ key.
+		setUp();
+		staging.setMode(1, "");
+		type("hello{Yen}");
+		assertEquals("hello", field.toString());
+		assertEquals("{Yen}", passed.toString());
+		assertTrue(staging.isEmpty());
+		setUp();
+		staging.setMode(1, "");
+		type("gksrmf{Yen}");
+		assertEquals("한글", field.toString());
+	}
+
+	@Test
+	void modeSwitchCommitsWhatWasStaged() {
+		// Keys typed in the old mode stay as typed; the switch doesn't drop them.
+		setUp();
+		type("gksrmf");
+		assertEquals("한글", staging.setMode(1, ""));
+		assertTrue(staging.isEmpty());
+		assertEquals(1, staging.mode());
+		// Setting the same mode again does nothing.
+		type("gks");
+		assertEquals("", staging.setMode(1, ""));
+		assertEquals("한", staging.korean());
+	}
+
+	@Test
+	void unknownModeIsRefused() {
+		// An id the engine doesn't have: the mode stays, and so does the staging area.
+		setUp();
+		type("gks");
+		assertEquals("", staging.setMode(99, ""));
+		assertEquals(0, staging.mode());
+		type("rmf ");
+		assertEquals("한글 ", field.toString());
+	}
+
+	@Test
+	void englishModesTypeTheirBoardsKoreanMode() {
+		// Open question 13's default: the mod is always on, so an English mode types Korean on its
+		// keyboard family (spec §3.6.1).
+		assertEquals(0, Staging.koreanMode(3));
+		assertEquals(0, Staging.koreanMode(7));
+		assertEquals(0, Staging.koreanMode(8));
+		assertEquals(1, Staging.koreanMode(9));
+		assertEquals(2, Staging.koreanMode(10));
+		assertEquals(0, Staging.koreanMode(0));
+		assertEquals(1, Staging.koreanMode(1));
+		assertEquals(2, Staging.koreanMode(2));
+	}
+
+	@Test
+	void commitRankedEmptiesTheStagingArea() {
+		// What the client calls when the field loses focus (a click, another field, the screen closing).
+		setUp();
+		type("gkrry");
+		assertEquals("학교", staging.commitRanked(""));
+		assertTrue(staging.isEmpty());
+		type("hello");
+		assertEquals("hello", staging.commitRanked(""));
+		assertEquals("", staging.commitRanked(""));
 	}
 
 	@Test

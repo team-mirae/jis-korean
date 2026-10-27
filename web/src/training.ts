@@ -8,6 +8,21 @@ export interface TrainingWord {
   confidence?: "tentative" | "likely" | "confirmed";
 }
 
+export interface AvoidedWord {
+  word: string;
+  language: "korean" | "english";
+  strength?: "soft" | "strong";
+}
+
+/** The engine's word lists: the user's words (`word<TAB>count` lines) and the words they never
+ * mean (`word` or `word<TAB>strong` lines). */
+export interface WordLists {
+  korean: string;
+  english: string;
+  avoidKorean?: string;
+  avoidEnglish?: string;
+}
+
 export interface TrainingFile {
   format: "jis-korean-training";
   version: 1;
@@ -15,6 +30,7 @@ export interface TrainingFile {
   weights?: Partial<Record<WeightName, number>>;
   vocabulary?: { korean?: TrainingWord[]; english?: TrainingWord[] };
   examples?: { text: string; keys?: string; count?: number }[];
+  avoid?: AvoidedWord[];
 }
 
 /** What applying a file did, for the summary. */
@@ -22,6 +38,7 @@ export interface TrainingSummary {
   source: string;
   weights: number;
   words: number;
+  avoided: number;
   examples: { top: number; listed: number; missed: string[] };
 }
 
@@ -46,6 +63,15 @@ export function check(file: unknown): string[] {
   };
   words(f.vocabulary?.korean, /^[가-힣]+$/, "korean");
   words(f.vocabulary?.english, /^[A-Za-z]+$/, "english");
+  if (f.avoid !== undefined) {
+    if (!Array.isArray(f.avoid) || f.avoid.length > 5000) problems.push("avoid: a list of at most 5,000 words");
+    else
+      for (const a of f.avoid) {
+        const pattern = a?.language === "korean" ? /^[가-힣]+$/ : a?.language === "english" ? /^[A-Za-z]+$/ : null;
+        if (!pattern || typeof a.word !== "string" || !pattern.test(a.word)) problems.push(`avoid: bad word ${JSON.stringify(a?.word)}`);
+        else if (a.strength !== undefined && a.strength !== "soft" && a.strength !== "strong") problems.push(`avoid: bad strength for ${a.word}`);
+      }
+  }
   if (f.examples !== undefined) {
     if (!Array.isArray(f.examples) || f.examples.length > 2000) problems.push("examples: a list of at most 2,000");
     else
@@ -57,11 +83,21 @@ export function check(file: unknown): string[] {
   return problems.slice(0, 8);
 }
 
-/** The vocabulary as the engine's word lists (`word<TAB>count` lines). */
-export function wordLists(file: TrainingFile): { korean: string; english: string } {
+/** The vocabulary and the avoided words as the engine's word lists. */
+export function wordLists(file: TrainingFile): WordLists {
   const lines = (list: TrainingWord[] = []) =>
     list.map((w) => `${w.word}\t${w.count ?? (w.confidence ? CONFIDENCE_COUNT[w.confidence] : 1000)}`).join("\n");
-  return { korean: lines(file.vocabulary?.korean), english: lines(file.vocabulary?.english) };
+  const avoided = (language: AvoidedWord["language"]) =>
+    (file.avoid ?? [])
+      .filter((a) => a.language === language)
+      .map((a) => (a.strength === "strong" ? `${a.word}\tstrong` : a.word))
+      .join("\n");
+  return {
+    korean: lines(file.vocabulary?.korean),
+    english: lines(file.vocabulary?.english),
+    avoidKorean: avoided("korean"),
+    avoidEnglish: avoided("english"),
+  };
 }
 
 /** Learns from the file's examples; the weights and words are applied by the caller (they're

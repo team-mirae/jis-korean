@@ -26,9 +26,11 @@ suggestions keep working.
 | Space / Enter / Tab | Commit the ranked reading |
 | **F6** | Force Korean: the engine's F6, which commits (dropping a plain implied ㅇ) |
 | **F7** | Force English (in place of the engine's hanja) |
-| F8 / Shift+F8, F9, F10 | As in JIS Korean: 2-set escape and back, full- and half-width |
+| F9, F10 | As in JIS Korean: full- and half-width (F8 is reserved and does nothing) |
 | Backspace | Edits the staging area by jamo, or deletes in the field when it's empty |
 | Escape | Drops the staging area, then closes the screen |
+| Arrows, shortcuts, a key the mode lacks | Commit the ranked reading, then do what they do |
+| A click, another field, the screen closing | Commit the ranked reading into the field first, so Done, Create World or the anvil's output sees it |
 
 F6 and F7 choices are remembered for the rest of the session: force `dkssud` to English once and
 it stays English.
@@ -69,7 +71,7 @@ Rules on top of the model:
 ## Build and test
 
 ```sh
-./gradlew build               # build/libs/jis-korean-0.3.0.jar (engine, model and Chicory inside)
+./gradlew build               # build/libs/jis-korean-0.3.1.jar (engine, model and Chicory inside)
 ./gradlew test                # staging, ranking and engine tests (no game)
 ./gradlew runClientGameTest   # boots the real client, opens chat and types through the mod
 ./gradlew runClient           # play with it
@@ -93,7 +95,9 @@ python3 -I tools/build_ranker.py words_alpha.txt [--eval-korean <Korean text>]
   know (the numeric keypad, Option combinations) type nothing in those fields.
 - **The mode follows JIS Korean's.** On macOS the mod reads the input method's current mode
   (`defaults read me.sjun.inputmethod.JISKorean CurrentModeID`, spec §8.2) each time a screen
-  opens, and types Mode A (JIS) or Mode B (US ANSI) to match. On Windows it reads the input
+  opens, and types Mode A (JIS), Mode B (US ANSI) or Mode C (UK ISO) to match. In an English mode it
+  types its keyboard's Korean mode (JIS English, Dvorak, Colemak: A; US English: B; UK English:
+  C), since the mod is always on. Anything staged when the mode changes is committed first. On Windows it reads the input
   method's `Mode` setting the same way (`reg query "HKCU\Software\JIS Korean" /v Mode`, then HKLM,
   spec §8.4). Elsewhere, or if JIS Korean has never been set up, it's Mode A. The macOS input method isn't changed for this: the mod only reads its public
   API.

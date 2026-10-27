@@ -18,7 +18,7 @@ const ROWS: Row[] = [
 const FUNCTION_KEYS: Record<string, { label: string; planned?: boolean }> = {
   F6: { label: "한글" },
   F7: { label: "한자" },
-  F8: { label: "두벌식" },
+  F8: { label: "—" },
   F9: { label: "전각" },
   F10: { label: "반각" },
 };
@@ -41,6 +41,14 @@ const ISO_ROWS: Row[] = [
   { offset: 1.5, codes: [..."QWERTYUIOP"].map((l) => "Key" + l).concat("BracketLeft", "BracketRight") },
   { offset: 1.75, codes: [..."ASDFGHJKL"].map((l) => "Key" + l).concat("Semicolon", "Quote", "Backslash") },
   { offset: 1.25, codes: ["IntlBackslash", ..."ZXCVBNM".split("").map((l) => "Key" + l), "Comma", "Period", "Slash"] },
+];
+
+// The editing keys, under the board, so a touch screen (no physical keyboard) can type spaces,
+// delete and start new lines. Shift is the toggle beside the typing area.
+const EDIT_KEYS: { code: string; label: string; name: string }[] = [
+  { code: "Backspace", label: "⌫", name: "Backspace" },
+  { code: "Space", label: "", name: "Space" },
+  { code: "Enter", label: "⏎", name: "Enter" },
 ];
 
 const BOARDS = [
@@ -104,6 +112,20 @@ export function Keyboard({ engine, mode, escaped, shift, pressed, floating, onPr
             })}
           </div>
         ))}
+        <div className="row edit-row">
+          {EDIT_KEYS.map(({ code, label, name }) => (
+            <button
+              key={code}
+              type="button"
+              className={"key edit" + (code === "Space" ? " space" : "") + (pressed.has(code) ? " down" : "")}
+              aria-label={name}
+              onMouseDown={(e) => e.preventDefault()}
+              onClick={() => onPress(code)}
+            >
+              <span className="base">{label}</span>
+            </button>
+          ))}
+        </div>
       </div>
     </div>
   );
