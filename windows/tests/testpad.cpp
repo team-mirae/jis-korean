@@ -7,7 +7,8 @@
 //              [--peek 1] [--probe 1]
 //
 // Keys: KeyboardEvent.code names (S- holds Shift; D- is the key-down alone, again for an
-// auto-repeat, and R- its release), U+XXXX injects a character as Unicode
+// auto-repeat, and R- its release), VK:XX sends a virtual key without a scan code, U+XXXX injects
+// a character as Unicode
 // (VK_PACKET), and @off / @on / @focus=<target> / @wait=<ms> are commands (TypeKeys).
 //
 // With --keys it selects the JIS Korean profile for itself (with --profile), injects the keys with
@@ -145,6 +146,10 @@ void TypeKeys(HWND window) {
             // D-: the key-down alone (again: an auto-repeat), R-: its release.
             INPUT in = Input(key, word[0] == L'R');
             SendInput(1, &in, sizeof(INPUT));
+        } else if (word.rfind(L"VK:", 0) == 0) {
+            // A virtual key with no scan code, as some injectors send (#9).
+            Key vk_only = {0, false, static_cast<WORD>(wcstoul(word.c_str() + 3, nullptr, 16))};
+            Send(vk_only, shift);
         } else if (word.rfind(L"U+", 0) == 0) {
             SendUnicode(static_cast<wchar_t>(wcstoul(word.c_str() + 2, nullptr, 16)));
         } else if (word[0] == L'@') {

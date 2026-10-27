@@ -1,5 +1,6 @@
 // Shell tests: the scan code map (spec §2), and key sequences typed through it into the engine,
 // as the text service does. Behavior itself is the engine's (engine/tests); this checks the wiring.
+#include <cmath>
 #include <cstdio>
 #include <cstring>
 #include <fstream>
@@ -11,6 +12,7 @@
 #include "json.h"
 #include "key_map.h"
 #include "log.h"
+#include "training_lines.h"
 
 namespace {
 
@@ -89,6 +91,36 @@ int main() {
     // #4: VK_PACKET carries a character's low byte where the scan code goes: never a position.
     for (unsigned scan : {0x20u, 0x2Cu, 0x30u, 0x10u, 0x56u, 0x73u, 0x7Du, 0x00u}) {
         Check(jk::EngineKey(0xE7, scan, false) == JK_KEY_OTHER, "VK_PACKET is never a letter key");
+    }
+
+    // #9: a key injected with a virtual key but scan code 0 gets its scan code from the layout.
+    {
+        auto scan_of = [](unsigned vk) -> unsigned { return vk == 'G' ? 0x22u : vk == 0xE7 ? 0x20u : 0u; };
+        Check(jk::KeyOf('G', 0x00000001, scan_of) == JK_KEY_KEYG, "scan 0 + VK G → KeyG");
+        Check(jk::KeyOf('G', 0x00220001, scan_of) == JK_KEY_KEYG, "a real scan code is kept");
+        Check(jk::KeyOf('K', 0x00220001, scan_of) == JK_KEY_KEYG, "the scan code wins over the VK");
+        Check(jk::KeyOf(0xE7, 0x00000001, scan_of) == JK_KEY_OTHER, "VK_PACKET doesn't take the scan-0 path");
+        Check(jk::KeyOf(0x25, 0x014B0001, scan_of) == JK_KEY_ARROWLEFT, "extended arrows by VK");
+        Check(jk::KeyOf('G', 0x00000001, nullptr) == JK_KEY_OTHER, "no lookup: unknown");
+    }
+
+    // #9: training file counts are clamped before the cast (1e300, -1e300, infinity).
+    {
+        Check(jk::training::ClampCount(1e300, 1, 1000000, 1000) == 1000000, "1e300 → the top");
+        Check(jk::training::ClampCount(-1e300, 1, 1000000, 1000) == 1, "-1e300 → the bottom");
+        Check(jk::training::ClampCount(std::nan(""), 1, 20, 1) == 1, "NaN → the default");
+        Check(jk::training::ClampCount(HUGE_VAL, 1, 20, 1) == 1, "infinity → the default");
+        Check(jk::training::ClampCount(7.9, 1, 20, 1) == 7, "in range");
+        const auto list = jk::json::Parse(
+            R"([{"word": "가나", "count": 1e300}, {"word": "다라", "count": -5e20}, {"word": "마바", "count": 1e999},)"
+            R"( {"word": "abc", "count": 12}, {"word": "사아", "confidence": "likely"}, {"word": "자차"}])");
+        Check(list.has_value(), "the vocabulary list parses");
+        if (list) {
+            Check(jk::training::Lines(&*list, jk::training::KoreanWord) ==
+                      L"가나\t1000000\n다라\t1\n마바\t1000\n사아\t20\n자차\t1000",
+                  "Lines clamps counts and skips words in the wrong script");
+            Check(jk::training::Lines(&*list, jk::training::EnglishWord) == L"abc\t12", "English Lines");
+        }
     }
 
     // #5: a key-down tested twice is recognised; separate presses and auto-repeats aren't.

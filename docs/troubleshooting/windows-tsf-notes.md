@@ -212,6 +212,21 @@ times in one process, in edit/rich/tsf: no crash, every syllable committed once.
 `type-test.ps1` passes. Not run: Application Verifier (needs elevation); a host that queues
 sessions (Chromium) wasn't measured, so the async log line hasn't been seen yet.
 
+## #9, correctness (P1)
+
+- **A virtual key with scan code 0** (injected with `SendInput` without `KEYEVENTF_SCANCODE`) was
+  `JK_KEY_OTHER`: `VK:47 VK:4B VK:53 Space` typed `gks ` (reproduced with the v0.3.0 DLL). `KeyOf`
+  (`key_map.cpp`, unit-tested with a stub lookup) now takes the scan code from
+  `MapVirtualKeyW(vk, MAPVK_VK_TO_VSC)` when lParam has none, except for `VK_PACKET`; it types
+  `한 ` in edit/rich/tsf (`type-test.ps1` `#9`).
+- **Training counts** were cast from `double` to `int` unclamped (undefined for `1e300`, and a
+  negative count became the default 1000 in the engine's `u32` parse). `ClampCount` clamps the
+  double first (NaN and infinity → the default): vocabulary counts to 1–1,000,000, examples to 1–20.
+  `Lines`/`AvoidLines` moved to `training_lines.cpp` and are unit-tested with `1e300`, `-5e20` and
+  `1e999`. Weights must be finite and within 0–10.
+- The stale `tested_` (#5), `DllRelease` in the thread-pool callback and the `Predictor()` race
+  (below) are fixed too.
+
 ## Memory and lifetime
 
 - **Unloading leaked the shared data.** The dictionary and predictors were never freed, and

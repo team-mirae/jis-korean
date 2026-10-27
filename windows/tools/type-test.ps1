@@ -67,6 +67,7 @@ $hostCases = @(
     @('#6 an app ending each composition: syllables still compose', 0, 0, 'KeyE KeyK KeyF KeyK KeyQ KeyK KeyD Space', '다라방 ', @('canceltsf'), @()),
     @('#6 an app ending each composition: Backspace, F7', 0, 0, 'KeyG KeyK KeyS KeyR KeyM KeyF Backspace Backspace Space KeyG KeyK KeyR KeyR KeyY F7 Enter Space', '한ㄱ 學校 ', @('canceltsf'), @()),
     @('#6 an app ending each composition: predictions', 1, 1, 'KeyH KeyE KeyL KeyL KeyO Tab Tab Space KeyG KeyK KeyS ArrowLeft KeyK Space', 'Hello 아 한', @('canceltsf'), @()),
+    @('#9 a virtual key without a scan code types its letter', 0, 0, 'VK:47 VK:4B VK:53 Space', '한 ', @('edit', 'rich', 'tsf'), @()),
     @('#4 Unicode-injected characters in ABC', 0, 0, 'Hangul U+0061 U+0020 U+0030 Hangul', 'a 0', @('edit', 'tsf'), @())
 )
 

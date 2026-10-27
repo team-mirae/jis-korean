@@ -59,13 +59,14 @@ add_library(jiskorean SHARED
     src/shared_data.cpp
     src/text_service.cpp
     src/training.cpp
+    src/training_lines.cpp
     src/jiskorean.def
     "${CMAKE_CURRENT_BINARY_DIR}/jiskorean.rc")
 target_include_directories(jiskorean PRIVATE src)
 target_link_libraries(jiskorean PRIVATE jk_keymap jk_engine ole32 oleaut32 user32 gdi32 shell32)
 
 enable_testing()
-add_executable(jiskorean_tests tests/main.cpp src/json.cpp src/log.cpp src/settings.cpp)
+add_executable(jiskorean_tests tests/main.cpp src/json.cpp src/log.cpp src/settings.cpp src/training_lines.cpp)
 target_link_libraries(jiskorean_tests PRIVATE jk_keymap jk_engine)
 target_compile_definitions(jiskorean_tests PRIVATE JK_DOCS_DIR="${CMAKE_CURRENT_SOURCE_DIR}/../docs")
 add_test(NAME jiskorean_tests COMMAND jiskorean_tests)

@@ -15,6 +15,7 @@
 #include "log.h"
 #include "settings.h"
 #include "shared_data.h"
+#include "training_lines.h"
 
 namespace jk::training {
 namespace {
@@ -35,14 +36,6 @@ std::wstring Folder() {
     return folder;
 }
 
-std::wstring Wide(const std::string& s) {
-    if (s.empty()) return {};
-    const int n = MultiByteToWideChar(CP_UTF8, 0, s.data(), static_cast<int>(s.size()), nullptr, 0);
-    std::wstring w(static_cast<size_t>(n), L'\0');
-    MultiByteToWideChar(CP_UTF8, 0, s.data(), static_cast<int>(s.size()), w.data(), n);
-    return w;
-}
-
 std::string Narrow(const std::wstring& w) {
     if (w.empty()) return {};
     const int n = WideCharToMultiByte(CP_UTF8, 0, w.data(), static_cast<int>(w.size()), nullptr, 0,
@@ -50,62 +43,6 @@ std::string Narrow(const std::wstring& w) {
     std::string s(static_cast<size_t>(n), '\0');
     WideCharToMultiByte(CP_UTF8, 0, w.data(), static_cast<int>(w.size()), s.data(), n, nullptr, nullptr);
     return s;
-}
-
-// The word lists accept whole Hangul syllables (가-힣) or ASCII letters only, as on macOS.
-bool KoreanWord(const std::wstring& w) {
-    return !w.empty() && std::all_of(w.begin(), w.end(), [](wchar_t c) { return c >= 0xAC00 && c <= 0xD7A3; });
-}
-bool EnglishWord(const std::wstring& w) {
-    return !w.empty() && std::all_of(w.begin(), w.end(), [](wchar_t c) {
-        return (c >= L'a' && c <= L'z') || (c >= L'A' && c <= L'Z');
-    });
-}
-
-// `word<TAB>count` lines from a vocabulary list (training-contract.md), at most 5000.
-std::wstring Lines(const json::Value* list, bool (*valid)(const std::wstring&)) {
-    static const std::map<std::string, int> kConfidence = {{"tentative", 10}, {"likely", 20}, {"confirmed", 50}};
-    std::wstring out;
-    if (!list || list->type != json::Value::Type::kArray) return out;
-    int n = 0;
-    for (const json::Value& entry : list->array) {
-        const json::Value* word = entry.Get("word");
-        if (!word || !word->String()) continue;
-        const std::wstring w = Wide(*word->String());
-        if (!valid(w)) continue;
-        int count = 1000;
-        if (const json::Value* c = entry.Get("count"); c && c->Number()) {
-            count = static_cast<int>(*c->Number());
-        } else if (const json::Value* conf = entry.Get("confidence"); conf && conf->String()) {
-            const auto it = kConfidence.find(*conf->String());
-            if (it != kConfidence.end()) count = it->second;
-        }
-        if (!out.empty()) out += L'\n';
-        out += w + L'\t' + std::to_wstring(count);
-        if (++n == 5000) break;
-    }
-    return out;
-}
-
-// `word` or `word<TAB>strong` lines from the avoid list (training-contract.md) for one language, at
-// most 5000.
-std::wstring AvoidLines(const json::Value* list, const char* language, bool (*valid)(const std::wstring&)) {
-    std::wstring out;
-    if (!list || list->type != json::Value::Type::kArray) return out;
-    int n = 0;
-    for (const json::Value& entry : list->array) {
-        const json::Value* word = entry.Get("word");
-        const json::Value* lang = entry.Get("language");
-        if (!word || !word->String() || !lang || !lang->String() || *lang->String() != language) continue;
-        const std::wstring w = Wide(*word->String());
-        if (!valid(w)) continue;
-        const json::Value* strength = entry.Get("strength");
-        if (!out.empty()) out += L'\n';
-        out += w;
-        if (strength && strength->String() && *strength->String() == "strong") out += L"\tstrong";
-        if (++n == 5000) break;
-    }
-    return out;
 }
 
 ULONGLONG FileTime(const std::wstring& file, bool* exists) {
@@ -228,7 +165,7 @@ void ApplyIfChanged(JkEngine* engine) {
     if (const json::Value* weights = json->Get("weights"); weights && weights->type == json::Value::Type::kObject) {
         for (const auto& [name, value] : weights->object) {
             const auto it = kWeights.find(name);
-            if (it == kWeights.end() || !value.Number() || *value.Number() < 0 || *value.Number() > 10) continue;
+            if (it == kWeights.end() || !value.Number() || !(*value.Number() >= 0 && *value.Number() <= 10)) continue;
             settings::WriteString((std::wstring(L"Weight.") + it->second).c_str(), std::to_wstring(*value.Number()));
         }
     }
@@ -251,7 +188,7 @@ void ApplyIfChanged(JkEngine* engine) {
             const json::Value* k = example.Get("keys");
             const std::string keys = k && k->String() ? *k->String() : std::string();
             const json::Value* c = example.Get("count");
-            const int count = std::clamp(c && c->Number() ? static_cast<int>(*c->Number()) : 1, 1, 20);
+            const int count = c && c->Number() ? ClampCount(*c->Number(), 1, 20, 1) : 1;
             for (int i = 0; i < count; ++i) {
                 jk_learn_example(engine, reinterpret_cast<const std::uint8_t*>(t->String()->data()),
                                  t->String()->size(), reinterpret_cast<const std::uint8_t*>(keys.data()),

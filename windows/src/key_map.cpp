@@ -73,6 +73,13 @@ std::uint32_t EngineKey(unsigned key, unsigned scan, bool extended) {
     return k == kNone ? JK_KEY_OTHER : k;
 }
 
+std::uint32_t KeyOf(unsigned vk, std::uintptr_t lparam, unsigned (*scan_of)(unsigned vk)) {
+    unsigned scan = static_cast<unsigned>((lparam >> 16) & 0xFF);
+    const bool extended = (lparam & (std::uintptr_t{1} << 24)) != 0;
+    if (scan == 0 && vk != vk::kPacket && scan_of) scan = scan_of(vk) & 0xFF;
+    return EngineKey(vk, scan, extended);
+}
+
 bool SameKeyDown(std::uintptr_t wparam, std::intptr_t lparam, std::int32_t time, std::uint64_t tick,
                  std::uintptr_t wparam2, std::intptr_t lparam2, std::int32_t time2, std::uint64_t tick2) {
     if (wparam != wparam2 || lparam != lparam2) return false;

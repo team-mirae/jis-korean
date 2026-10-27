@@ -107,8 +107,8 @@ std::uint32_t Modifiers() {
 constexpr std::uint32_t kShortcut = JK_MOD_CTRL | JK_MOD_ALT | JK_MOD_META;
 
 std::uint32_t KeyOf(WPARAM wparam, LPARAM lparam) {
-    return EngineKey(static_cast<unsigned>(wparam), static_cast<unsigned>((lparam >> 16) & 0xFF),
-                     (lparam & (1 << 24)) != 0);
+    return jk::KeyOf(static_cast<unsigned>(wparam), static_cast<std::uintptr_t>(lparam),
+                     [](unsigned vk) { return static_cast<unsigned>(MapVirtualKeyW(vk, MAPVK_VK_TO_VSC)); });
 }
 
 bool SameObject(IUnknown* a, IUnknown* b) {

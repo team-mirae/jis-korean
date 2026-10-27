@@ -24,6 +24,11 @@ inline constexpr unsigned kBack = 0x08, kTab = 0x09, kReturn = 0x0D, kShift = 0x
 // 16-23) and the extended-key flag (lParam bit 24).
 std::uint32_t EngineKey(unsigned vk, unsigned scan, bool extended);
 
+// The engine key for a key message (wParam `vk`, `lparam`). A key injected with a virtual key but
+// no scan code (scan 0) gets the scan code `scan_of(vk)` (MapVirtualKeyW in the shell), so it
+// still types its letter instead of committing as an unknown key; VK_PACKET never does (#9, #4).
+std::uint32_t KeyOf(unsigned vk, std::uintptr_t lparam, unsigned (*scan_of)(unsigned vk));
+
 // Whether a key-down test (wparam, lParam, GetMessageTime, GetTickCount64) is the same key-down as
 // an earlier one with no key-up of it in between, tested again (#5). A first press (lParam bit 30
 // clear) can't come twice without a key-up, so the same lParam within a short while is the same
