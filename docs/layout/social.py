@@ -9,7 +9,6 @@ drift from the drawing. Needs Google Chrome (CHROME overrides the path).
 import os
 import re
 import subprocess
-import sys
 import tempfile
 from pathlib import Path
 
@@ -69,4 +68,4 @@ def main() -> None:
 
 
 if __name__ == "__main__":
-    sys.exit(main())
+    main()

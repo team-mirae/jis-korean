@@ -61,7 +61,7 @@ public class TypingGameTest implements FabricClientGameTest {
 		FieldsScreen screen = openFields(context);
 		type(context, "gkrry");
 		click(context, FieldsScreen.BUTTON_Y);
-		String done = context.computeOnClient(client -> screen.done);
+		String done = context.computeOnClient(_ -> screen.done);
 		closeFields(context);
 		if (!"학교".equals(done)) {
 			throw new AssertionError("Done read \"" + done + "\", expected \"학교\"");
@@ -74,8 +74,8 @@ public class TypingGameTest implements FabricClientGameTest {
 		type(context, "gksrmf");
 		click(context, FieldsScreen.SECOND_Y);
 		type(context, "hello ");
-		String first = context.computeOnClient(client -> screen.first.getValue());
-		String second = context.computeOnClient(client -> screen.second.getValue());
+		String first = context.computeOnClient(_ -> screen.first.getValue());
+		String second = context.computeOnClient(_ -> screen.second.getValue());
 		closeFields(context);
 		if (!"한글".equals(first) || !"hello ".equals(second)) {
 			throw new AssertionError("fields \"" + first + "\", \"" + second + "\", expected \"한글\", \"hello \"");

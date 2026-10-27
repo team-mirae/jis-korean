@@ -203,7 +203,7 @@ def pages(path):
     with bz2.open(path, "rb") as f:
         context = ET.iterparse(f, events=("start", "end"))
         _, root = next(context)
-        ns = title = None
+        ns = None
         redirect = False
         for event, elem in context:
             if event != "end":

@@ -228,7 +228,7 @@ class Yaml:
                     try:
                         out.append(chr(int(raw[j + 2:j + 2 + width], 16)))
                     except (ValueError, OverflowError):
-                        pass
+                        pass  # a malformed escape: drop it, the word is junk either way
                     j += 2 + width
                     continue
                 out.append(table.get(d, d))

@@ -70,7 +70,7 @@ def codespan(m):
 
 
 def inline(text):
-    text = re.sub(r"<!--.*?-->", " ", text)
+    text = re.sub(r"<!--.*?-->", " ", text, flags=re.S)  # comments can span lines
     text = re.sub(r"<[A-Za-z][\w.]*\b[^<>]*/>", POISON, text)  # self-closing component: a hole
     text = re.sub(r"</?[A-Za-z][\w.]*\b[^<>]*>", "", text)  # paired tags: keep inner text
     text = re.sub(r"!\[[^\]]*\]\([^)]*\)", " ", text)  # images

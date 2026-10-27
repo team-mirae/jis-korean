@@ -211,7 +211,8 @@ def data(args):
 
 def load(dir_):
     import numpy as np
-    meta = json.load(open(os.path.join(dir_, "meta.json")))
+    with open(os.path.join(dir_, "meta.json")) as f:
+        meta = json.load(f)
     a = lambda name, t: np.fromfile(os.path.join(dir_, name), dtype=t)
     return meta, dict(
         row_ptr=a("row_ptr.u32", "<u4").astype(np.int64),

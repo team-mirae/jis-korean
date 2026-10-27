@@ -122,7 +122,7 @@ def front_matter(lines):
 
 
 def strip_code_blocks(lines):
-    out, fence, prev_blank = [], None, True
+    out, fence = [], None
     for line in lines:
         m = FENCE.match(line)
         if fence:
@@ -139,7 +139,6 @@ def strip_code_blocks(lines):
             out.append("")
             continue
         out.append(line)
-        prev_blank = not line.strip()
     return out
 
 
