@@ -100,6 +100,41 @@ repeat test per program is logged ("a key-down was tested twice").
 (`D-KeyG` ×4) gives four ㅎ, with and without probing. Not measured: Chrome/Edge, Word, Windows
 Terminal (look for the log line).
 
+## Apps that end or refuse the composition: loose jamo (#6)
+
+**Measured.** Logged once per program: "composition refused hr=…" and "composition terminated N ms
+after update". Two `jk_testpad` targets end every composition 0–47 ms after the shell's update:
+- `cancel`, an Edit (IMM layer) completing it with `ImmNotifyIME(CPS_COMPLETE)`;
+- `canceltsf`, a TSF RichEdit ending it with `ITfContextOwnerCompositionServices::TerminateComposition`.
+
+Both typed `KeyE KeyK KeyF KeyK KeyQ KeyK KeyD` as `ㄷ아ㄹ아ㅂ아ㅇ` instead of `다라방`. No host
+that refuses `StartComposition` was found: a read-only TSF RichEdit never sends the TIP a key.
+
+**Change (#6 option A, behind `kKeepTextWithoutComposition`; the owner hasn't decided it).** When
+the app ends the composition during the shell's update or less than 100 ms after it
+(`kOwnTermination`), or refuses one, the text stays as plain text (`orphan_`) and the engine keeps its
+segment. The next update replaces it: with a new composition over it if the app takes one, else as
+plain text. It's dropped (the engine starts fresh, the text stays as typed) when the caret has left
+it before a key, on a focus change, or when the text left the document. Flushes (focus, 한/영, menu)
+commit into it. The edit session still never calls the engine.
+
+**What it can't fix.** Through the IMM layer (a transitory context), the ended composition's text
+leaves the TSF document as the app's result string: a range over it is empty at the next key, and
+replacing it appended instead (`ㄷ다달다라…`). So transitory contexts keep the old behaviour, and
+the `cancel` target still gives `ㄷ아ㄹ아ㅂ아ㅇ`. Classic Win32 controls keep the interim selection
+(above), so they don't end compositions in the first place. Chromium is TSF-native, where the fix
+applies, but it wasn't measured.
+
+**Found on the way.** The TSF RichEdit ends the composition by itself when a `VK_PACKET` arrives,
+31 ms after the last update, which the 100 ms rule takes for the shell's own. The kept range then
+grew over the injected space and the next commit replaced it (`하하x` for `하 하x`). Kept ranges
+now have inward gravity (`TF_GRAVITY_FORWARD`, `TF_GRAVITY_BACKWARD`): text typed next to them
+stays out.
+
+**Verified.** `canceltsf`: `다라방 ` with the constant on, `ㄷ아ㄹ아ㅂ아ㅇ ` with it off. Same text
+as the ordinary TSF RichEdit for Backspace by jamo, F7 + Enter, Tab through predictions, ArrowLeft,
+F10 ×2, Esc and `goddmf`. `type-test.ps1` `#6` cases; full run passes.
+
 ## A key with no input context (#3)
 
 **Measured.** In a window whose input context was removed (`ImmAssociateContext(hwnd, NULL)`,
@@ -163,11 +198,8 @@ issue's body has the full analysis and the steps to verify it with `type-test.ps
 - **#3, a key with no context.** Not reproduced (TSF didn't call the sink), guarded (above).
 - **#4, `VK_PACKET`.** Not reproduced (lParam's scan code is 0), hardened (above).
 - **#5, `OnTestKeyDown` twice.** Fixed (above).
-- **#6, loose jamo.** A refused `StartComposition` flushes the engine at every key, and a
-  composition the app ends right after the update (no interim selection kept) clears it. With a
-  prediction shown, the refused path also inserts the prediction but flushes the Korean reading.
-  Fix: log both per program first, then keep the range on screen and keep the engine's segment.
-  Which host behaviour the spec wants is the owner's call ([decide]).
+- **#6, loose jamo.** Partly fixed (above): TSF-native hosts keep composing; IMM-layer hosts that
+  end compositions still get loose jamo. Spec §8.4's line is the owner's call ([decide]).
 - **#7, edit sessions.** Fixed (above). Still open: re-sending a key the app got before a queued
   commit ([decide]); measure the "edit session queued" log line in Chromium first.
 - **#8, commits through the engine.** The three bugs were fixed in a24d710. The shell's own list of

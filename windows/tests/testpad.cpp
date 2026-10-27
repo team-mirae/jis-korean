@@ -2,7 +2,8 @@
 // default) and a RichEdit using TSF directly (SES_USECTF), for typing through the installed TIP.
 //
 //   jk_testpad                                         a window to type in by hand
-//   jk_testpad --profile on --target edit|rich|tsf|password|pwscope|nocontext|cancel --keys "KeyG KeyK KeyS Space" --out result.txt
+//   jk_testpad --profile on --target edit|rich|tsf|password|pwscope|nocontext|cancel|canceltsf|readonly
+//              --keys "KeyG KeyK KeyS Space" --out result.txt
 //              [--peek 1] [--probe 1]
 //
 // Keys: KeyboardEvent.code names (S- holds Shift; D- is the key-down alone, again for an
@@ -34,6 +35,7 @@ constexpr GUID kProfile = {0x669e0e87, 0xfa58, 0x46f6, {0x96, 0xe1, 0x08, 0x90, 
 constexpr UINT kDone = WM_APP + 1;
 constexpr UINT kCommand = WM_APP + 2;   // lParam: const std::wstring* (TypeKeys' @ commands)
 constexpr UINT kComplete = WM_APP + 3;  // the cancel target ends the IME composition
+constexpr UINT kTerminate = WM_APP + 4;  // the canceltsf target ends the TSF composition
 
 HWND g_edit = nullptr;
 HWND g_rich = nullptr;
@@ -42,6 +44,8 @@ HWND g_password = nullptr;  // a classic password Edit (ES_PASSWORD)
 HWND g_pwscope = nullptr;   // a TSF RichEdit with the password input scope, as browsers' inputs
 HWND g_nocontext = nullptr;  // a plain window with no input context (ImmAssociateContext NULL), as games
 HWND g_cancel = nullptr;     // an Edit that completes every IME composition at once (#6)
+HWND g_cancel_tsf = nullptr; // a TSF RichEdit that ends the composition after every key (#6)
+HWND g_readonly = nullptr;   // a read-only TSF RichEdit
 
 std::wstring g_profile, g_target = L"edit", g_keys, g_out;
 bool g_peek = false;   // --peek: the message loop peeks each key with PM_NOREMOVE first (#5)
@@ -55,6 +59,8 @@ HWND Target() {
     if (g_target == L"pwscope") return g_pwscope;
     if (g_target == L"nocontext") return g_nocontext;
     if (g_target == L"cancel") return g_cancel;
+    if (g_target == L"canceltsf") return g_cancel_tsf;
+    if (g_target == L"readonly") return g_readonly;
     return g_edit;
 }
 
@@ -156,6 +162,10 @@ void TypeKeys(HWND window) {
         } else {
             std::fwprintf(stderr, L"unknown key %ls\n", word.c_str());
         }
+        if (g_target == L"canceltsf") {
+            Sleep(15);
+            PostMessageW(window, kTerminate, 0, 0);
+        }
         Sleep(40);
     }
     Sleep(400);
@@ -206,6 +216,23 @@ void SelectMicrosoftIme() {
     constexpr GUID kMsClsid = {0xa028ae76, 0x01b1, 0x46c2, {0x99, 0xc4, 0xac, 0xd9, 0x85, 0x8a, 0xe0, 0x2f}};
     constexpr GUID kMsProfile = {0xb5fe1f02, 0xd5f2, 0x4445, {0x9c, 0x03, 0xc5, 0x68, 0xf2, 0x3c, 0x99, 0xa1}};
     ActivateProfile(kMsClsid, kMsProfile);
+}
+
+// What an app does to end the IME's composition itself (the canceltsf target).
+void TerminateTsfComposition() {
+    ITfThreadMgr* threads = nullptr;
+    ITfDocumentMgr* document = nullptr;
+    ITfContext* context = nullptr;
+    ITfContextOwnerCompositionServices* services = nullptr;
+    if (SUCCEEDED(CoCreateInstance(CLSID_TF_ThreadMgr, nullptr, CLSCTX_INPROC_SERVER, IID_PPV_ARGS(&threads))) &&
+        SUCCEEDED(threads->GetFocus(&document)) && document && SUCCEEDED(document->GetTop(&context)) && context &&
+        SUCCEEDED(context->QueryInterface(IID_PPV_ARGS(&services)))) {
+        services->TerminateComposition(nullptr);
+    }
+    if (services) services->Release();
+    if (context) context->Release();
+    if (document) document->Release();
+    if (threads) threads->Release();
 }
 
 void RunCommand(const std::wstring& command) {
@@ -271,10 +298,15 @@ LRESULT CALLBACK Proc(HWND window, UINT message, WPARAM wparam, LPARAM lparam) {
             MoveWindow(g_pwscope, w / 2 + 4, 3 * row + 8, w / 2 - 12, 32, TRUE);
             MoveWindow(g_nocontext, 8, 3 * row + 44, w / 2 - 12, 32, TRUE);
             MoveWindow(g_cancel, w / 2 + 4, 3 * row + 44, w / 2 - 12, 32, TRUE);
+            MoveWindow(g_cancel_tsf, 8, 3 * row + 80, w / 2 - 12, 32, TRUE);
+            MoveWindow(g_readonly, w / 2 + 4, 3 * row + 80, w / 2 - 12, 32, TRUE);
             return 0;
         }
         case kCommand:
             RunCommand(*reinterpret_cast<const std::wstring*>(lparam));
+            return 0;
+        case kTerminate:
+            TerminateTsfComposition();
             return 0;
         case kComplete:
             if (HIMC context = ImmGetContext(g_cancel)) {
@@ -352,7 +384,15 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int show) {
     ImmAssociateContext(g_nocontext, nullptr);
     g_cancel = CreateWindowExW(WS_EX_CLIENTEDGE, L"EDIT", L"", WS_CHILD | WS_VISIBLE,
                                0, 0, 0, 0, window, nullptr, instance, nullptr);
-    for (HWND control : {g_edit, g_rich, g_tsf, g_password, g_pwscope, g_nocontext, g_cancel}) Watch(control);
+    g_cancel_tsf = CreateWindowExW(WS_EX_CLIENTEDGE, MSFTEDIT_CLASS, L"", WS_CHILD | WS_VISIBLE,
+                                   0, 0, 0, 0, window, nullptr, instance, nullptr);
+    SendMessageW(g_cancel_tsf, EM_SETEDITSTYLE, SES_USECTF, SES_USECTF);
+    g_readonly = CreateWindowExW(WS_EX_CLIENTEDGE, MSFTEDIT_CLASS, L"", WS_CHILD | WS_VISIBLE | ES_READONLY,
+                                 0, 0, 0, 0, window, nullptr, instance, nullptr);
+    SendMessageW(g_readonly, EM_SETEDITSTYLE, SES_USECTF, SES_USECTF);
+    for (HWND control : {g_edit, g_rich, g_tsf, g_password, g_pwscope, g_nocontext, g_cancel, g_cancel_tsf, g_readonly}) {
+        Watch(control);
+    }
     HFONT font = CreateFontW(-20, 0, 0, 0, FW_NORMAL, 0, 0, 0, DEFAULT_CHARSET, 0, 0, 0, 0,
                              L"Malgun Gothic");
     SendMessageW(g_edit, WM_SETFONT, reinterpret_cast<WPARAM>(font), TRUE);

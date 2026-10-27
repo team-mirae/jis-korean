@@ -97,6 +97,7 @@ private:
     ITfContext* Target(ITfContext* context) const;
     HRESULT NoContext(unsigned vk);  // a key with no context: passed on, nothing kept
     void DropInvisible();  // forgets the engine's unconfirmed text and the list, showing nothing
+    void CheckOrphan();    // before a key: the caret left the plain text kept for #6 → drop it
     void HandleKey(ITfContext* context, unsigned vk, std::uint32_t key, std::uint32_t mods,
                    BOOL* eaten);
 
@@ -160,6 +161,10 @@ private:
     TfGuidAtom converted_attribute_ = TF_INVALID_GUIDATOM;
     Microsoft::WRL::ComPtr<ITfComposition> composition_;
     Microsoft::WRL::ComPtr<ITfContext> composition_context_;
+    // The unconfirmed text as plain text, where the app refused a composition or ended it right
+    // after the update (#6, kKeepTextWithoutComposition): the next update replaces it.
+    Microsoft::WRL::ComPtr<ITfRange> orphan_;
+    Microsoft::WRL::ComPtr<ITfContext> orphan_context_;
     RECT anchor_ = {};  // the composition on screen, for the list
     CandidateWindow list_;
     LangBarButton* lang_bar_ = nullptr;

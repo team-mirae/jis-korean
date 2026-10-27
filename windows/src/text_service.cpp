@@ -23,6 +23,14 @@ namespace {
 constexpr unsigned kVkHangul = 0x15;  // 한/영 (VK_HANGUL); Right Alt under Korean keyboard type 1
 constexpr unsigned kVkTab = 0x09;
 
+// In a host that refuses a composition, or ends it right after each update, the unconfirmed text
+// stays on screen as plain text and is replaced at every key, so syllables still compose (#6,
+// option A; proposed for spec §8.4, not decided). False: each key commits there (loose jamo).
+constexpr bool kKeepTextWithoutComposition = true;
+// An app that ends the composition this soon after the shell's update did it by itself, not the
+// user (measured: 15-31 ms).
+constexpr ULONGLONG kOwnTermination = 100;
+
 #ifdef JK_PREDICT
 // spec §10.5, in JK_WEIGHT_* order (as macOS's Weight.<Scenario>).
 constexpr const wchar_t* kWeightNames[] = {L"Korean", L"English", L"Implied", L"Mixed",
@@ -247,10 +255,12 @@ void TextService::Activated() {
 STDMETHODIMP TextService::Deactivate() {
     log::Write(L"Deactivate tid=%lu", GetCurrentThreadId());
     // Switching to another input method commits what's unconfirmed (spec §5.1).
-    if (composition_context_) Flush(composition_context_.Get());
+    if (ITfContext* pending = Target(nullptr)) Flush(pending);
     // A flush TSF queued ends its composition when it runs, and starts nothing (EditText).
     active_ = false;
     refused_ = false;
+    orphan_.Reset();
+    orphan_context_.Reset();
     jk_clear(engine_);
     list_.Hide();
     AdviseCompartments(false);
@@ -289,7 +299,8 @@ bool TextService::Composing() const {
 }
 
 ITfContext* TextService::Target(ITfContext* context) const {
-    return context ? context : composition_context_.Get();
+    if (context) return context;
+    return composition_context_ ? composition_context_.Get() : orphan_context_.Get();
 }
 
 HRESULT TextService::NoContext(unsigned vk) {
@@ -303,7 +314,32 @@ HRESULT TextService::NoContext(unsigned vk) {
     return S_OK;
 }
 
+void TextService::CheckOrphan() {
+    if (!orphan_) return;
+    // Plain text kept in place of a composition (#6) is only replaced while the caret is still
+    // in or after it: moved away, what's shown stays as typed and the engine starts fresh.
+    bool inside = true;
+    ComPtr<ITfRange> orphan = orphan_;
+    ComPtr<ITfContext> context = orphan_context_;
+    // Gone from the document (an app that hands it on, as the IMM layer does): can't be replaced.
+    bool gone = false;
+    RunReadSessionNow(context.Get(), client_id_, [&](TfEditCookie ec) -> HRESULT {
+        BOOL empty = FALSE;
+        gone = SUCCEEDED(orphan->IsEmpty(ec, &empty)) && empty;
+        inside = CaretInside(ec, context.Get(), orphan.Get());
+        return S_OK;
+    });
+    if (gone) {
+        static bool logged = false;
+        if (!logged) log::Write(L"kept text left the document: the next key starts fresh");
+        logged = true;
+    }
+    if (gone || !inside) DropInvisible();
+}
+
 void TextService::DropInvisible() {
+    orphan_.Reset();
+    orphan_context_.Reset();
     jk_clear(engine_);
 #ifdef JK_PREDICT
     predictions_.clear();
@@ -453,11 +489,11 @@ STDMETHODIMP TextService::OnTestKeyDown(ITfContext* context, WPARAM wparam, LPAR
     if (!Composing()) private_ = PrivateField(context);
     if (TypesEnglish(key)) {
         // ABC: the English layout's character, typed here for the same reason as below.
-        *eaten = TypeEnglish(context ? context : composition_context_.Get(), key, mods);
+        *eaten = TypeEnglish(Target(context), key, mods);
         tested_ = {wparam, lparam, time, tick, *eaten, true, true};
     } else if (Wants(vk, key, mods)) {
         EnsureData();
-        HandleKey(context ? context : composition_context_.Get(), vk, key, mods, eaten);
+        HandleKey(Target(context), vk, key, mods, eaten);
         tested_ = {wparam, lparam, time, tick, *eaten, true, true};
     }
     if (vk < eaten_down_.size()) eaten_down_[vk] = *eaten != FALSE;
@@ -506,6 +542,7 @@ STDMETHODIMP TextService::OnKeyDown(ITfContext* context, WPARAM wparam, LPARAM l
 void TextService::HandleKey(ITfContext* context, unsigned vk, std::uint32_t key,
                             std::uint32_t mods, BOOL* eaten) {
     Settle();  // a queued session's refusal, before the engine sees the next key
+    CheckOrphan();
 #ifdef JK_PREDICT
     if (HandleList(context, vk, key, mods)) {
         *eaten = TRUE;
@@ -598,7 +635,7 @@ void TextService::Refresh(ITfContext* context, const std::wstring& commit) {
 #endif
     // The engine never holds text the user can't see (#3): unconfirmed text with no composition
     // to show it, once the update has run, is dropped.
-    if (UpdateText(context, commit, preedit, converted) && Composing() && !composition_) {
+    if (UpdateText(context, commit, preedit, converted) && Composing() && !composition_ && !orphan_) {
         static bool logged = false;
         if (!logged) log::Write(L"unconfirmed text with nothing showing it: dropped");
         logged = true;
@@ -634,7 +671,7 @@ void TextService::ShowList() {
         for (const std::wstring& p : predictions_) rows.push_back({{}, p, {}});
         list_.Show(std::move(rows), chosen_ ? static_cast<int>(*chosen_) : -1, {}, anchor_,
                    [this](size_t row) {
-                       if (composition_context_) CommitPrediction(row, composition_context_.Get());
+                       if (ITfContext* pending = Target(nullptr)) CommitPrediction(row, pending);
                    });
         return;
     }
@@ -644,7 +681,7 @@ void TextService::ShowList() {
 
 // A click on a hanja candidate: move the engine's selection there, then pick it.
 void TextService::PickHanja(size_t index) {
-    if (!composition_context_) return;
+    if (!Target(nullptr)) return;
     Settle();
     const size_t selected = jk_candidate_selected(engine_);
     const std::uint32_t key = index > selected ? JK_KEY_ARROWDOWN : JK_KEY_ARROWUP;
@@ -652,7 +689,7 @@ void TextService::PickHanja(size_t index) {
         jk_key(engine_, key, 0);
     }
     jk_key(engine_, JK_KEY_ENTER, 0);
-    ComPtr<ITfContext> context = composition_context_;
+    ComPtr<ITfContext> context = Target(nullptr);
     Apply(context.Get());
 }
 
@@ -907,7 +944,7 @@ void TextService::InitMenu(ITfMenu* menu) {
 
 void TextService::OnMenu(UINT id) {
     if (id >= kMenuModeFirst && id < kMenuModeFirst + jk_mode_count()) {
-        if (composition_context_) Flush(composition_context_.Get());
+        if (ITfContext* pending = Target(nullptr)) Flush(pending);
         settings::WriteDword(L"Mode", jk_mode_id_at(id - kMenuModeFirst));
         ApplySettings();
         return;
@@ -922,7 +959,7 @@ void TextService::OnMenu(UINT id) {
             WriteEnglish(open_);
             return;
         case kMenuAppOff:
-            if (!app_off_ && composition_context_) Flush(composition_context_.Get());
+            if (ITfContext* pending = Target(nullptr); !app_off_ && pending) Flush(pending);
             settings::SetAppOff(settings::ExeName(), !app_off_);
             break;
         case kMenuEnglishDefault:
@@ -989,7 +1026,7 @@ void TextService::WriteEnglish(bool english) {
 
 void TextService::SetOpen(bool open) {
     const bool changed = open != open_;
-    if (!open && changed && composition_context_) Flush(composition_context_.Get());
+    if (ITfContext* pending = Target(nullptr); !open && changed && pending) Flush(pending);
     open_ = open;
     // The thread's open/close compartment is what the input indicator and apps read.
     ComPtr<ITfCompartment> openclose;
@@ -1054,8 +1091,8 @@ STDMETHODIMP TextService::OnChange(REFGUID guid) {
 STDMETHODIMP TextService::OnSetFocus(ITfDocumentMgr*, ITfDocumentMgr*) {
     // Focus moved to another document: what was unconfirmed is committed where it was (spec §5.1).
     tested_ = {};
-    if (composition_context_) {
-        Flush(composition_context_.Get());
+    if (ITfContext* pending = Target(nullptr)) {
+        Flush(pending);
     } else if (Composing()) {
         DropInvisible();  // text that never reached a document doesn't follow focus (#3)
     }
@@ -1070,8 +1107,8 @@ STDMETHODIMP TextService::OnActivated(REFCLSID clsid, REFGUID profile, BOOL acti
     if (activated) {
         jk_activate(engine_);  // nothing to reset since the F8 escape was retired (spec §6.1)
         Activated();
-    } else if (composition_context_) {
-        Flush(composition_context_.Get());
+    } else if (ITfContext* pending = Target(nullptr)) {
+        Flush(pending);
     }
     return S_OK;
 }
@@ -1081,16 +1118,37 @@ STDMETHODIMP TextService::OnCompositionTerminated(TfEditCookie ec, ITfCompositio
     // the engine starts fresh.
     if (composition_ && composition == composition_.Get()) {
         // How soon after the shell's own update apps end it (#6): logged once per program.
+        const ULONGLONG since = GetTickCount64() - updated_tick_;
         static bool logged = false;
         if (!logged) {
             log::Write(L"composition terminated %s%llu ms after update", in_update_ ? L"during the update, " : L"",
-                       GetTickCount64() - updated_tick_);
+                       since);
         }
         logged = true;
         ComPtr<ITfRange> range;
-        if (composition_context_ && SUCCEEDED(composition->GetRange(&range)) &&
-            CaretInside(ec, composition_context_.Get(), range.Get())) {
+        if (FAILED(composition->GetRange(&range))) range.Reset();
+        if (range && composition_context_ && CaretInside(ec, composition_context_.Get(), range.Get())) {
             CaretToEnd(ec, composition_context_.Get(), range.Get());
+        }
+        // Ended by the app right after the shell's own update, not by the user (#6, option A): the
+        // text stays as plain text, the engine keeps its segment, and the next update replaces it.
+        // Not through the IMM layer (a transitory context): the ended composition's text leaves
+        // the document there, as the app's result string (measured), so it can't be replaced.
+        TF_STATUS status = {};
+        const bool transitory = composition_context_ && SUCCEEDED(composition_context_->GetStatus(&status)) &&
+                                (status.dwStaticFlags & TF_SS_TRANSITORY) != 0;
+        if (kKeepTextWithoutComposition && range && !transitory && Composing() &&
+            (in_update_ || since < kOwnTermination)) {
+            ComPtr<ITfRange> orphan;
+            if (SUCCEEDED(range->Clone(&orphan)) && orphan) {
+                // Text typed right before or after it isn't part of it.
+                orphan->SetGravity(ec, TF_GRAVITY_FORWARD, TF_GRAVITY_BACKWARD);
+                orphan_ = orphan;
+                orphan_context_ = composition_context_;
+                composition_.Reset();
+                composition_context_.Reset();
+                return S_OK;
+            }
         }
         composition_.Reset();
         composition_context_.Reset();
@@ -1124,7 +1182,12 @@ bool TextService::UpdateText(ITfContext* context, const std::wstring& commit,
         composition_.Reset();
         composition_context_.Reset();
     }
-    if (!composition_ && commit.empty() && preedit.empty()) return true;
+    // Plain text kept for another document stays there as it is.
+    if (orphan_ && !SameObject(orphan_context_.Get(), context)) {
+        orphan_.Reset();
+        orphan_context_.Reset();
+    }
+    if (!composition_ && !orphan_ && commit.empty() && preedit.empty()) return true;
     // When TSF can't run the session at once it runs after this returns, maybe after Deactivate:
     // it holds the service, the context and the composition it was meant for, and copies of the
     // text. It never calls the engine (Settle does, here, once the session has run).
@@ -1232,13 +1295,7 @@ HRESULT TextService::EditText(TfEditCookie ec, ITfContext* context, ITfCompositi
         logged = true;
         return CaretToEnd(ec, context, range);
     };
-    auto mark = [&](ITfRange* range) {
-        if (attribute && attribute_atom != TF_INVALID_GUIDATOM) {
-            VARIANT v;
-            v.vt = VT_I4;
-            v.lVal = static_cast<LONG>(attribute_atom);
-            attribute->SetValue(ec, range, &v);
-        }
+    auto place = [&](ITfRange* range) {
         // Where the list goes: under the composition, else under the caret.
         RECT rect = {};
         BOOL clipped = FALSE;
@@ -1253,13 +1310,74 @@ HRESULT TextService::EditText(TfEditCookie ec, ITfContext* context, ITfCompositi
         }
         anchor_ = rect;
     };
+    auto mark = [&](ITfRange* range) {
+        if (attribute && attribute_atom != TF_INVALID_GUIDATOM) {
+            VARIANT v;
+            v.vt = VT_I4;
+            v.lVal = static_cast<LONG>(attribute_atom);
+            attribute->SetValue(ec, range, &v);
+        }
+        place(range);
+    };
     auto set_text = [&](ITfRange* range, const std::wstring& text) {
         const HRESULT hr = range->SetText(ec, 0, text.data(), static_cast<LONG>(text.size()));
         if (FAILED(hr)) log::Write(L"SetText on the composition failed %#lx", hr);
         return hr;
     };
 
-    if (composition_) {
+    ComPtr<ITfInsertAtSelection> insert;
+    ComPtr<ITfContextComposition> compositions;
+    if (FAILED(context->QueryInterface(IID_PPV_ARGS(&insert))) ||
+        FAILED(context->QueryInterface(IID_PPV_ARGS(&compositions)))) {
+        insert.Reset();
+        compositions.Reset();
+    }
+    // A composition over `over`, showing the preedit. False: the app refused it.
+    auto compose = [&](ITfRange* over) -> bool {
+        ComPtr<ITfComposition> started;
+        ComPtr<ITfRange> range;
+        HRESULT hr = compositions ? compositions->StartComposition(ec, over, this, &started) : E_NOINTERFACE;
+        if (SUCCEEDED(hr) && started && (FAILED(started->GetRange(&range)) || !range)) {
+            started->EndComposition(ec);
+            started.Reset();
+            hr = E_FAIL;
+        }
+        if (FAILED(hr) || !started) {
+            static bool logged = false;
+            if (!logged) log::Write(L"composition refused hr=%#lx", hr);
+            logged = true;
+            return false;
+        }
+        composition_ = started;
+        composition_context_ = context;
+        set_text(range.Get(), preedit);
+        mark(range.Get());
+        show(range.Get());
+        return true;
+    };
+
+    if (orphan_) {
+        // Plain text shown in place of a composition the app refused or ended (#6, option A):
+        // this update replaces it.
+        ComPtr<ITfRange> orphan = orphan_;
+        orphan_.Reset();
+        orphan_context_.Reset();
+        if (!commit.empty() || preedit.empty()) {
+            set_text(orphan.Get(), commit);  // final now (possibly nothing)
+            CaretToEnd(ec, context, orphan.Get());
+        } else {
+            // Still unconfirmed: a composition over it if the app takes one now, else plain text.
+            if (compose(orphan.Get())) return S_OK;
+            if (FAILED(set_text(orphan.Get(), preedit))) {
+                refused_ = true;  // can't even replace it: Settle commits what's there
+                return E_FAIL;
+            }
+            orphan_ = orphan;
+            orphan_context_ = context;
+            place(orphan.Get());
+            return CaretToEnd(ec, context, orphan.Get());
+        }
+    } else if (composition_) {
         ComPtr<ITfRange> range;
         if (FAILED(composition_->GetRange(&range)) || !range) {
             // Ended by the app without telling us: its text stays as shown, and what follows
@@ -1288,36 +1406,27 @@ HRESULT TextService::EditText(TfEditCookie ec, ITfContext* context, ITfCompositi
     }
     if (preedit.empty()) return S_OK;
 
-    ComPtr<ITfInsertAtSelection> insert;
-    ComPtr<ITfContextComposition> compositions;
     ComPtr<ITfRange> at;
-    if (FAILED(context->QueryInterface(IID_PPV_ARGS(&insert))) ||
-        FAILED(context->QueryInterface(IID_PPV_ARGS(&compositions))) ||
-        FAILED(insert->InsertTextAtSelection(ec, TF_IAS_QUERYONLY, nullptr, 0, &at)) || !at) {
+    if (!insert || FAILED(insert->InsertTextAtSelection(ec, TF_IAS_QUERYONLY, nullptr, 0, &at)) || !at) {
         refused_ = true;  // nothing shown: Settle lets the engine go of it
         return E_FAIL;
     }
-    ComPtr<ITfComposition> started;
-    const HRESULT hr = compositions->StartComposition(ec, at.Get(), this, &started);
-    ComPtr<ITfRange> range;
-    if (SUCCEEDED(hr) && started && (FAILED(started->GetRange(&range)) || !range)) {
-        started->EndComposition(ec);
-        started.Reset();
+    if (compose(at.Get())) return S_OK;
+    // The app refused a composition: the preedit goes in as plain text.
+    ComPtr<ITfRange> plain;
+    if (kKeepTextWithoutComposition &&
+        SUCCEEDED(insert->InsertTextAtSelection(ec, 0, preedit.data(), static_cast<LONG>(preedit.size()), &plain)) &&
+        plain) {
+        // Kept, and replaced at the next update; the engine keeps its segment (#6, option A).
+        plain->SetGravity(ec, TF_GRAVITY_FORWARD, TF_GRAVITY_BACKWARD);  // nothing typed next to it joins it
+        orphan_ = plain;
+        orphan_context_ = context;
+        place(plain.Get());
+        return CaretToEnd(ec, context, plain.Get());
     }
-    if (FAILED(hr) || !started) {
-        // The app refused a composition: the preedit goes in as plain text, and Settle (after
-        // the session, outside it) commits it in the engine.
-        static bool logged = false;
-        if (!logged) log::Write(L"composition refused hr=%#lx", hr);
-        logged = true;
-        refused_ = true;
-        return InsertAtSelection(ec, context, preedit);
-    }
-    composition_ = started;
-    composition_context_ = context;
-    set_text(range.Get(), preedit);
-    mark(range.Get());
-    return show(range.Get());
+    // Committed: Settle (after the session, outside it) commits it in the engine too.
+    refused_ = true;
+    return plain ? CaretToEnd(ec, context, plain.Get()) : InsertAtSelection(ec, context, preedit);
 }
 
 }  // namespace jk
