@@ -190,6 +190,7 @@ STDMETHODIMP TextService::Activate(ITfThreadMgr* thread_mgr, TfClientId client_i
 STDMETHODIMP TextService::ActivateEx(ITfThreadMgr* thread_mgr, TfClientId client_id, DWORD) {
     thread_mgr_ = thread_mgr;
     client_id_ = client_id;
+    active_ = true;
     log::Write(L"ActivateEx tid=%lu", GetCurrentThreadId());
 
     ComPtr<ITfCategoryMgr> categories;
@@ -247,6 +248,9 @@ STDMETHODIMP TextService::Deactivate() {
     log::Write(L"Deactivate tid=%lu", GetCurrentThreadId());
     // Switching to another input method commits what's unconfirmed (spec §5.1).
     if (composition_context_) Flush(composition_context_.Get());
+    // A flush TSF queued ends its composition when it runs, and starts nothing (EditText).
+    active_ = false;
+    refused_ = false;
     jk_clear(engine_);
     list_.Hide();
     AdviseCompartments(false);
@@ -453,6 +457,7 @@ STDMETHODIMP TextService::OnKeyDown(ITfContext* context, WPARAM wparam, LPARAM l
 
 void TextService::HandleKey(ITfContext* context, unsigned vk, std::uint32_t key,
                             std::uint32_t mods, BOOL* eaten) {
+    Settle();  // a queued session's refusal, before the engine sees the next key
 #ifdef JK_PREDICT
     if (HandleList(context, vk, key, mods)) {
         *eaten = TRUE;
@@ -582,6 +587,7 @@ void TextService::ShowList() {
 // A click on a hanja candidate: move the engine's selection there, then pick it.
 void TextService::PickHanja(size_t index) {
     if (!composition_context_) return;
+    Settle();
     const size_t selected = jk_candidate_selected(engine_);
     const std::uint32_t key = index > selected ? JK_KEY_ARROWDOWN : JK_KEY_ARROWUP;
     for (size_t i = 0; i < (index > selected ? index - selected : selected - index); ++i) {
@@ -593,6 +599,7 @@ void TextService::PickHanja(size_t index) {
 }
 
 void TextService::Flush(ITfContext* context) {
+    Settle();
 #ifdef JK_PREDICT
     if (shown_) {
         // Committed because focus moved or the IME switched: not a choice to learn from.
@@ -1054,117 +1061,192 @@ void TextService::UpdateText(ITfContext* context, const std::wstring& commit,
         composition_context_.Reset();
     }
     if (!composition_ && commit.empty() && preedit.empty()) return;
+    // When TSF can't run the session at once it runs after this returns, maybe after Deactivate:
+    // it holds the service, the context and the composition it was meant for, and copies of the
+    // text. It never calls the engine (Settle does, here, once the session has run).
+    ComPtr<TextService> self(this);
     ComPtr<ITfContext> context_ref = context;
-    const TfGuidAtom attribute_atom = converted ? converted_attribute_ : input_attribute_;
-    // Captures copies: when TSF can't run the session at once, it runs after this returns.
-    auto edit = [this, context_ref, commit, preedit, attribute_atom](TfEditCookie ec) -> HRESULT {
-        ITfContext* context = context_ref.Get();
-        ComPtr<ITfProperty> attribute;
-        context->GetProperty(GUID_PROP_ATTRIBUTE, &attribute);
-        // Apps that reach TSF through the IMM compatibility layer (classic Win32 controls; the
-        // context is "transitory") end a Korean composition with a plain caret at once, like any
-        // non-interim selection (FKeyIME docs/issues/korean-jamo-not-composed.md). Like the
-        // Microsoft Korean IME, the composition is selected as an interim character there. TSF
-        // only sets that on one character (longer: E_INVALIDARG), but keeps it as the
-        // composition grows: after SetText the interim selection covers the whole composition
-        // (measured). Interim on the last character only would make the IMM layer commit
-        // everything before it, again at every key (measured: 한한한한글).
-        TF_STATUS status = {};
-        const bool transitory = SUCCEEDED(context->GetStatus(&status)) &&
-                                (status.dwStaticFlags & TF_SS_TRANSITORY) != 0;
-        auto show = [&](ITfRange* range) -> HRESULT {
-            if (!transitory) return CaretToEnd(ec, context, range);
-            TF_SELECTION selection = {};
-            selection.range = range;
-            selection.style.ase = TF_AE_NONE;
-            selection.style.fInterimChar = TRUE;
-            if (SUCCEEDED(context->SetSelection(ec, 1, &selection))) return S_OK;
-            // The interim selection TSF kept from the first character, now over all of it?
-            TF_SELECTION now = {};
-            ULONG fetched = 0;
-            bool kept = false;
-            if (SUCCEEDED(context->GetSelection(ec, TF_DEFAULT_SELECTION, 1, &now, &fetched)) &&
-                fetched && now.range) {
-                LONG start = 1, end = 1;
-                kept = now.style.fInterimChar &&
-                       SUCCEEDED(now.range->CompareStart(ec, range, TF_ANCHOR_START, &start)) &&
-                       SUCCEEDED(now.range->CompareEnd(ec, range, TF_ANCHOR_END, &end)) &&
-                       start == 0 && end == 0;
-                now.range->Release();
-            }
-            if (kept) return S_OK;
-            // Once per process: some apps (Chromium-based ones, measured in Claude) never keep one.
-            static bool logged = false;
-            if (!logged) log::Write(L"no interim selection over the composition: caret after it");
-            logged = true;
-            return CaretToEnd(ec, context, range);
-        };
-        auto mark = [&](ITfRange* range) {
-            if (attribute && attribute_atom != TF_INVALID_GUIDATOM) {
-                VARIANT v;
-                v.vt = VT_I4;
-                v.lVal = static_cast<LONG>(attribute_atom);
-                attribute->SetValue(ec, range, &v);
-            }
-            // Where the list goes: under the composition, else under the caret.
-            RECT rect = {};
-            BOOL clipped = FALSE;
-            ComPtr<ITfContextView> view;
-            if (FAILED(context->GetActiveView(&view)) ||
-                FAILED(view->GetTextExt(ec, range, &rect, &clipped)) || IsRectEmpty(&rect)) {
-                GUITHREADINFO gui = {sizeof(gui)};
-                if (GetGUIThreadInfo(GetCurrentThreadId(), &gui) && gui.hwndCaret) {
-                    rect = gui.rcCaret;
-                    MapWindowPoints(gui.hwndCaret, nullptr, reinterpret_cast<POINT*>(&rect), 2);
-                }
-            }
-            anchor_ = rect;
-        };
+    ComPtr<ITfComposition> expected = composition_;
+    const TfGuidAtom attribute = converted ? converted_attribute_ : input_attribute_;
+    auto edit = [self, context_ref, expected, commit, preedit, attribute](TfEditCookie ec) -> HRESULT {
+        return self->EditText(ec, context_ref.Get(), expected.Get(), commit, preedit, attribute);
+    };
+    bool async = false;
+    const HRESULT hr = RunEditSession(context, client_id_, edit, &async);
+    if (FAILED(hr)) log::Write(L"edit session failed %#lx", hr);
+    if (async) {
+        // The key may reach the app before this text does (Chromium holds the lock while it
+        // handles a key): logged once per program, to measure before re-sending keys (#7).
+        static bool logged = false;
+        if (!logged) log::Write(L"edit session queued (async): the text lands after the key");
+        logged = true;
+        return;
+    }
+    Settle();
+}
 
-        if (composition_) {
-            ComPtr<ITfRange> range;
-            composition_->GetRange(&range);
-            if (commit.empty() && !preedit.empty()) {  // still composing: just update it
-                range->SetText(ec, 0, preedit.data(), static_cast<LONG>(preedit.size()));
-                mark(range.Get());
-                return show(range.Get());
-            }
-            // The composition ends; its text becomes `commit` (possibly nothing).
-            if (attribute) attribute->Clear(ec, range.Get());
+void TextService::Settle() {
+    if (!refused_) return;
+    refused_ = false;
+    // The preedit went in as plain text: the engine lets go of it, committing what was shown.
+#ifdef JK_PREDICT
+    if (shown_) {
+        jk_flush_prediction(engine_, chosen_.value_or(0));
+    } else {
+        jk_flush(engine_);
+    }
+    predictions_.clear();
+    chosen_.reset();
+    shown_.reset();
+#else
+    jk_flush(engine_);
+#endif
+    list_.Hide();
+}
+
+HRESULT TextService::EditText(TfEditCookie ec, ITfContext* context, ITfComposition* expected,
+                              const std::wstring& commit, const std::wstring& preedit,
+                              TfGuidAtom attribute_atom) {
+    // Deactivated since this was requested: end what's shown with its commit, start nothing.
+    if (!active_) {
+        ComPtr<ITfRange> range;
+        if (expected && SUCCEEDED(expected->GetRange(&range)) && range && !commit.empty()) {
             range->SetText(ec, 0, commit.data(), static_cast<LONG>(commit.size()));
-            CaretToEnd(ec, context, range.Get());
+        }
+        if (expected) expected->EndComposition(ec);
+        return S_OK;
+    }
+    // The composition this was meant for ended in between (the app ended it before a queued
+    // session ran): its text stays as shown, and nothing is inserted next to it.
+    if (expected && composition_.Get() != expected) {
+        static bool logged = false;
+        if (!logged) log::Write(L"a queued update found its composition ended: left as shown");
+        logged = true;
+        return S_OK;
+    }
+    ComPtr<ITfProperty> attribute;
+    if (FAILED(context->GetProperty(GUID_PROP_ATTRIBUTE, &attribute))) attribute.Reset();
+    // Apps that reach TSF through the IMM compatibility layer (classic Win32 controls; the
+    // context is "transitory") end a Korean composition with a plain caret at once, like any
+    // non-interim selection (FKeyIME docs/issues/korean-jamo-not-composed.md). Like the
+    // Microsoft Korean IME, the composition is selected as an interim character there. TSF
+    // only sets that on one character (longer: E_INVALIDARG), but keeps it as the
+    // composition grows: after SetText the interim selection covers the whole composition
+    // (measured). Interim on the last character only would make the IMM layer commit
+    // everything before it, again at every key (measured: 한한한한글).
+    TF_STATUS status = {};
+    const bool transitory = SUCCEEDED(context->GetStatus(&status)) &&
+                            (status.dwStaticFlags & TF_SS_TRANSITORY) != 0;
+    auto show = [&](ITfRange* range) -> HRESULT {
+        if (!transitory) return CaretToEnd(ec, context, range);
+        TF_SELECTION selection = {};
+        selection.range = range;
+        selection.style.ase = TF_AE_NONE;
+        selection.style.fInterimChar = TRUE;
+        if (SUCCEEDED(context->SetSelection(ec, 1, &selection))) return S_OK;
+        // The interim selection TSF kept from the first character, now over all of it?
+        TF_SELECTION now = {};
+        ULONG fetched = 0;
+        bool kept = false;
+        if (SUCCEEDED(context->GetSelection(ec, TF_DEFAULT_SELECTION, 1, &now, &fetched)) &&
+            fetched && now.range) {
+            LONG start = 1, end = 1;
+            kept = now.style.fInterimChar &&
+                   SUCCEEDED(now.range->CompareStart(ec, range, TF_ANCHOR_START, &start)) &&
+                   SUCCEEDED(now.range->CompareEnd(ec, range, TF_ANCHOR_END, &end)) &&
+                   start == 0 && end == 0;
+            now.range->Release();
+        }
+        if (kept) return S_OK;
+        // Once per process: some apps (Chromium-based ones, measured in Claude) never keep one.
+        static bool logged = false;
+        if (!logged) log::Write(L"no interim selection over the composition: caret after it");
+        logged = true;
+        return CaretToEnd(ec, context, range);
+    };
+    auto mark = [&](ITfRange* range) {
+        if (attribute && attribute_atom != TF_INVALID_GUIDATOM) {
+            VARIANT v;
+            v.vt = VT_I4;
+            v.lVal = static_cast<LONG>(attribute_atom);
+            attribute->SetValue(ec, range, &v);
+        }
+        // Where the list goes: under the composition, else under the caret.
+        RECT rect = {};
+        BOOL clipped = FALSE;
+        ComPtr<ITfContextView> view;
+        if (FAILED(context->GetActiveView(&view)) ||
+            FAILED(view->GetTextExt(ec, range, &rect, &clipped)) || IsRectEmpty(&rect)) {
+            GUITHREADINFO gui = {sizeof(gui)};
+            if (GetGUIThreadInfo(GetCurrentThreadId(), &gui) && gui.hwndCaret) {
+                rect = gui.rcCaret;
+                MapWindowPoints(gui.hwndCaret, nullptr, reinterpret_cast<POINT*>(&rect), 2);
+            }
+        }
+        anchor_ = rect;
+    };
+    auto set_text = [&](ITfRange* range, const std::wstring& text) {
+        const HRESULT hr = range->SetText(ec, 0, text.data(), static_cast<LONG>(text.size()));
+        if (FAILED(hr)) log::Write(L"SetText on the composition failed %#lx", hr);
+        return hr;
+    };
+
+    if (composition_) {
+        ComPtr<ITfRange> range;
+        if (FAILED(composition_->GetRange(&range)) || !range) {
+            // Ended by the app without telling us: its text stays as shown, and what follows
+            // starts a new composition. The commit isn't inserted again next to it.
+            log::Write(L"the composition has no range: left as shown");
+            composition_.Reset();
+            composition_context_.Reset();
+        } else if (commit.empty() && !preedit.empty()) {  // still composing: just update it
+            set_text(range.Get(), preedit);
+            mark(range.Get());
+            return show(range.Get());
+        } else {
+            // The composition ends; its text becomes `commit` (possibly nothing). The caret goes
+            // after it only if it's still inside: a key the app already handled (a queued
+            // session) may have moved it, and moving it back would undo that arrow or Tab.
+            const bool inside = CaretInside(ec, context, range.Get());
+            if (attribute) attribute->Clear(ec, range.Get());
+            set_text(range.Get(), commit);
+            if (inside) CaretToEnd(ec, context, range.Get());
             composition_->EndComposition(ec);
             composition_.Reset();
             composition_context_.Reset();
-        } else if (!commit.empty()) {
-            InsertAtSelection(ec, context, commit);
         }
-        if (preedit.empty()) return S_OK;
+    } else if (!commit.empty()) {
+        InsertAtSelection(ec, context, commit);
+    }
+    if (preedit.empty()) return S_OK;
 
-        ComPtr<ITfInsertAtSelection> insert;
-        ComPtr<ITfContextComposition> compositions;
-        ComPtr<ITfRange> at;
-        if (FAILED(context->QueryInterface(IID_PPV_ARGS(&insert))) ||
-            FAILED(context->QueryInterface(IID_PPV_ARGS(&compositions))) ||
-            FAILED(insert->InsertTextAtSelection(ec, TF_IAS_QUERYONLY, nullptr, 0, &at))) {
-            return E_FAIL;
-        }
-        HRESULT hr = compositions->StartComposition(ec, at.Get(), this, &composition_);
-        if (FAILED(hr) || !composition_) {
-            // The app refused a composition: nothing can stay unconfirmed there.
-            composition_.Reset();
-            jk_flush(engine_);
-            return InsertAtSelection(ec, context, preedit);
-        }
-        composition_context_ = context;
-        ComPtr<ITfRange> range;
-        composition_->GetRange(&range);
-        range->SetText(ec, 0, preedit.data(), static_cast<LONG>(preedit.size()));
-        mark(range.Get());
-        return show(range.Get());
-    };
-    const HRESULT hr = RunEditSession(context, client_id_, edit);
-    if (FAILED(hr)) log::Write(L"edit session failed %#lx", hr);
+    ComPtr<ITfInsertAtSelection> insert;
+    ComPtr<ITfContextComposition> compositions;
+    ComPtr<ITfRange> at;
+    if (FAILED(context->QueryInterface(IID_PPV_ARGS(&insert))) ||
+        FAILED(context->QueryInterface(IID_PPV_ARGS(&compositions))) ||
+        FAILED(insert->InsertTextAtSelection(ec, TF_IAS_QUERYONLY, nullptr, 0, &at)) || !at) {
+        refused_ = true;  // nothing shown: Settle lets the engine go of it
+        return E_FAIL;
+    }
+    ComPtr<ITfComposition> started;
+    const HRESULT hr = compositions->StartComposition(ec, at.Get(), this, &started);
+    ComPtr<ITfRange> range;
+    if (SUCCEEDED(hr) && started && (FAILED(started->GetRange(&range)) || !range)) {
+        started->EndComposition(ec);
+        started.Reset();
+    }
+    if (FAILED(hr) || !started) {
+        // The app refused a composition: the preedit goes in as plain text, and Settle (after
+        // the session, outside it) commits it in the engine.
+        refused_ = true;
+        return InsertAtSelection(ec, context, preedit);
+    }
+    composition_ = started;
+    composition_context_ = context;
+    set_text(range.Get(), preedit);
+    mark(range.Get());
+    return show(range.Get());
 }
 
 }  // namespace jk

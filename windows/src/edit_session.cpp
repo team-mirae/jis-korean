@@ -45,7 +45,8 @@ private:
 }  // namespace
 
 HRESULT RunEditSession(ITfContext* context, TfClientId client_id,
-                       std::function<HRESULT(TfEditCookie)> body) {
+                       std::function<HRESULT(TfEditCookie)> body, bool* async) {
+    if (async) *async = false;
     if (!context) return E_INVALIDARG;
     ComPtr<EditSession> session;
     session.Attach(new (std::nothrow) EditSession(std::move(body)));
@@ -56,6 +57,8 @@ HRESULT RunEditSession(ITfContext* context, TfClientId client_id,
     if (SUCCEEDED(hr) && session_hr == TF_E_SYNCHRONOUS) {
         hr = context->RequestEditSession(client_id, session.Get(),
                                          TF_ES_ASYNCDONTCARE | TF_ES_READWRITE, &session_hr);
+        // Queued (TF_S_ASYNC), or run at once after all (TSF may still grant it synchronously).
+        if (async && SUCCEEDED(hr) && session_hr == TF_S_ASYNC) *async = true;
     }
     return FAILED(hr) ? hr : session_hr;
 }

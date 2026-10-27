@@ -79,6 +79,29 @@ Parsing the embedded hanja dictionary takes 80–110 ms and the predictor 16–3
 (measured). Both now load on a thread-pool thread when JIS Korean activates; the first key waits
 only if they aren't ready yet.
 
+## Edit sessions hold the service, and never call the engine (#7)
+
+**Symptom (read, not reproduced).** A session TSF queued (`TF_E_SYNCHRONOUS` → `TF_ES_ASYNCDONTCARE`)
+held a raw `this`, so it could run after `Deactivate` freed the engine; it called `jk_flush` itself,
+and dereferenced `ITfComposition::GetRange` without checking it.
+
+**Change.** The session is `EditText`, holding a `ComPtr<TextService>`, the context and the
+composition it was meant for. It writes only the text it was given:
+- After `Deactivate` (`active_` false) it ends that composition with its commit and starts nothing.
+- A composition that ended before a queued session ran is left as shown (nothing is inserted next to
+  it); a composition without a range is dropped and what follows starts a new one.
+- On commit the caret goes after the text only if it's still inside it, so a key the app already
+  handled (arrow, Tab) isn't undone.
+- A refused composition sets `refused_`; `Settle` lets the engine go of the segment after the
+  session (or before the next key, when it was queued), committing what was shown
+  (`jk_flush_prediction` when a prediction was).
+- `RunEditSession` reports a queued session; it's logged once per program ("edit session queued").
+
+**Verified.** `jk_testpad` switching to the Microsoft IME and back (`@off @on`) mid-composition, 15
+times in one process, in edit/rich/tsf: no crash, every syllable committed once. Full
+`type-test.ps1` passes. Not run: Application Verifier (needs elevation); a host that queues
+sessions (Chromium) wasn't measured, so the async log line hasn't been seen yet.
+
 ## Open issues: root causes
 
 Read from the code on macOS (2026-10-27, at `b5ed9dd`), not yet built or measured on Windows. Each
@@ -99,14 +122,8 @@ issue's body has the full analysis and the steps to verify it with `type-test.ps
   prediction shown, the refused path also inserts the prediction but flushes the Korean reading.
   Fix: log both per program first, then keep the range on screen and keep the engine's segment.
   Which host behaviour the spec wants is the owner's call ([decide]).
-- **#7, edit sessions.**
-  - An async session (`TF_E_SYNCHRONOUS` → `TF_ES_ASYNCDONTCARE`) lands after the key that was
-    passed on.
-  - The session's lambda holds a raw `this` and calls the engine.
-  - `ITfComposition::GetRange` is unchecked.
-
-  Fix: check the range, capture a `ComPtr` and keep engine calls out of the lambda, and report
-  async sessions (then measure before re-injecting keys).
+- **#7, edit sessions.** Fixed (above). Still open: re-sending a key the app got before a queued
+  commit ([decide]); measure the "edit session queued" log line in Chromium first.
 - **#8, commits through the engine.** The three bugs were fixed in a24d710. The shell's own list of
   committing keys remains, and goes when the engine decides that per key. Tab/↑/↓ with predictions
   already move through the list as on macOS (`HandleList`, decided). Tab is `JK_KEY_OTHER` on both

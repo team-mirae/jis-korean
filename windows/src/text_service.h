@@ -131,9 +131,18 @@ private:
     // reading in place of the typed one (thick underline).
     void UpdateText(ITfContext* context, const std::wstring& commit, const std::wstring& preedit,
                     bool converted);
+    // UpdateText's edit session: writes the text it was given and never calls the engine. It may
+    // run after UpdateText returned (queued by TSF); `expected` is the composition it was meant for.
+    HRESULT EditText(TfEditCookie ec, ITfContext* context, ITfComposition* expected,
+                     const std::wstring& commit, const std::wstring& preedit, TfGuidAtom attribute);
+    // What an edit session left for the engine, applied outside it: a refused composition's
+    // preedit went in as plain text, so the engine commits it.
+    void Settle();
 
     LONG refs_ = 1;
     JkEngine* engine_;
+    bool active_ = false;   // between ActivateEx and Deactivate: queued sessions check it
+    bool refused_ = false;  // an edit session inserted the preedit as plain text (Settle)
     Microsoft::WRL::ComPtr<ITfThreadMgr> thread_mgr_;
     TfClientId client_id_ = TF_CLIENTID_NULL;
     DWORD thread_sink_cookie_ = TF_INVALID_COOKIE;
