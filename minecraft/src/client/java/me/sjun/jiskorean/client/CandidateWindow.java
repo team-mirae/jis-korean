@@ -42,7 +42,7 @@ final class CandidateWindow {
 		graphics.nextStratum();
 
 		if (staging.isEmpty()) {
-			String badge = staging.escaped() ? "한 두벌식" : "한";
+			String badge = "한";
 			int width = font.width(badge) + PAD * 2;
 			int x = field.getRight() - width;
 			graphics.fill(x, top, x + width, bottom, BACKGROUND);

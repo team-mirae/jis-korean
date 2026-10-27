@@ -61,7 +61,6 @@ interface Props {
   engine: Engine;
   /** The mode: 0 = Mode A (JIS board), 1 = Mode B (US ANSI), 2 = Mode C (UK ISO). */
   mode: number;
-  escaped: boolean;
   shift: boolean;
   pressed: Set<string>;
   /** Float over the page (fixed to the bottom of the window) while the text is long. */
@@ -69,7 +68,7 @@ interface Props {
   onPress(code: string): void;
 }
 
-export function Keyboard({ engine, mode, escaped, shift, pressed, floating, onPress }: Props) {
+export function Keyboard({ engine, mode, shift, pressed, floating, onPress }: Props) {
   const board = BOARDS[mode] ?? BOARDS[0];
   return (
     <div className={"board" + board.className + (floating ? " floating" : "")}>
@@ -78,9 +77,9 @@ export function Keyboard({ engine, mode, escaped, shift, pressed, floating, onPr
           <div key={i} className={"row" + (i === 0 ? " fn-row" : "")} style={{ "--offset": row.offset } as CSSProperties}>
             {row.codes.map((code) => {
               const fn = FUNCTION_KEYS[code];
-              const base = fn ? code : engine.legend(code, false, escaped);
-              // Shift+Z is F10 (half-width letters) outside the F8 escape.
-              const shifted = fn ? fn.label : code === "KeyZ" && !escaped ? "반각" : engine.legend(code, true, escaped);
+              const base = fn ? code : engine.legend(code, false);
+              // Shift+Z is F10 (half-width letters).
+              const shifted = fn ? fn.label : code === "KeyZ" ? "반각" : engine.legend(code, true);
               const letter = code.startsWith("Key") ? code.slice(3) : "";
               const className = [
                 "key",

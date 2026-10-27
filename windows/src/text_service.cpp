@@ -998,7 +998,7 @@ STDMETHODIMP TextService::OnActivated(REFCLSID clsid, REFGUID profile, BOOL acti
     if (!IsEqualGUID(clsid, kClsidTextService)) return S_OK;
     (void)profile;
     if (activated) {
-        jk_activate(engine_);  // leaves any F8 escape (spec §6.1)
+        jk_activate(engine_);  // nothing to reset since the F8 escape was retired (spec §6.1)
         Activated();
     } else if (composition_context_) {
         Flush(composition_context_.Get());

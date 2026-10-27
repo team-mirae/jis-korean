@@ -35,7 +35,6 @@ export function App({ engine }: { engine: Engine }) {
   const [doc, setDoc] = useState("");
   const [preedit, setPreedit] = useState("");
   // From the engine, which outlives the playground (Docs and back remounts it).
-  const [escaped, setEscaped] = useState(() => engine.escaped);
   const [shift, setShift] = useState(false);
   const [enterCommits, setEnterCommits] = useState(() => engine.enterCommits);
   // The mode (spec §3.6): 0 Mode A (JIS), 1 Mode B (US ANSI), 2 Mode C (UK ISO). Remembered per
@@ -164,7 +163,6 @@ export function App({ engine }: { engine: Engine }) {
     setCandidates(out.candidates);
     // The predictive layer's readings of what's staged (none while a hanja list is open).
     showReadings(Boolean(out.preedit && !out.candidates));
-    setEscaped(engine.escaped);
     // Past 24 hours, what was learned goes, counts in the engine included, before anything new
     // is stored (else old counts would carry into a fresh window).
     if (expireLearned()) {
@@ -369,7 +367,6 @@ export function App({ engine }: { engine: Engine }) {
     setDoc("");
     setPreedit("");
     setCandidates(null);
-    setEscaped(false);
     surface.current?.focus();
   }
 
@@ -408,9 +405,7 @@ export function App({ engine }: { engine: Engine }) {
               </button>
             ))}
           </span>
-          <span className={"chip" + (escaped ? " escaped" : "")}>
-            {escaped ? "Standard 2-set · Shift+F8 returns" : MODES[mode]?.chip ?? "JIS Korean"}
-          </span>
+          <span className="chip">{MODES[mode]?.chip ?? "JIS Korean"}</span>
           <span className="hint">{focused ? "Use an English input source on your OS." : "Click the box to type."}</span>
           <span className="spacer" />
           <span className="samples" role="group" aria-label="Practice text">
@@ -526,7 +521,6 @@ export function App({ engine }: { engine: Engine }) {
       <Keyboard
         engine={engine}
         mode={mode}
-        escaped={escaped}
         shift={shift}
         pressed={pressed}
         floating={floating}
@@ -580,7 +574,7 @@ export function App({ engine }: { engine: Engine }) {
           </div>
           <div>
             <dt>F8</dt>
-            <dd>Reserved: does nothing for now.</dd>
+            <dd>Reserved for future use: does nothing.</dd>
           </div>
           <div>
             <dt>F9 / F10, Shift+Z</dt>

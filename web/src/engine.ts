@@ -9,7 +9,6 @@ interface Exports {
   jk_flush(h: number): void;
   jk_activate(h: number): void;
   jk_set_enter_commits(h: number, on: number): void;
-  jk_is_escaped(h: number): number;
   jk_commit_ptr(h: number): number;
   jk_commit_len(h: number): number;
   jk_preedit_ptr(h: number): number;
@@ -524,14 +523,10 @@ export class Engine {
     return this.enterCommitsOn;
   }
 
-  get escaped(): boolean {
-    return this.x.jk_is_escaped(this.handle) !== 0;
-  }
-
   /** The character a key types, for key legends. Empty if none. */
-  legend(code: string, shift: boolean, escaped: boolean): string {
-    // With Dedicated symbol keys off, Mode C's optional keys type their stock (F8) characters.
-    const stock = escaped || (!this.symbols && this.mode === 2 && OPTIONAL_KEYS.has(code));
+  legend(code: string, shift: boolean): string {
+    // With Dedicated symbol keys off, Mode C's optional keys type their stock characters.
+    const stock = !this.symbols && this.mode === 2 && OPTIONAL_KEYS.has(code);
     const c = this.x.jk_legend_in(this.id(code), shift ? 1 : 0, stock ? 1 : 0, this.mode);
     return c ? String.fromCodePoint(c) : "";
   }

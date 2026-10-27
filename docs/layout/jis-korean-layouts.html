@@ -393,7 +393,7 @@ footer {
       <div><dt>Shift+Z is F10</dt><dd>Half-width letters (반각), since F10 isn't reachable everywhere. ㅋ stays on Z.</dd></div>
       <div><dt>Punctuation</dt><dd><kbd>−</kbd> ! ?, <kbd>^</kbd> ( ), <kbd>¥</kbd> em dash and ^, <kbd>;</kbd> ~ and -, <kbd>/</kbd> middle dot ·, and 「 」 on Shift+[ and Shift+].</dd></div>
       <div><dt>F6 한글 · F7 한자</dt><dd>F6 commits, and restores the Hangul after F9 or F10. F7 converts the last word to hanja.</dd></div>
-      <div><dt>F8 두벌식</dt><dd>Escape to standard 2-set over the stock JIS keys. Shift+F8 returns.</dd></div>
+      <div><dt>F8</dt><dd>Reserved for future use: does nothing.</dd></div>
       <div><dt>F9 전각 · F10 반각</dt><dd>The current word as full- or half-width letters. Pressing again cycles as typed → UPPER → Capitalized.</dd></div>
     </dl>
   </section>
@@ -443,7 +443,7 @@ footer {
       <div><dt>Mode B's pattern</dt><dd>The letter keys, 1–0 with digits on Shift, Shift+Z as F10, F6–F10, and [ ] with 「 」 on Shift, as in Mode B. Every other key types what UK ISO prints on it.</dd></div>
       <div><dt>The key left of Z</dt><dd>The one key ISO adds: the middle dot · alone and the em dash — with Shift, two marks UK ISO has no key for.</dd></div>
       <div><dt>Dedicated symbol keys</dt><dd>A setting, on by default. Off, <kbd>[</kbd>, <kbd>]</kbd> and the key left of Z type their UK ISO characters ([ { ] } \ |). The number row stays Korean.</dd></div>
-      <div><dt>Other ISO countries</dt><dd>Korean goes by key position, so it types the same on German, French or Nordic boards; only the symbols read through F8 and the predictions are UK's. Fork the mode for your country's symbols (docs/modes.md).</dd></div>
+      <div><dt>Other ISO countries</dt><dd>Korean goes by key position, so it types the same on German, French or Nordic boards; only the predictions' English is UK's. Fork the mode for your country's symbols (docs/modes.md).</dd></div>
     </dl>
   </section>
 
@@ -454,7 +454,7 @@ footer {
 // Each key: [base, shift, cap, kind]. shift null: Shift types the same. cap: the printed legend,
 // shown in the corner when it differs from both outputs. kind: "" letter, "sym", "stock" (untouched).
 const A = {
-  fn: [["F6", "한글"], ["F7", "한자"], ["F8", "두벌식"], ["F9", "전각"], ["F10", "반각"]],
+  fn: [["F6", "한글"], ["F7", "한자"], ["F8", "—"], ["F9", "전각"], ["F10", "반각"]],
   rows: [
     { offset: 0, keys: [
       ["ㅃ", "1", "1", "sym"], ["ㅉ", "2", "2", "sym"], ["ㄸ", "3", "3", "sym"], ["ㄲ", "4", "4", "sym"],

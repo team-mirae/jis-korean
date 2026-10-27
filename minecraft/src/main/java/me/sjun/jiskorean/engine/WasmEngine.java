@@ -44,7 +44,6 @@ public final class WasmEngine {
 		final ExportFunction clear;
 		final ExportFunction activate;
 		final ExportFunction setMode;
-		final ExportFunction isEscaped;
 		final ExportFunction commitPtr;
 		final ExportFunction commitLen;
 		final ExportFunction preeditPtr;
@@ -61,7 +60,6 @@ public final class WasmEngine {
 			clear = instance.export("jk_clear");
 			activate = instance.export("jk_activate");
 			setMode = instance.export("jk_set_mode");
-			isEscaped = instance.export("jk_is_escaped");
 			commitPtr = instance.export("jk_commit_ptr");
 			commitLen = instance.export("jk_commit_len");
 			preeditPtr = instance.export("jk_preedit_ptr");
@@ -136,7 +134,7 @@ public final class WasmEngine {
 		call(b -> b.clear.apply(b.handle), null);
 	}
 
-	/** Leaves any F8 escape. */
+	/** The mod was switched on again (nothing to reset in the engine since the F8 escape was retired). */
 	public void activate() {
 		call(b -> b.activate.apply(b.handle), null);
 	}
@@ -156,9 +154,7 @@ public final class WasmEngine {
 		return set;
 	}
 
-	public boolean escaped() {
-		return call(b -> b.isEscaped.apply(b.handle)[0] != 0, false);
-	}
+
 
 	private <T> T call(Function<Bound, T> body, T fallback) {
 		try {

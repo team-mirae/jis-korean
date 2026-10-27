@@ -212,11 +212,6 @@ footer a {
   font-weight: 600;
 }
 
-.chip.escaped {
-  border-color: var(--camel);
-  background: var(--highlight);
-}
-
 .hint {
   color: var(--muted);
 }

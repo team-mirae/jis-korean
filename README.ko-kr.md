@@ -61,7 +61,7 @@
 <p align="center">
   <picture>
     <source media="(prefers-color-scheme: dark)" srcset="docs/layout/pieces/mode-a-dark.png">
-    <img width="940" alt="JIS 키보드 위에 그린 A 모드, JIS Korean 원본 배열. 26개 글자 키는 표준 두벌식입니다. 숫자열은 쌍자 ㅃ ㅉ ㄸ ㄲ ㅆ과 겹모음 ㅟ ㅝ ㅚ ㅢ ㅘ를 입력하고, 숫자는 Shift에 있습니다. 기호 키는 한국어 문장부호를 입력합니다. 마이너스 키에 ! ?, 캐럿 키에 ( ), 엔 키에 줄표(—), Shift+[와 Shift+]에 「 」, 슬래시 키에 가운뎃점이 있습니다. 펑션 키 줄에는 F6 한글, F7 한자, F8 두벌식, F9 전각, F10 반각이 있고, Shift+Z는 F10입니다." src="docs/layout/pieces/mode-a-light.png">
+    <img width="940" alt="JIS 키보드 위에 그린 A 모드, JIS Korean 원본 배열. 26개 글자 키는 표준 두벌식입니다. 숫자열은 쌍자 ㅃ ㅉ ㄸ ㄲ ㅆ과 겹모음 ㅟ ㅝ ㅚ ㅢ ㅘ를 입력하고, 숫자는 Shift에 있습니다. 기호 키는 한국어 문장부호를 입력합니다. 마이너스 키에 ! ?, 캐럿 키에 ( ), 엔 키에 줄표(—), Shift+[와 Shift+]에 「 」, 슬래시 키에 가운뎃점이 있습니다. 펑션 키 줄에는 F6 한글, F7 한자, F9 전각, F10 반각이 있고(F8은 예약), Shift+Z는 F10입니다." src="docs/layout/pieces/mode-a-light.png">
   </picture>
 </p>
 

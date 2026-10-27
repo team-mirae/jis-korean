@@ -110,7 +110,7 @@ uint32_t jk_key(JkEngine *engine, uint32_t key, uint32_t mods);
 uint32_t jk_key_commits(JkEngine *engine, uint32_t key, uint32_t mods);
 /* Commits everything unconfirmed: focus loss, app switch, IME switch. */
 void jk_flush(JkEngine *engine);
-/* The IME was switched back to: leaves any F8 escape. */
+/* The IME was switched back to. Nothing to reset since the F8 escape was retired (spec §6.1). */
 void jk_activate(JkEngine *engine);
 void jk_set_enter_commits(JkEngine *engine, uint32_t on);
 /* The mode, by id (spec §3.6.1): 0 = Mode A (JIS, the default), 1 = Mode B (US ANSI),

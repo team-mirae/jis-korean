@@ -53,10 +53,6 @@ public final class Staging {
 		return english;
 	}
 
-	public boolean escaped() {
-		return engine.escaped();
-	}
-
 	/** The current ranking, for the candidate window. {@code before}: the field's text before the cursor. */
 	public Ranker.Choice ranking(String before) {
 		// A command name (/give, /tp) is always English; its arguments are ranked as usual.
@@ -122,8 +118,7 @@ public final class Staging {
 		// Shift+Z is F10 (spec §6). When the ranked reading is already what F10 would give (English,
 		// plain letters as typed), it skips ahead: F10 twice (gks → GKS).
 		// Only on the first press: once converted, the two readings are the same and F10 just cycles.
-		// Not in the F8 escape, where Shift+Z is ㅋ as in standard 2-set (spec §6).
-		if (code.equals("KeyZ") && shift && !isEmpty() && !engine.escaped() && !korean.equals(english)
+		if (code.equals("KeyZ") && shift && !isEmpty() && !korean.equals(english)
 				&& english.chars().allMatch(Character::isLetter) && ranking(before).language() == Language.ENGLISH) {
 			update(engine.key("F10", false));
 		}
@@ -200,7 +195,7 @@ public final class Staging {
 		english = "";
 	}
 
-	/** The mod was switched on again: leave any F8 escape, start clean. */
+	/** The mod was switched on again: start clean. */
 	public void activate() {
 		clear();
 		engine.activate();

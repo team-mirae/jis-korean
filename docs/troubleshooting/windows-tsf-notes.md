@@ -118,4 +118,4 @@ issue's body has the full analysis and the steps to verify it with `type-test.ps
   - Unbacked TSF categories: `UIELEMENTENABLED`, `INPUTMODECOMPARTMENT`.
   - JIS keys (半角/全角, 英数, カタカナ as `VK_KANA`), which need measuring and a spec line.
 
-  With the F8 escape retired, Windows only needs its comment at `OnActivated` updated.
+  With the F8 escape retired, Windows needed only its comment at `OnActivated` updated (done).
