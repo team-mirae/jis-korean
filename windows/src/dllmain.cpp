@@ -6,8 +6,11 @@
 #include "dll.h"
 #include "guids.h"
 #include "log.h"
+#include "candidate_window.h"
 #include "registration.h"
+#include "shared_data.h"
 #include "text_service.h"
+#include "training.h"
 
 namespace jk {
 namespace {
@@ -63,10 +66,19 @@ void DllRelease() { InterlockedDecrement(&g_refs); }
 
 }  // namespace jk
 
-BOOL WINAPI DllMain(HINSTANCE instance, DWORD reason, LPVOID) {
+BOOL WINAPI DllMain(HINSTANCE instance, DWORD reason, LPVOID reserved) {
     if (reason == DLL_PROCESS_ATTACH) {
         jk::g_module = instance;
         DisableThreadLibraryCalls(instance);
+    } else if (reason == DLL_PROCESS_DETACH && !reserved) {
+        // Unloaded (FreeLibrary after DllCanUnloadNow), not the process ending: give back the
+        // shared dictionary and predictors (about 60 MB) and the list's window class, or every
+        // reload in this process would leak them. At process exit the OS takes it all back.
+        jk::ReleaseSharedData();
+#ifdef JK_PREDICT
+        jk::training::Release();
+#endif
+        jk::CandidateWindow::Unregister();
     }
     return TRUE;
 }

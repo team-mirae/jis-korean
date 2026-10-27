@@ -104,6 +104,8 @@ void CandidateWindow::Show(std::vector<Row> rows, int selected, std::wstring foo
     InvalidateRect(hwnd_, nullptr, TRUE);
 }
 
+void CandidateWindow::Unregister() { UnregisterClassW(kClassName, DllInstance()); }
+
 void CandidateWindow::Hide() {
     if (hwnd_) ShowWindow(hwnd_, SW_HIDE);
     on_pick_ = nullptr;

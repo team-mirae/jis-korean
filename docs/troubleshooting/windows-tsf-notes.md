@@ -205,6 +205,20 @@ times in one process, in edit/rich/tsf: no crash, every syllable committed once.
 `type-test.ps1` passes. Not run: Application Verifier (needs elevation); a host that queues
 sessions (Chromium) wasn't measured, so the async log line hasn't been seen yet.
 
+## Memory and lifetime
+
+- **Unloading leaked the shared data.** The dictionary and predictors were never freed, and
+  `DllCanUnloadNow` allows unloading: `jk_unloadtest` (load, activate, deactivate, unload, in rounds)
+  grew 65 MB per round with the v0.3.0 DLL. `DLL_PROCESS_DETACH` now frees them and unregisters the
+  list's window class, only when `reserved` is null (an unload, not process exit). Measured after:
+  flat at 72–95 MB over 16 rounds (heap reuse), with the DLL unloaded while the preload still ran
+  in every other round.
+- **The preload callback returned through unloaded code.** It called `DllRelease()` and then
+  returned through the DLL. Background jobs (`RunInBackground`) take a module reference with
+  `GetModuleHandleExW` and drop it with `FreeLibraryWhenCallbackReturns`.
+- **The personal predictor could be freed under another thread.** `training::SetPredictor(engine)`
+  sets it on the engine under the lock that guards rebuilding it.
+
 ## Open issues: root causes
 
 Read from the code on macOS (2026-10-27, at `b5ed9dd`), not yet built or measured on Windows. Each

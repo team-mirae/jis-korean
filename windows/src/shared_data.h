@@ -12,5 +12,9 @@ const JkDict* SharedDictionary();
 #ifdef JK_PREDICT
 const JkPredictor* SharedPredictor();  // nullptr if the model is missing
 #endif
+// Runs `job` on a thread-pool thread; the DLL stays loaded until it has returned. False: not queued.
+bool RunInBackground(void (*job)());
+// Frees the shared data: DLL unload only, when no engine is left.
+void ReleaseSharedData();
 
 }  // namespace jk

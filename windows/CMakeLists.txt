@@ -72,5 +72,10 @@ add_test(NAME jiskorean_tests COMMAND jiskorean_tests)
 
 # A window with a classic Edit and a RichEdit, for typing through the installed TIP by hand or
 # by tools/type-test.ps1.
+# Loads, activates and unloads the DLL in rounds: DLL_PROCESS_DETACH must give the shared data
+# back. Needs TSF on a desktop, so it's run by hand (windows/README.md), not by CI.
+add_executable(jk_unloadtest tests/unload.cpp)
+target_link_libraries(jk_unloadtest PRIVATE ole32 psapi)
+
 add_executable(jk_testpad WIN32 tests/testpad.cpp)
 target_link_libraries(jk_testpad PRIVATE ole32 user32 shell32 imm32)
