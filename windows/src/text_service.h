@@ -92,7 +92,13 @@ private:
     // A password or PIN field (input scope), or one the app turned the keyboard off for.
     bool PrivateField(ITfContext* context);
     bool Private(const wchar_t* why);  // logs why a field is private, returns true
+    bool MayBePrivate(std::uint32_t key) const;  // whether PrivateField's answer matters for the key
     bool Composing() const;
+    // The context a key types into: the key's, else the composition's. Null: none (#3).
+    ITfContext* Target(ITfContext* context) const;
+    HRESULT NoContext(unsigned vk);  // a key with no context: passed on, nothing kept
+    void DropInvisible();  // forgets the engine's unconfirmed text and the list, showing nothing
+    void CheckOrphan();    // before a key: the caret left the plain text kept for #6 → drop it
     void HandleKey(ITfContext* context, unsigned vk, std::uint32_t key, std::uint32_t mods,
                    BOOL* eaten);
 
@@ -104,9 +110,10 @@ private:
     void PickHanja(size_t index);
     // Commits everything unconfirmed (focus loss, IME switch, 한/영).
     void Flush(ITfContext* context);
-    void ApplySettings();
+    void ApplySettings(bool force = false);  // unless forced, only when settings::Version changed
     void Activated();  // settings, then a changed training file (spec §10.12)
-    void EnsureData();  // the dictionary and predictor, before the first key
+    void EnsureData();  // the predictor, before the first key
+    void EnsureDictionary();  // the hanja dictionary: at the first F7, or with predictions
     void SetMode(unsigned mode);  // by engine id (spec §3.6.1); an id this build doesn't have: Mode A
 
 #ifdef JK_PREDICT
@@ -129,11 +136,23 @@ private:
     // Replaces the composition (if any) with `commit`, which becomes final text, then starts or
     // updates a composition showing `preedit`. Either may be empty. `converted`: the preedit is a
     // reading in place of the typed one (thick underline).
-    void UpdateText(ITfContext* context, const std::wstring& commit, const std::wstring& preedit,
+    // False: TSF queued the edit session, so the text isn't there yet.
+    bool UpdateText(ITfContext* context, const std::wstring& commit, const std::wstring& preedit,
                     bool converted);
+    // UpdateText's edit session: writes the text it was given and never calls the engine. It may
+    // run after UpdateText returned (queued by TSF); `expected` is the composition it was meant for.
+    HRESULT EditText(TfEditCookie ec, ITfContext* context, ITfComposition* expected,
+                     const std::wstring& commit, const std::wstring& preedit, TfGuidAtom attribute);
+    // What an edit session left for the engine, applied outside it: a refused composition's
+    // preedit went in as plain text, so the engine commits it.
+    void Settle();
 
     LONG refs_ = 1;
     JkEngine* engine_;
+    bool active_ = false;   // between ActivateEx and Deactivate: queued sessions check it
+    bool refused_ = false;  // an edit session inserted the preedit as plain text (Settle)
+    bool in_update_ = false;       // inside UpdateText's RunEditSession
+    ULONGLONG updated_tick_ = 0;   // when UpdateText's last session returned
     Microsoft::WRL::ComPtr<ITfThreadMgr> thread_mgr_;
     TfClientId client_id_ = TF_CLIENTID_NULL;
     DWORD thread_sink_cookie_ = TF_INVALID_COOKIE;
@@ -144,16 +163,25 @@ private:
     TfGuidAtom converted_attribute_ = TF_INVALID_GUIDATOM;
     Microsoft::WRL::ComPtr<ITfComposition> composition_;
     Microsoft::WRL::ComPtr<ITfContext> composition_context_;
+    // The unconfirmed text as plain text, where the app refused a composition or ended it right
+    // after the update (#6, kKeepTextWithoutComposition): the next update replaces it.
+    Microsoft::WRL::ComPtr<ITfRange> orphan_;
+    Microsoft::WRL::ComPtr<ITfContext> orphan_context_;
     RECT anchor_ = {};  // the composition on screen, for the list
     CandidateWindow list_;
     LangBarButton* lang_bar_ = nullptr;
     std::bitset<256> eaten_down_;  // key-downs eaten, so their key-ups are eaten too
-    // A key-down OnTestKeyDown handled and reported as eaten; OnKeyDown follows for it.
+    // The last key-down OnTestKeyDown ran the engine for. A second test of the same key-down
+    // returns its result without running the engine again (#5, SameKeyDown); OnKeyDown, which
+    // may follow, takes it once (`pending`). Both end on that key's key-up, a focus change, or
+    // the next key-down tested.
     struct Tested {
         WPARAM wparam = 0;
         LPARAM lparam = 0;
-        ULONGLONG tick = 0;
+        LONG time = 0;        // GetMessageTime
+        ULONGLONG tick = 0;   // GetTickCount64 when it was tested
         BOOL eaten = FALSE;
+        bool valid = false;
         bool pending = false;
     } tested_;
     unsigned mode_ = 0xFF;  // none yet: the first ApplySettings sets it
@@ -165,7 +193,10 @@ private:
     bool private_ = false;     // the focused field is a password field: keys pass through
     bool app_off_ = false;     // JIS Korean is off in this program (settings::AppOff)
     std::wstring last_scopes_;  // for the log
-    bool data_ready_ = false;  // the shared dictionary and predictor are set on the engine
+    bool data_ready_ = false;  // the shared predictor may be set on the engine
+    bool dictionary_set_ = false;  // the shared dictionary is set on the engine
+    std::optional<unsigned long> applied_version_;  // settings::Version last applied
+    unsigned training_seen_ = 0;  // training::Generation last applied
 #ifdef JK_PREDICT
     std::vector<std::wstring> predictions_;
     std::optional<size_t> chosen_;     // the row chosen with ↓ / Tab

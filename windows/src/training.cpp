@@ -7,6 +7,7 @@
 #include <shlobj.h>
 
 #include <algorithm>
+#include <atomic>
 #include <map>
 #include <mutex>
 #include <string>
@@ -15,6 +16,7 @@
 #include "log.h"
 #include "settings.h"
 #include "shared_data.h"
+#include "training_lines.h"
 
 namespace jk::training {
 namespace {
@@ -35,14 +37,6 @@ std::wstring Folder() {
     return folder;
 }
 
-std::wstring Wide(const std::string& s) {
-    if (s.empty()) return {};
-    const int n = MultiByteToWideChar(CP_UTF8, 0, s.data(), static_cast<int>(s.size()), nullptr, 0);
-    std::wstring w(static_cast<size_t>(n), L'\0');
-    MultiByteToWideChar(CP_UTF8, 0, s.data(), static_cast<int>(s.size()), w.data(), n);
-    return w;
-}
-
 std::string Narrow(const std::wstring& w) {
     if (w.empty()) return {};
     const int n = WideCharToMultiByte(CP_UTF8, 0, w.data(), static_cast<int>(w.size()), nullptr, 0,
@@ -50,62 +44,6 @@ std::string Narrow(const std::wstring& w) {
     std::string s(static_cast<size_t>(n), '\0');
     WideCharToMultiByte(CP_UTF8, 0, w.data(), static_cast<int>(w.size()), s.data(), n, nullptr, nullptr);
     return s;
-}
-
-// The word lists accept whole Hangul syllables (가-힣) or ASCII letters only, as on macOS.
-bool KoreanWord(const std::wstring& w) {
-    return !w.empty() && std::all_of(w.begin(), w.end(), [](wchar_t c) { return c >= 0xAC00 && c <= 0xD7A3; });
-}
-bool EnglishWord(const std::wstring& w) {
-    return !w.empty() && std::all_of(w.begin(), w.end(), [](wchar_t c) {
-        return (c >= L'a' && c <= L'z') || (c >= L'A' && c <= L'Z');
-    });
-}
-
-// `word<TAB>count` lines from a vocabulary list (training-contract.md), at most 5000.
-std::wstring Lines(const json::Value* list, bool (*valid)(const std::wstring&)) {
-    static const std::map<std::string, int> kConfidence = {{"tentative", 10}, {"likely", 20}, {"confirmed", 50}};
-    std::wstring out;
-    if (!list || list->type != json::Value::Type::kArray) return out;
-    int n = 0;
-    for (const json::Value& entry : list->array) {
-        const json::Value* word = entry.Get("word");
-        if (!word || !word->String()) continue;
-        const std::wstring w = Wide(*word->String());
-        if (!valid(w)) continue;
-        int count = 1000;
-        if (const json::Value* c = entry.Get("count"); c && c->Number()) {
-            count = static_cast<int>(*c->Number());
-        } else if (const json::Value* conf = entry.Get("confidence"); conf && conf->String()) {
-            const auto it = kConfidence.find(*conf->String());
-            if (it != kConfidence.end()) count = it->second;
-        }
-        if (!out.empty()) out += L'\n';
-        out += w + L'\t' + std::to_wstring(count);
-        if (++n == 5000) break;
-    }
-    return out;
-}
-
-// `word` or `word<TAB>strong` lines from the avoid list (training-contract.md) for one language, at
-// most 5000.
-std::wstring AvoidLines(const json::Value* list, const char* language, bool (*valid)(const std::wstring&)) {
-    std::wstring out;
-    if (!list || list->type != json::Value::Type::kArray) return out;
-    int n = 0;
-    for (const json::Value& entry : list->array) {
-        const json::Value* word = entry.Get("word");
-        const json::Value* lang = entry.Get("language");
-        if (!word || !word->String() || !lang || !lang->String() || *lang->String() != language) continue;
-        const std::wstring w = Wide(*word->String());
-        if (!valid(w)) continue;
-        const json::Value* strength = entry.Get("strength");
-        if (!out.empty()) out += L'\n';
-        out += w;
-        if (strength && strength->String() && *strength->String() == "strong") out += L"\tstrong";
-        if (++n == 5000) break;
-    }
-    return out;
 }
 
 ULONGLONG FileTime(const std::wstring& file, bool* exists) {
@@ -124,17 +62,31 @@ bool Changed() {
     return exists ? applied != std::to_wstring(time) : applied.has_value();
 }
 
-const JkPredictor* Predictor() {
-    static std::mutex mutex;
-    static std::wstring words;  // the words `personal` was built with
-    static JkPredictor* personal = nullptr;
+namespace {
+
+std::mutex g_mutex;
+std::wstring g_words;  // the words `g_personal` was built with
+JkPredictor* g_personal = nullptr;
+
+}  // namespace
+
+bool SetPredictor(JkEngine* engine) {
     const std::wstring korean = settings::ReadString(kKoreanWords).value_or(L"");
     const std::wstring english = settings::ReadString(kEnglishWords).value_or(L"");
     const std::wstring avoidKorean = settings::ReadString(kKoreanAvoid).value_or(L"");
     const std::wstring avoidEnglish = settings::ReadString(kEnglishAvoid).value_or(L"");
-    if (korean.empty() && english.empty() && avoidKorean.empty() && avoidEnglish.empty()) return SharedPredictor();
+    if (korean.empty() && english.empty() && avoidKorean.empty() && avoidEnglish.empty()) {
+        // The shared predictor lives as long as the DLL.
+        const JkPredictor* shared = SharedPredictor();
+        jk_set_predictor(engine, shared);
+        return shared != nullptr;
+    }
     const std::wstring key = korean + L'\0' + english + L'\0' + avoidKorean + L'\0' + avoidEnglish;
-    std::lock_guard<std::mutex> lock(mutex);
+    // Set on the engine (which clones its reference) under the lock: another thread rebuilding
+    // the personal predictor frees the old one, and mustn't do it in between.
+    std::lock_guard<std::mutex> lock(g_mutex);
+    JkPredictor*& personal = g_personal;
+    std::wstring& words = g_words;
     if (!personal || key != words) {
         const std::string k = Narrow(korean), e = Narrow(english);
         JkPredictor* built = jk_predictor_with_words(
@@ -154,7 +106,16 @@ const JkPredictor* Predictor() {
         personal = built;
         words = key;
     }
-    return personal ? personal : SharedPredictor();
+    const JkPredictor* predictor = personal ? personal : SharedPredictor();
+    jk_set_predictor(engine, predictor);
+    return predictor != nullptr;
+}
+
+void Release() {
+    std::lock_guard<std::mutex> lock(g_mutex);
+    if (g_personal) jk_predictor_free(g_personal);
+    g_personal = nullptr;
+    g_words.clear();
 }
 
 void ApplyIfChanged(JkEngine* engine) {
@@ -205,7 +166,7 @@ void ApplyIfChanged(JkEngine* engine) {
     if (const json::Value* weights = json->Get("weights"); weights && weights->type == json::Value::Type::kObject) {
         for (const auto& [name, value] : weights->object) {
             const auto it = kWeights.find(name);
-            if (it == kWeights.end() || !value.Number() || *value.Number() < 0 || *value.Number() > 10) continue;
+            if (it == kWeights.end() || !value.Number() || !(*value.Number() >= 0 && *value.Number() <= 10)) continue;
             settings::WriteString((std::wstring(L"Weight.") + it->second).c_str(), std::to_wstring(*value.Number()));
         }
     }
@@ -218,7 +179,7 @@ void ApplyIfChanged(JkEngine* engine) {
     const json::Value* examples = json->Get("examples");
     if (examples && examples->type == json::Value::Type::kArray && !examples->array.empty()) {
         settings::WriteDword(L"LearnFromChoices", 1);
-        jk_set_predictor(engine, Predictor());
+        SetPredictor(engine);
         jk_set_learning(engine, 1);
         size_t n = 0;
         for (const json::Value& example : examples->array) {
@@ -228,7 +189,7 @@ void ApplyIfChanged(JkEngine* engine) {
             const json::Value* k = example.Get("keys");
             const std::string keys = k && k->String() ? *k->String() : std::string();
             const json::Value* c = example.Get("count");
-            const int count = std::clamp(c && c->Number() ? static_cast<int>(*c->Number()) : 1, 1, 20);
+            const int count = c && c->Number() ? ClampCount(*c->Number(), 1, 20, 1) : 1;
             for (int i = 0; i < count; ++i) {
                 jk_learn_example(engine, reinterpret_cast<const std::uint8_t*>(t->String()->data()),
                                  t->String()->size(), reinterpret_cast<const std::uint8_t*>(keys.data()),
@@ -238,6 +199,41 @@ void ApplyIfChanged(JkEngine* engine) {
     }
     log::Write(L"applied training.json");
 }
+
+namespace {
+
+std::atomic<bool> g_applying{false};
+std::atomic<unsigned> g_generation{0};
+
+}  // namespace
+
+void ApplyInBackground() {
+    if (g_applying.exchange(true)) return;  // one at a time per process
+    const bool queued = RunInBackground([] {
+        JkEngine* engine = jk_new();
+        if (engine) {
+            // As the UI engine would have it: the mode, the dictionary and what was learned so far.
+            jk_set_mode(engine, static_cast<std::uint32_t>(settings::ReadDword(L"Mode", 0)));
+            jk_set_dictionary(engine, SharedDictionary());
+            if (auto learned = settings::ReadString(L"Learned")) {
+                const std::string bytes = Narrow(*learned);
+                jk_learner_import(engine, reinterpret_cast<const std::uint8_t*>(bytes.data()), bytes.size());
+            }
+            ApplyIfChanged(engine);
+            if (jk_learner_changed(engine)) {
+                const size_t length = jk_learner_export(engine);
+                settings::WriteString(L"Learned", Wide(std::string(
+                    reinterpret_cast<const char*>(jk_learner_ptr(engine)), length)));
+            }
+            jk_free(engine);
+        }
+        ++g_generation;
+        g_applying = false;
+    });
+    if (!queued) g_applying = false;
+}
+
+unsigned Generation() { return g_generation.load(); }
 
 void OpenFolder() {
     const std::wstring folder = Folder();

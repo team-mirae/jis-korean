@@ -10,13 +10,21 @@
 namespace jk::training {
 
 #ifdef JK_PREDICT
-// The predictor engines use: the shared one, plus the user's training words if any.
-const JkPredictor* Predictor();
+// Sets the predictor on `engine`: the shared one, plus the user's training words if any. Set
+// under the lock that guards rebuilding it, so it can't be freed before the engine holds it.
+// False: no predictor (the model is missing).
+bool SetPredictor(JkEngine* engine);
+// Frees the personal predictor (DLL unload, when no engine is left).
+void Release();
 // Whether the training file changed (or went away) since it was last applied: cheap.
 bool Changed();
 // Applies the training file if it changed since it was last applied (or forgets its words if
 // it's gone). Examples are learned into `engine`; the caller saves what was learned.
 void ApplyIfChanged(JkEngine* engine);
+// ApplyIfChanged on a thread-pool thread, into an engine of its own holding what was learned so
+// far, saved to the settings after. Generation() changes once it's done.
+void ApplyInBackground();
+unsigned Generation();
 // Opens the folder the training file goes in (creating it) in File Explorer.
 void OpenFolder();
 #endif

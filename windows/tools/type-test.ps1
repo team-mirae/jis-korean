@@ -1,4 +1,4 @@
-﻿# Types key sequences through the installed TIP into jk_testpad and checks the text: a classic
+# Types key sequences through the installed TIP into jk_testpad and checks the text: a classic
 # Edit control and a RichEdit through the IMM compatibility layer, and a RichEdit on TSF itself. The testpad is the foreground window while it runs: don't touch
 # the keyboard. Settings that change what's typed (Mode, Predictions) are set for the run and
 # restored after, and Learn from My Choices is off meanwhile: the test's picks aren't the user's.
@@ -38,6 +38,10 @@ $cases = @(
     @('predictions: hello', 1, 1, 'KeyH KeyE KeyL KeyL KeyO Space', 'hello '),
     @('predictions: 한글 stays Korean', 1, 1, 'KeyG KeyK KeyS KeyR KeyM KeyF Space', '한글 '),
     @('predictions: Shift+Enter commits hello, no new line', 1, 1, 'KeyH KeyE KeyL KeyL KeyO S-Enter', 'hello'),
+    @('predictions: a key outside the map commits what is shown (#8)', 0, 1, 'KeyH KeyE KeyL KeyL KeyO Backquote', 'hello`'),
+    @('predictions: Esc commits what is shown', 0, 1, 'KeyH KeyE KeyL KeyL KeyO Escape', 'hello'),
+    @('predictions: Esc leaves a chosen row, Esc again commits', 0, 1, 'KeyH KeyE KeyL KeyL KeyO Tab Tab Escape Escape', 'hello'),
+    @('predictions: ↓ ↓ ↑ and Tab Tab Shift+Tab move through the list', 0, 1, 'KeyH KeyE KeyL KeyL KeyO ArrowDown ArrowDown ArrowUp Space KeyH KeyE KeyL KeyL KeyO Tab Tab S-Tab Space', 'hello hello '),
     @('Mode C: ISO key · —, Shift+[ 「', 2, 0, 'IntlBackslash S-IntlBackslash S-BracketLeft KeyG KeyK KeyS Space', '·—「한 '),
     @('Mode C, dedicated symbol keys off', 2, 0, 'IntlBackslash S-IntlBackslash S-BracketLeft Space', '\|{ ', 0),
     @('ABC in Mode A: JIS English (default)', 0, 0, 'Hangul KeyG S-Digit2 BracketLeft Hangul', 'g"@', 1, 'unset'),
@@ -51,6 +55,21 @@ $cases = @(
 $passwordCases = @(
     ,@('password field passes keys through', 1, 1, 'KeyG KeyK KeyS S-KeyR Digit1 KeyH KeyE KeyL KeyL KeyO', 'gksR1hello')
 )
+# Hosts that misbehave (jk_testpad's options and targets): name, Mode, Predictions, keys, expected,
+# targets, extra jk_testpad arguments.
+$hostCases = @(
+    @('#5 auto-repeat: one jamo per repeat', 0, 0, 'D-KeyG D-KeyG D-KeyG D-KeyG R-KeyG KeyE KeyE Space', 'ㅎㅎㅎㅎㄷㄷ ', @('edit', 'rich', 'tsf'), @()),
+    @('#5 a key tested twice runs once', 0, 0, 'KeyE KeyK KeyE KeyK Space', '다다 ', @('edit', 'rich', 'tsf'), @('--peek', '1', '--probe', '1')),
+    @('#5 auto-repeat tested twice', 0, 0, 'D-KeyG D-KeyG D-KeyG R-KeyG Space', 'ㅎㅎㅎ ', @('tsf'), @('--peek', '1', '--probe', '1')),
+    @('#4 Unicode-injected characters pass as typed', 0, 0, 'U+0061 U+0020 U+0062 U+002C U+002F U+0030 U+0035 U+0056 U+0073 U+007D U+AC10', 'a b,/05Vs}감', @('edit', 'rich', 'tsf'), @()),
+    @('#4 Unicode-injected character commits first', 1, 1, 'KeyG KeyK U+0020 KeyG KeyK U+0078', '하 하x', @('edit', 'rich', 'tsf'), @()),
+    @('#3 no input context: keys pass, nothing follows focus', 1, 1, 'KeyW KeyA KeyS KeyD @focus=edit KeyG KeyK KeyS Space', '한 ', @('nocontext'), @()),
+    @('#6 an app ending each composition: syllables still compose', 0, 0, 'KeyE KeyK KeyF KeyK KeyQ KeyK KeyD Space', '다라방 ', @('canceltsf'), @()),
+    @('#6 an app ending each composition: Backspace, F7', 0, 0, 'KeyG KeyK KeyS KeyR KeyM KeyF Backspace Backspace Space KeyG KeyK KeyR KeyR KeyY F7 Enter Space', '한ㄱ 學校 ', @('canceltsf'), @()),
+    @('#6 an app ending each composition: predictions', 1, 1, 'KeyH KeyE KeyL KeyL KeyO Tab Tab Space KeyG KeyK KeyS ArrowLeft KeyK Space', 'Hello 아 한', @('canceltsf'), @()),
+    @('#9 a virtual key without a scan code types its letter', 0, 0, 'VK:47 VK:4B VK:53 Space', '한 ', @('edit', 'rich', 'tsf'), @()),
+    @('#4 Unicode-injected characters in ABC', 0, 0, 'Hangul U+0061 U+0020 U+0030 Hangul', 'a 0', @('edit', 'tsf'), @())
+)
 
 $saved = @{}
 foreach ($name in 'Mode', 'Predictions', 'DedicatedSymbols', 'EnglishMode', 'LearnFromChoices') {
@@ -60,19 +79,22 @@ Set-ItemProperty $key LearnFromChoices 0 -Type DWord
 $failed = 0
 $out = Join-Path $env:TEMP 'jk-type-test.txt'
 try {
-    foreach ($c in @($cases) + @($passwordCases)) {
+    foreach ($c in @($cases) + @($passwordCases) + @($hostCases)) {
         if ($Filter -and $c[0] -notlike "*$Filter*") { continue }
+        $hosted = $hostCases -contains $c
         Set-ItemProperty $key Mode $c[1] -Type DWord
         Set-ItemProperty $key Predictions $c[2] -Type DWord
-        Set-ItemProperty $key DedicatedSymbols $(if ($c.Count -gt 5) { $c[5] } else { 1 }) -Type DWord
-        $english = if ($c.Count -gt 6) { $c[6] } else { 'unset' }
+        Set-ItemProperty $key DedicatedSymbols $(if ($c.Count -gt 5 -and -not $hosted) { $c[5] } else { 1 }) -Type DWord
+        $english = if ($c.Count -gt 6 -and -not $hosted) { $c[6] } else { 'unset' }
         if ($english -eq 'unset') { Remove-ItemProperty $key -Name EnglishMode -ErrorAction SilentlyContinue }
         elseif ($english -eq 'windows') { Set-ItemProperty $key EnglishMode ([int32]-1) -Type DWord }
         else { Set-ItemProperty $key EnglishMode $english -Type DWord }
-        $targets = if ([object]::ReferenceEquals($c, $passwordCases[0])) { @('password', 'pwscope') } else { $Target }
+        $targets = if ([object]::ReferenceEquals($c, $passwordCases[0])) { @('password', 'pwscope') }
+            elseif ($hosted) { $c[5] } else { $Target }
+        $extra = if ($hosted) { $c[6] } else { @() }
         foreach ($t in $targets) {
             Remove-Item $out -ErrorAction SilentlyContinue
-            $p = Start-Process $pad -ArgumentList '--profile', 'on', '--target', $t, '--keys', "`"$($c[3])`"", '--out', "`"$out`"" -PassThru
+            $p = Start-Process $pad -ArgumentList (@('--profile', 'on', '--target', $t, '--keys', "`"$($c[3])`"", '--out', "`"$out`"") + $extra) -PassThru
             if (-not $p.WaitForExit(30000)) { $p.Kill(); Write-Host "TIMEOUT $($c[0]) [$t]" -ForegroundColor Red; $failed++; continue }
             $got = if (Test-Path $out) { [IO.File]::ReadAllText($out, [Text.Encoding]::UTF8) } else { '<no output>' }
             if ($got -ceq $c[4]) {

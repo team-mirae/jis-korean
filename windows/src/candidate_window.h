@@ -30,6 +30,8 @@ public:
     void Show(std::vector<Row> rows, int selected, std::wstring footer, const RECT& anchor,
               std::function<void(size_t)> on_pick);
     void Hide();
+    // Unregisters the window class (DLL unload; fails harmlessly while a list window exists).
+    static void Unregister();
 
 private:
     static LRESULT CALLBACK Proc(HWND hwnd, UINT message, WPARAM wparam, LPARAM lparam);

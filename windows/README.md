@@ -154,12 +154,15 @@ see the user's key). The menu writes them; apps pick a change up at their next f
 ```powershell
 tools/build.ps1          # shell tests: scan codes, keys typed into the engine, the JSON reader
 tools/type-test.ps1      # types through the installed TIP; don't touch the keyboard meanwhile
+build/x64/jk_unloadtest.exe   # loads, activates and unloads the DLL in rounds: memory mustn't grow
 ```
 
 `type-test.ps1` runs `build/x64/jk_testpad.exe`, which selects JIS Korean for itself, types key
 sequences with `SendInput` by scan code and reads the result back, in three kinds of control: a
 classic Edit and a RichEdit through the IMM compatibility layer, and a RichEdit on TSF itself
-(`SES_USECTF`). `jk_testpad` alone opens the same window to type in by hand. CI builds both
+(`SES_USECTF`), plus targets that misbehave the way some apps do (no input context, a composition
+ended at every key, a read-only field; see the top of `tests/testpad.cpp`). `jk_testpad` alone
+opens the same window to type in by hand. CI builds both
 architectures, full and lite, and runs the shell tests; typing through the TIP needs a desktop.
 
 What the shell does differently from what TSF's documentation suggests, and why, is in
@@ -178,7 +181,7 @@ What the shell does differently from what TSF's documentation suggests, and why,
 | `src/shared_data.*` | The dictionary and predictor, parsed once per process off the UI thread |
 | `src/registration.*`, `src/dllmain.cpp` | COM and TSF registration (`regsvr32`) |
 | `src/guids.h` | **Permanent** GUIDs: they end up in users' registries and language lists. Never change them |
-| `tests/main.cpp`, `tests/testpad.cpp` | Shell tests, and the test window |
+| `tests/main.cpp`, `tests/testpad.cpp`, `tests/unload.cpp` | Shell tests, the test window, and the unload test |
 | `installer/` | The installer (`jiskorean.iss`) and its per-user step (`keyboards.ps1`) |
 | `tools/` | `build.ps1`, `package.ps1`, `install.ps1`, `type-test.ps1`, `dev.ps1` (a VS developer shell), `make-icons.py` |
 

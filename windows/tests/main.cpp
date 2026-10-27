@@ -1,5 +1,6 @@
 // Shell tests: the scan code map (spec §2), and key sequences typed through it into the engine,
 // as the text service does. Behavior itself is the engine's (engine/tests); this checks the wiring.
+#include <cmath>
 #include <cstdio>
 #include <cstring>
 #include <fstream>
@@ -10,6 +11,8 @@
 #include "jis_korean.h"
 #include "json.h"
 #include "key_map.h"
+#include "log.h"
+#include "training_lines.h"
 
 namespace {
 
@@ -46,6 +49,14 @@ std::string Type(unsigned mode, const std::vector<Press>& presses, std::string* 
     return committed;
 }
 
+size_t Format(wchar_t* line, size_t size, size_t used, const wchar_t* format, ...) {
+    va_list args;
+    va_start(args, format);
+    const size_t n = jk::log::Append(line, size, used, format, args);
+    va_end(args);
+    return n;
+}
+
 // The key code name of an engine key, as the engine spells it.
 std::string Code(std::uint32_t key) { return Str(jk_key_code_ptr(key), jk_key_code_len(key)); }
 
@@ -77,6 +88,53 @@ int main() {
     Check(jk::EngineKey(0x79, 0x44, false) == JK_KEY_F10, "F10");
     Check(jk::EngineKey(0x24, 0x47, true) == JK_KEY_OTHER, "Home");
     Check(jk::EngineKey(0x15, 0x38, true) == JK_KEY_OTHER, "한/영 isn't an engine key");
+    // #4: VK_PACKET carries a character's low byte where the scan code goes: never a position.
+    for (unsigned scan : {0x20u, 0x2Cu, 0x30u, 0x10u, 0x56u, 0x73u, 0x7Du, 0x00u}) {
+        Check(jk::EngineKey(0xE7, scan, false) == JK_KEY_OTHER, "VK_PACKET is never a letter key");
+    }
+
+    // #9: a key injected with a virtual key but scan code 0 gets its scan code from the layout.
+    {
+        auto scan_of = [](unsigned vk) -> unsigned { return vk == 'G' ? 0x22u : vk == 0xE7 ? 0x20u : 0u; };
+        Check(jk::KeyOf('G', 0x00000001, scan_of) == JK_KEY_KEYG, "scan 0 + VK G → KeyG");
+        Check(jk::KeyOf('G', 0x00220001, scan_of) == JK_KEY_KEYG, "a real scan code is kept");
+        Check(jk::KeyOf('K', 0x00220001, scan_of) == JK_KEY_KEYG, "the scan code wins over the VK");
+        Check(jk::KeyOf(0xE7, 0x00000001, scan_of) == JK_KEY_OTHER, "VK_PACKET doesn't take the scan-0 path");
+        Check(jk::KeyOf(0x25, 0x014B0001, scan_of) == JK_KEY_ARROWLEFT, "extended arrows by VK");
+        Check(jk::KeyOf('G', 0x00000001, nullptr) == JK_KEY_OTHER, "no lookup: unknown");
+    }
+
+    // #9: training file counts are clamped before the cast (1e300, -1e300, infinity).
+    {
+        Check(jk::training::ClampCount(1e300, 1, 1000000, 1000) == 1000000, "1e300 → the top");
+        Check(jk::training::ClampCount(-1e300, 1, 1000000, 1000) == 1, "-1e300 → the bottom");
+        Check(jk::training::ClampCount(std::nan(""), 1, 20, 1) == 1, "NaN → the default");
+        Check(jk::training::ClampCount(HUGE_VAL, 1, 20, 1) == 1, "infinity → the default");
+        Check(jk::training::ClampCount(7.9, 1, 20, 1) == 7, "in range");
+        const auto list = jk::json::Parse(
+            R"([{"word": "가나", "count": 1e300}, {"word": "다라", "count": -5e20}, {"word": "마바", "count": 1e999},)"
+            R"( {"word": "abc", "count": 12}, {"word": "사아", "confidence": "likely"}, {"word": "자차"}])");
+        Check(list.has_value(), "the vocabulary list parses");
+        if (list) {
+            Check(jk::training::Lines(&*list, jk::training::KoreanWord) ==
+                      L"가나\t1000000\n다라\t1\n마바\t1000\n사아\t20\n자차\t1000",
+                  "Lines clamps counts and skips words in the wrong script");
+            Check(jk::training::Lines(&*list, jk::training::EnglishWord) == L"abc\t12", "English Lines");
+        }
+    }
+
+    // #5: a key-down tested twice is recognised; separate presses and auto-repeats aren't.
+    {
+        const std::intptr_t press = 0x00220001, repeat = 0x40220001;  // KeyG: scan 0x22, bit 30 for repeats
+        Check(jk::SameKeyDown(0x47, press, 100, 1000, 0x47, press, 100, 1000), "the same test twice");
+        Check(jk::SameKeyDown(0x47, press, 90, 1000, 0x47, press, 100, 1003),
+              "tested before the message was taken (previous message's time), then again");
+        Check(!jk::SameKeyDown(0x47, press, 90, 1000, 0x47, press, 2000, 2000),
+              "a later press after a missed key-up isn't swallowed");
+        Check(!jk::SameKeyDown(0x47, repeat, 100, 1000, 0x47, repeat, 133, 1033), "auto-repeats each count");
+        Check(jk::SameKeyDown(0x47, repeat, 133, 1033, 0x47, repeat, 133, 1035), "an auto-repeat tested twice");
+        Check(!jk::SameKeyDown(0x47, press, 100, 1000, 0x4B, 0x00250001, 100, 1000), "another key");
+    }
 
     // Typed through the map: G K S → 한 (unconfirmed), Space commits it with a space.
     const Press g = {0x47, 0x22}, k = {0x4B, 0x25}, s = {0x53, 0x1F}, space = {0x20, 0x39};
@@ -143,6 +201,16 @@ int main() {
         Check(jk_mode_is_english(7) && jk_legend_in(key_s, 0, 0, 7) == U'o', "JIS Dvorak: the S key is o");
         Check(jk_mode_is_english(8) && jk_legend_in(key_s, 0, 0, 8) == U'r', "JIS Colemak: the S key is r");
         Check(jk_mode_is_english(10) && jk_legend_in(ro, 0, 0, 10) == U'\\', "UK English: ろ is \\");
+    }
+
+    // The log truncates an overlong line instead of ending the process (log.cpp).
+    {
+        wchar_t line[16];
+        const std::wstring big(100, L'x');
+        size_t n = Format(line, 16, 3, L"%s", big.c_str());
+        Check(n == 15 && line[14] == L'\n', "an overlong log line is truncated");
+        n = Format(line, 16, 0, L"ab%d", 5);
+        Check(n == 4 && std::wstring(line, n) == L"ab5\n", "a log line that fits");
     }
 
     std::printf(failures ? "%d failed\n" : "all passed\n", failures);

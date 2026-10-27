@@ -42,6 +42,10 @@ constexpr ScanTable kScan;
 
 std::uint32_t EngineKey(unsigned key, unsigned scan, bool extended) {
     switch (key) {
+        // A character injected as Unicode (SendInput KEYEVENTF_UNICODE): its "scan code" is the
+        // character's low byte, not a position. It commits first and reaches the app as typed (#4).
+        case vk::kPacket:
+            return JK_KEY_OTHER;
         // A modifier on its own belongs to the next key: it must never commit (FKeyIME
         // docs/issues/shift-splits-the-composition.md). Caps Lock likewise.
         case vk::kShift: case vk::kLShift: case vk::kRShift:
@@ -67,6 +71,23 @@ std::uint32_t EngineKey(unsigned key, unsigned scan, bool extended) {
     if (extended || scan >= 0x80) return JK_KEY_OTHER;
     const std::uint8_t k = kScan.keys[scan];
     return k == kNone ? JK_KEY_OTHER : k;
+}
+
+std::uint32_t KeyOf(unsigned vk, std::uintptr_t lparam, unsigned (*scan_of)(unsigned vk)) {
+    unsigned scan = static_cast<unsigned>((lparam >> 16) & 0xFF);
+    const bool extended = (lparam & (std::uintptr_t{1} << 24)) != 0;
+    if (scan == 0 && vk != vk::kPacket && scan_of) scan = scan_of(vk) & 0xFF;
+    return EngineKey(vk, scan, extended);
+}
+
+bool SameKeyDown(std::uintptr_t wparam, std::intptr_t lparam, std::int32_t time, std::uint64_t tick,
+                 std::uintptr_t wparam2, std::intptr_t lparam2, std::int32_t time2, std::uint64_t tick2) {
+    if (wparam != wparam2 || lparam != lparam2) return false;
+    if (time == time2) return true;
+    // A missed key-up (focus moved to another thread in between) must not swallow a later press.
+    constexpr std::uint64_t kRetest = 500;
+    const bool first_press = (lparam & (std::intptr_t{1} << 30)) == 0;
+    return first_press && tick2 >= tick && tick2 - tick < kRetest;
 }
 
 }  // namespace jk

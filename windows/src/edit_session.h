@@ -10,8 +10,10 @@ namespace jk {
 
 // Runs `body` with a read-write edit cookie: synchronously when TSF allows it (always inside key
 // handlers), so text lands before the key that caused it is passed on; otherwise as soon as it can.
+// `async`, if given, is set when TSF queued the session to run after this returns: `body` must then
+// hold references to whatever it uses.
 HRESULT RunEditSession(ITfContext* context, TfClientId client_id,
-                       std::function<HRESULT(TfEditCookie)> body);
+                       std::function<HRESULT(TfEditCookie)> body, bool* async = nullptr);
 
 // Runs `body` with a read-only cookie, synchronously or not at all (`body` may then capture by
 // reference). Fails when TSF can't lock the document at once.

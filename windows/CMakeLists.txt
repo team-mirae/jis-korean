@@ -59,18 +59,24 @@ add_library(jiskorean SHARED
     src/shared_data.cpp
     src/text_service.cpp
     src/training.cpp
+    src/training_lines.cpp
     src/jiskorean.def
     "${CMAKE_CURRENT_BINARY_DIR}/jiskorean.rc")
 target_include_directories(jiskorean PRIVATE src)
 target_link_libraries(jiskorean PRIVATE jk_keymap jk_engine ole32 oleaut32 user32 gdi32 shell32)
 
 enable_testing()
-add_executable(jiskorean_tests tests/main.cpp src/json.cpp)
+add_executable(jiskorean_tests tests/main.cpp src/json.cpp src/log.cpp src/settings.cpp src/training_lines.cpp)
 target_link_libraries(jiskorean_tests PRIVATE jk_keymap jk_engine)
 target_compile_definitions(jiskorean_tests PRIVATE JK_DOCS_DIR="${CMAKE_CURRENT_SOURCE_DIR}/../docs")
 add_test(NAME jiskorean_tests COMMAND jiskorean_tests)
 
 # A window with a classic Edit and a RichEdit, for typing through the installed TIP by hand or
 # by tools/type-test.ps1.
+# Loads, activates and unloads the DLL in rounds: DLL_PROCESS_DETACH must give the shared data
+# back. Needs TSF on a desktop, so it's run by hand (windows/README.md), not by CI.
+add_executable(jk_unloadtest tests/unload.cpp)
+target_link_libraries(jk_unloadtest PRIVATE ole32 psapi)
+
 add_executable(jk_testpad WIN32 tests/testpad.cpp)
-target_link_libraries(jk_testpad PRIVATE ole32 user32 shell32)
+target_link_libraries(jk_testpad PRIVATE ole32 user32 shell32 imm32)
