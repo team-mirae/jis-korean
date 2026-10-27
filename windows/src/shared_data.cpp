@@ -78,6 +78,7 @@ const JkPredictor* SharedPredictor() {
             if (JkPredictor* ranked = jk_predictor_with_learned(predictor, learned.data, learned.size)) {
                 jk_predictor_free(predictor);
                 predictor = ranked;
+                log::Write(L"learned ranker loaded (%zu bytes)", learned.size);
             } else {
                 log::Write(L"learned ranker unavailable: the rules rank");
             }
