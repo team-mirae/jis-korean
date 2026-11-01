@@ -169,7 +169,7 @@ verification steps below:
 | The input source not being enabled | The live enabled list (fresh process, `includeAllInstalled = false`) contains it, and it is selectable. The HIToolbox plist disagrees, but that plist is not what the menu uses. |
 | Hammerspoon holding a stale reference | Its select returned `true` and the selection changed system-wide; the failure is downstream of the selection. |
 
-## Proposed fixes (none applied)
+## Proposed fixes (B and C since applied: see the update at the top)
 
 Ranked by effort. A alone should restore typing; B and C stop it recurring.
 
@@ -228,7 +228,13 @@ enabled list doesn't contain (compare `TISCreateInputSourceList(nil, false)` bef
 `killall imklaunchagent` (launchd respawns it). Untested; not indicated by today's log, where no
 request reached it at all.
 
-## Related, still open: Keyboard Viewer shows ABC legends
+## Related, since resolved: Keyboard Viewer shows ABC legends
+
+**Update:** proposal 1 below shipped (`a1a38e4`): `KeyboardViewerLayout.select` calls
+`overrideKeyboard(withKeyboardNamed:)` with the mode's layout (`JISKorean`, `JISKoreanANSI`,
+`JISKoreanISO`, and one per English mode), and logs `Keyboard Viewer: named layout <name> to <app>`.
+It is kept per app since `d8d9577` ([macos-bare-jamo-in-chrome.md](macos-bare-jamo-in-chrome.md)).
+The rest of this section is the 2026-10-19 state.
 
 What was tried and what the SDK says:
 
@@ -261,7 +267,7 @@ What was tried and what the SDK says:
 Proposals, in order:
 
 1. Re-enable the IMK call (one line in `KeyboardViewerLayout.swift`) once the input method launches
-   again; check Keyboard Viewer and `JISKorean.log` ("layout JISKorean named to the client").
+   again; check Keyboard Viewer and `JISKorean.log` (now `Keyboard Viewer: named layout JISKorean to <app>`).
 2. If the client can't find the layout by name, try the id TIS assigns when the layout is listed
    (`me.sjun.inputmethod.JISKorean.keylayout.JISKorean`), or install the layout as a hidden bundle
    in `~/Library/Keyboard Layouts` (`TSMInvisibleKey`, as was tried at 16:06) and pass its id — the
@@ -274,7 +280,10 @@ Whatever the path, keep the generated layout's Cmd, Ctrl and Option layers ident
 as the generator does, so shortcuts and Option characters don't change for apps that read the
 client's layout.
 
-## Related, still open: the menu-bar icon
+## Related: the menu-bar icon
+
+(Where it ended up is the last section. Since `bf5999f` the bundle icon is `taegeuk` and each mode
+has its own badge, `mode-a`, `mode-b`, `mode-iso`, …, as `tsInputModeMenuIconFileKey`.)
 
 Apple's Korean input modes declare a 16×16 `tsInputModeMenuIconFileKey` image and
 `TISIconLabels = { Primary = "한" }`; the system draws the standard badge from the label. Ours has

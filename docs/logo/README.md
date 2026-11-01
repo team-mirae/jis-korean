@@ -11,9 +11,10 @@ them, and draw your own badges with them; keep the copyright notice.
 | `mode-a.svg` | Mode A, JIS: the taegeuk and the ISO/JIS Enter. |
 | `mode-b.svg` | Mode B, US ANSI: the taegeuk, backslash and Enter. |
 | `mode-iso.svg` | Mode C, ISO: the taegeuk, Caps Lock, Shift, the ISO extra key and Z. |
-| `mode-a-qwerty.svg` | JIS English (`A_QWERTY`): the taegeuk with `ABC` over its lower right. The reserved English-layout modes (spec §3.6.1) get the same badge with their own text: QZ, CH, AY, DV, CMK. |
+| `mode-a-qwerty.svg` | JIS English (`A_QWERTY`): the taegeuk with `ABC` over its lower right. The other English-layout modes (spec §3.6.1) get the same badge with their own text: QZ, CH, AY, DV, CMK. |
 | `mode-b-qwerty.svg`, `mode-cj-qwerty.svg` | US English (`B_QWERTY`) and UK English (`CJ_QWERTY`): the same badge with their country codes, `US` and `GB`. |
-| `mode-cj-qwertz.svg`, `mode-cj-swiss-qz.svg`, `mode-cj-azerty.svg`, `mode-a-dvorak.svg`, `mode-a-colemak.svg` | The reserved modes (ids 4–8): QZ, CH, AY, DV and CMK. Drawn ahead of their layouts; no build ships them yet. |
+| `mode-a-dvorak.svg`, `mode-a-colemak.svg` | JIS Dvorak (`A_DVORAK`) and JIS Colemak (`A_COLEMAK`): DV and CMK. The macOS build with the English modes (`make ENGLISH=1`) ships them. |
+| `mode-cj-qwertz.svg`, `mode-cj-swiss-qz.svg`, `mode-cj-azerty.svg` | The reserved modes (ids 4–6): QZ, CH and AY. Drawn ahead of their layouts; no build ships them yet. |
 | `make_logo.py` | Draws all of the above. Edit this, never the SVGs. |
 | `render.sh` | Renders the SVGs to the 16 px and 32 px PNGs the macOS input method ships. |
 | `downscale.swift` | Scales `render.sh`'s 1024 px renders down to icon size with smooth edges. |

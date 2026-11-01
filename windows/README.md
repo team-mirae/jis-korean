@@ -60,8 +60,8 @@ installer and its uninstaller with `signtool`. Unsigned installers get a SmartSc
 ## Development install
 
 ```powershell
-tools/install.ps1             # admin (UAC): copy to Program Files\JIS Korean, register x64 + x86,
-                              # add JIS Korean to the Korean language's keyboards
+tools/install.ps1             # admin (UAC): copy build/<arch> (the full build) to Program Files\JIS Korean,
+                              # register x64 + x86, add JIS Korean to the Korean language's keyboards
 tools/install.ps1 -Update     # copy a new build in, no UAC (development installs only)
 tools/install.ps1 -Uninstall
 tools/install.ps1 -Log        # turn the diagnostic log on and follow it
@@ -81,7 +81,7 @@ Windows for any TIP).
 | Modes A, B, C (spec §3.6) | Right-click the 한글 / ABC indicator in the taskbar → Mode A (JIS), Mode B (US ANSI) or Mode C (UK ISO). One setting for every app: the mode follows the keyboard, not the app. Mode A is the default. In Mode C the menu also has **Dedicated Symbol Keys** (on by default): off, [ ] and the ISO extra key type their UK ISO characters. |
 | 한/영 | Switches JIS Korean to English (ABC, in the English layout below) and back to 한글, as the Microsoft IME does. It commits what's unconfirmed first. The state is one for the whole session, every app, and isn't stored: after a restart it's 한글. A click on the indicator does the same. On a US ANSI keyboard, Windows' Korean layout sends 한/영 from Right Alt. JIS and ISO keyboards have no 한/영 key, and JIS Korean deliberately doesn't pick one: map the key you want to 한/영 (`VK_HANGUL`) with your keyboard's software or a remapper such as PowerToys (spec §8.4). |
 | English Layout (한/영) | What ABC types, a selector of its own in the menu. By default the keyboard's English: JIS English in Mode A, US English in Mode B, UK English in Mode C. Any other English layout on request (JIS Dvorak, JIS Colemak, …; your keyboard's first), or **Windows' Keyboard Layout**, which passes every key to the app untouched. Shortcuts (Ctrl, Alt, Win) always go to the app; the Alt + letter variants of macOS's English modes are deliberately left out (spec §3.6.3). |
-| Predictions (spec §10) | The unconfirmed text shows the top reading (`hello` shows as hello). ↓ / Tab and ↑ move through the list under it, Space / Enter commit what's shown, a click picks a row. Off by default in terminals, remote desktop, password managers, File Explorer and launchers (spec §10.11.1). |
+| Predictions (spec §10) | The unconfirmed text shows the top reading (`hello` shows as hello). ↓ / Tab and ↑ / Shift+Tab move through the list under it, Space / Enter commit what's shown (Enter the chosen row), Esc goes back to the top reading, a click picks a row. Off by default in terminals, remote desktop, password managers, File Explorer and launchers (spec §10.11.1). |
 | Hanja (F7) | The list under the text, numbered 1–9 per page (spec §7). |
 
 The indicator's menu (right-click) also has: Predictions, Predictions in this app, Learn from My
@@ -132,7 +132,10 @@ examples turns on Learn from My Choices.
 ## Settings
 
 `HKCU\Software\JIS Korean` (read with `HKLM\Software\JIS Korean` as a fallback for apps that can't
-see the user's key). The menu writes them; apps pick a change up at their next focus change.
+see the user's key). The menu writes them; apps pick a change up at their next focus change. Every
+write from JIS Korean stores a new `SettingsVersion`, and apps only re-read the settings when it
+changed: a value edited by hand applies in programs started afterwards, or with the next change
+from the menu.
 
 | Value | Type | Default | |
 |---|---|---|---|
@@ -147,12 +150,14 @@ see the user's key). The menu writes them; apps pick a change up at their next f
 | `Apps\<program.exe>\Predictions` | DWORD | | predictions in one app, overriding the default-off list |
 | `Apps\<program.exe>\Off` | DWORD | | 1: JIS Korean passes every key through in that program (menu: Off in <program>) |
 | `DiagnosticLog` | DWORD | 0 | log activations, focus and errors (never typed text) to `%ProgramData%\JIS Korean\jiskorean.log` |
-| `TrainingFileDate`, `TrainingWords.*` | SZ | | the training file last applied, and its words |
+| `TrainingFileDate`, `TrainingWords.*`, `TrainingAvoid.*` | SZ | | the training file last applied, its words and the words it avoids |
+| `SettingsVersion` | DWORD | | changes with every write from JIS Korean (see above) |
 
 ## Testing
 
 ```powershell
-tools/build.ps1          # shell tests: scan codes, keys typed into the engine, the JSON reader
+tools/build.ps1          # shell tests: scan codes, keys typed into the engine, the JSON reader,
+                         # training counts, repeated key tests, log truncation
 tools/type-test.ps1      # types through the installed TIP; don't touch the keyboard meanwhile
 build/x64/jk_unloadtest.exe   # loads, activates and unloads the DLL in rounds: memory mustn't grow
 ```
@@ -177,8 +182,10 @@ What the shell does differently from what TSF's documentation suggests, and why,
 | `src/lang_bar.*` | The taskbar indicator (한글 / ABC, drawn at run time) and its menu |
 | `src/candidate_window.*` | The hanja / prediction list |
 | `src/settings.*` | The registry settings and the default-off apps |
-| `src/training.*`, `src/json.*` | Training files (spec §10.12) |
-| `src/shared_data.*` | The dictionary and predictor, parsed once per process off the UI thread |
+| `src/training.*`, `src/training_lines.*`, `src/json.*` | Training files (spec §10.12), applied off the UI thread; `training_lines` is unit-tested |
+| `src/shared_data.*` | The dictionary and predictor, parsed once per process: off the UI thread where predictions are on, else the dictionary at the first F7 |
+| `src/edit_session.*` | TSF edit sessions, the only way to change the document |
+| `src/log.*` | The diagnostic log (`DiagnosticLog`) |
 | `src/registration.*`, `src/dllmain.cpp` | COM and TSF registration (`regsvr32`) |
 | `src/guids.h` | **Permanent** GUIDs: they end up in users' registries and language lists. Never change them |
 | `tests/main.cpp`, `tests/testpad.cpp`, `tests/unload.cpp` | Shell tests, the test window, and the unload test |
@@ -210,5 +217,7 @@ show the password in other forms. JIS Korean protects it in layers:
 - Password fields and the secure desktop (UAC, sign-in) don't use TIPs (spec §8).
 - Apps that read raw keys (games) see Windows' own layout, not JIS Korean.
 - Browsers take F10 for their menu: use Shift+Z (spec §3.4).
+- Apps that end the composition at every key through the IMM layer still get loose jamo; TSF-native
+  ones keep composing (#6, [windows-tsf-notes.md](../docs/troubleshooting/windows-tsf-notes.md)).
 - Store apps that run sandboxed (AppContainer) may not be able to read the settings or the
   training file, and then use the defaults *(not measured yet)*.

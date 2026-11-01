@@ -33,9 +33,11 @@ export function WindowsPage() {
       </p>
       <Code lang="powershell">{`
 cd windows
-tools/build.ps1               # x64 + x86, runs the shell tests (-Lite: without predictions)
+tools/build.ps1               # x64 + x86, runs the shell tests (-Lite: without predictions,
+                              # -Legacy: ranked by the rules alone, no learned ranker)
 tools/install.ps1             # admin (UAC): Program Files\\JIS Korean, registers x64 + x86,
                               # adds JIS Korean to the Korean language's keyboards
+tools/install.ps1 -Update     # copy a new build in, no UAC (development installs only)
 tools/install.ps1 -Uninstall
 tools/install.ps1 -Log        # turn the diagnostic log on and follow it
 `}</Code>
@@ -62,7 +64,7 @@ tools/install.ps1 -Log        # turn the diagnostic log on and follow it
           ],
           [
             "Predictions",
-            "The unconfirmed text shows the top reading. ↓ / Tab and ↑ move through the list, Space / Enter commit what's shown. Off by default in terminals, remote desktop, password managers, File Explorer and launchers.",
+            "The unconfirmed text shows the top reading. ↓ / Tab and ↑ / Shift+Tab move through the list, Space / Enter commit what's shown, Esc goes back to the top reading. Off by default in terminals, remote desktop, password managers, File Explorer and launchers.",
           ],
           ["Hanja (F7)", "The list under the text, numbered 1–9 per page."],
         ]}
@@ -110,6 +112,10 @@ tools/install.ps1 -Log        # turn the diagnostic log on and follow it
         <li>Password fields and the secure desktop (UAC, sign-in) don't use input processors.</li>
         <li>Apps that read raw keys (games) see Windows' own layout.</li>
         <li>Browsers take F10 for their menu: use Shift+Z.</li>
+        <li>
+          Apps that end the composition at every key through the IMM layer still get loose jamo; TSF-native ones keep
+          composing.
+        </li>
       </ul>
       <p>
         More in <Source path="windows/README.md" />, and why the shell does what it does with TSF in{" "}

@@ -41,9 +41,9 @@
     </td>
     <td align="center" width="25%">
       <h3><a href="#다운로드">다운로드</a></h3>
-      <sub><a href="https://github.com/team-mirae/jis-korean/releases/tag/v0.3.0-windows">Windows</a>
-      &nbsp;·&nbsp; <a href="https://github.com/team-mirae/jis-korean/releases/tag/v0.3.0-macos">macOS</a>
-      &nbsp;·&nbsp; <a href="https://github.com/team-mirae/jis-korean/releases/tag/v0.3.0-minecraft">Minecraft</a></sub>
+      <sub><a href="https://github.com/team-mirae/jis-korean/releases/tag/v0.3.1">Windows</a>
+      &nbsp;·&nbsp; <a href="https://github.com/team-mirae/jis-korean/releases/tag/v0.3.1">macOS</a>
+      &nbsp;·&nbsp; <a href="https://github.com/team-mirae/jis-korean/releases/tag/v0.3.1">Minecraft</a></sub>
     </td>
     <td align="center" width="25%">
       <h3><a href="#ai-agent로-설치">AI Agent로 설치</a></h3>
@@ -93,14 +93,14 @@ First, ask me whether I want the official builds (recommended) or to build JIS K
 
 ### 다운로드
 
-릴리스는 플랫폼별로 배포됩니다. 위 설치 프롬프트는 다운로드한 모든 파일을 릴리스에 게시된 SHA-256과
+릴리스마다 모든 플랫폼의 파일이 포함됩니다. 위 설치 프롬프트는 다운로드한 모든 파일을 릴리스에 게시된 SHA-256과
 대조합니다.
 
 | | 릴리스 | 구성 |
 |---|---|---|
-| **Windows** | [v0.3.0-windows](https://github.com/team-mirae/jis-korean/releases/tag/v0.3.0-windows) | `JISKorean-<version>-setup.exe`: Windows 10·11용 TSF 입력기. 64비트·32비트 앱 모두 지원. 설치 마법사에서 Full(예측 포함) 또는 Lite 및 시작 모드를 선택합니다. |
-| **macOS** | [v0.3.0-macos](https://github.com/team-mirae/jis-korean/releases/tag/v0.3.0-macos) | `JISKorean-<version>-english.zip`(안에 `JISKorean.app`): macOS 13 이상용 InputMethodKit 입력기. 유니버설 빌드. |
-| **Minecraft** | [v0.3.0-minecraft](https://github.com/team-mirae/jis-korean/releases/tag/v0.3.0-minecraft) | Minecraft Java Edition 26.3용 클라이언트 측 Fabric 모드(Fabric Loader 0.19.3+, Fabric API, Java 25). 엔진이 jar 내부에서 WebAssembly로 실행되기 때문에 네이티브 라이브러리가 필요하지 않습니다. |
+| **Windows** | [v0.3.1](https://github.com/team-mirae/jis-korean/releases/tag/v0.3.1) | `JISKorean-<version>-setup.exe`: Windows 10·11용 TSF 입력기. 64비트·32비트 앱 모두 지원. 설치 마법사에서 Full(예측 포함) 또는 Lite 및 시작 모드를 선택합니다. |
+| **macOS** | [v0.3.1](https://github.com/team-mirae/jis-korean/releases/tag/v0.3.1) | `JISKorean-<version>-english.zip`(안에 `JISKorean.app`): macOS 13 이상용 InputMethodKit 입력기. 유니버설 빌드. |
+| **Minecraft** | [v0.3.1](https://github.com/team-mirae/jis-korean/releases/tag/v0.3.1) | Minecraft Java Edition 26.3용 클라이언트 측 Fabric 모드(Fabric Loader 0.19.3+, Fabric API, Java 25). 엔진이 jar 내부에서 WebAssembly로 실행되기 때문에 네이티브 라이브러리가 필요하지 않습니다. |
 
 - **Windows:** 설치 마법사 완료 후 <kbd>Win</kbd>+<kbd>Space</kbd>로 JIS Korean을 선택하세요.
   인스톨러에 아직 코드 서명이 없기 때문에 SmartScreen 경고가 표시되며, **추가 정보 → 실행**을 누르면 본
@@ -123,7 +123,7 @@ Shift+Z, F6–F10 및 한글 오토마타를 그대로 유지하며, 모드별�
 
 | 모드 | 대상 | 나머지 키의 입력값 |
 |---|---|---|
-| **A** | JIS | 원본 배열(위 그림). 숫자열에 쌍자와 겹모음, 기호 키에 한국어 문장부호, F6–F10에 한글 / 한자 / 두벌식 / 전각 / 반각. |
+| **A** | JIS | 원본 배열(위 그림). 숫자열에 쌍자와 겹모음, 기호 키에 한국어 문장부호, F6·F7·F9·F10에 한글 / 한자 / 전각 / 반각(F8은 예약). |
 | **B** | US ANSI: HHKB US, MacBook US | 숫자열 및 괄호는 A와 동일, 나머지 키는 의도적으로 US ANSI 그대로 유지. |
 | **C** | UK ISO | B 모드의 방식을 UK 기호에 적용, Z 왼쪽 추가 키에 가운뎃점 및 줄표. 기호 키 3개는 비활성화하여(**Dedicated Symbol Keys**) UK 문자로 복원할 수 있으며, 숫자열은 한글 입력을 유지합니다. |
 
@@ -255,8 +255,8 @@ Android 및 iPhone은 본 프로젝트의 범위에 포함되지 않으며, 별�
 |---|---|---|---|
 | WebAssembly를 지원하는 브라우저 | prod | 필수 | |
 | [React](https://react.dev) 19.3.1과 react-dom | prod(번들), dev | 필수 | 페이지 |
-| [Node.js](https://nodejs.org)(CI는 24 사용) 및 npm | dev | 필수 | |
-| [Vite](https://vite.dev) 8.3.4, `@vitejs/plugin-react` 6.1.2, [TypeScript](https://www.typescriptlang.org) 7.0.2, `@types/react`, `@types/react-dom` | dev | 필수 | 빌드 |
+| [Node.js](https://nodejs.org) 24(24.22.1+) 또는 26.12.1+(`web/.nvmrc`: 24.22.1, CI는 24 사용) 및 npm | dev | 필수 | |
+| [Vite](https://vite.dev) 8.3.5, `@vitejs/plugin-react` 6.1.2, [TypeScript](https://www.typescriptlang.org) 7.0.2, `@types/react`, `@types/react-dom` | dev | 필수 | 빌드 |
 | Rust 1.85+, `wasm32-unknown-unknown` 포함 | dev | 필수 | WebAssembly 엔진 |
 | [Vercel](https://vercel.com) CLI 62 | dev | 선택 | 사이트 배포(CI) |
 | Python 3 | dev | 선택 | `web/tools/build_stats.py`, 벤치마크 텍스트의 타건 수 |

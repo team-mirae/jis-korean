@@ -39,7 +39,9 @@ have the current version of this: follow them where they differ.
 
 ### Official builds
 
-The newest release whose tag ends in `-windows` (start.md, "Official builds: the releases").
+The newest release (not a draft or prerelease) with `JISKorean-<version>-setup.exe` in its assets, whatever its tag
+(start.md, "Official builds: the releases"): since 0.3.1 one `v<version>` tag carries every
+platform; older `-windows` tags are 0.3.0 and before.
 
 1. **Download** `JISKorean-<version>-setup.exe` into a new, empty folder, and check its SHA-256
    against the release's `digest` (`Get-FileHash`). This is the only check there is: the installer
@@ -70,11 +72,13 @@ separately (rules.md section 2):
 winget has all four. If the user prefers another source, use that.
 
 Then, in `windows/`:
-- `tools/build.ps1` builds x64 and x86 and runs the shell tests. `-Lite` leaves out predictions.
+- `tools/build.ps1` builds x64 and x86 and runs the shell tests. `-Lite` leaves out predictions;
+  `-Legacy` ranks them by the rules alone, without the learned ranker.
 - Either install it as a development copy, with `tools/install.ps1`. It needs **administrator
   rights (UAC)**: say so before running it. It copies to Program Files, registers the x64 and x86
   DLLs, and adds JIS Korean to the Korean language's keyboards. It adds the Korean language if it's
   missing: that's a change, so ask. `tools/install.ps1 -Update` copies a rebuild in without UAC.
+  It installs the full build (`build/<arch>`) only: for Lite, build the installer.
 - Or build the installer, as the official builds are: `tools/package.ps1` (needs Inno Setup 6,
   another install to ask about), then run `build/dist/JISKorean-<version>-setup.exe` as above.
 

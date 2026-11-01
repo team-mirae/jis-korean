@@ -20,8 +20,9 @@ export function EnginePage() {
           panic. On Windows it runs inside every app's process, so the C ABI also catches any unwinding.
         </li>
         <li>
-          <strong>Two builds.</strong> The full build has the predictive layer (the <code>predict</code> feature, the
-          default). The lite build (<code>--no-default-features</code>) is the deterministic engine alone. The{" "}
+          <strong>Three builds.</strong> The full build has the predictive layer (the <code>predict</code> feature, the
+          default), ranked by the learned ranker. The legacy build (<code>--features legacy-predict</code>) ranks by the
+          rules alone. The lite build (<code>--no-default-features</code>) is the deterministic engine alone. The{" "}
           <code>english</code> feature adds the English modes (JIS English, US and UK English, JIS Dvorak and JIS
           Colemak), which type English and compose nothing.
         </li>
@@ -65,8 +66,9 @@ export function EnginePage() {
         </li>
         <li>
           <strong>Predictions</strong> (full build, <Source path="engine/src/predict.rs" />): the same keys are read several
-          ways (Korean, English, plain 2-set, finals kept, English + particle, hanja) and ranked by key-trigram models,
-          word lists and the user's weights. At most {4} readings are offered. Learning from the user's choices is opt-in
+          ways (Korean, English, plain 2-set, finals kept, English + particle, hanja) and ranked by rules over key-trigram
+          models, word lists and the user's weights, then corrected by a learned model (<Source path="engine/src/learned.rs" />,
+          spec §10.13; not in the legacy build). At most {4} readings are offered. Learning from the user's choices is opt-in
           and stays on the device.
         </li>
       </ol>
@@ -130,7 +132,7 @@ let out = engine.flush();                  // focus loss: commits "한"
           ["Keys by name", <code>jk_key_count, jk_key_code_ptr, jk_key_code_len</code>],
           ["Resolving", <code>jk_resolve_key_input, jk_resolve_key_input_after, jk_resolve_keys_for_output, jk_resolved_*</code>],
           ["Hanja", <code>jk_dict_new, jk_dict_free, jk_set_dictionary</code>],
-          ["Predictions", <code>jk_predictor_new, jk_predictor_free, jk_set_predictor, jk_predict, jk_prediction_*, jk_commit_prediction, jk_key_after_prediction, jk_flush_prediction, jk_set_prediction_weight, jk_clear_prediction_weight, jk_set_ranker</code>],
+          ["Predictions", <code>jk_predictor_new, jk_predictor_with_learned, jk_predictor_free, jk_set_predictor, jk_predict, jk_prediction_*, jk_commit_prediction, jk_key_after_prediction, jk_flush_prediction, jk_set_prediction_weight, jk_clear_prediction_weight, jk_set_ranker</code>],
           ["Learning", <code>jk_set_learning, jk_set_recording, jk_learned_weight, jk_learner_*, jk_learn_example, jk_predictor_with_words, jk_predictor_with_avoided</code>],
           ["Key counts", <code>jk_plan, jk_plan_jis, jk_plan_conventional, jk_plan_chars, jk_plan_off_keyboard, jk_plan_dropped</code>],
         ]}
@@ -180,7 +182,8 @@ let out = engine.flush();                  // focus loss: commits "한"
       <h3>Measured</h3>
       <p>
         Native release build on an Apple M6, typing <Source path="web/public/long-sample-text.txt" /> word by word (4,313 key
-        presses, Korean and English), with predictions ranked after every press as a shell does. Run it yourself with{" "}
+        presses, Korean and English), with predictions ranked after every press as a shell does (by the rules: the
+        benchmark doesn't load the learned ranker). Run it yourself with{" "}
         <code>cargo run --release --example bench [lite|full|resolve]</code>.
       </p>
       <Table
@@ -210,18 +213,19 @@ let out = engine.flush();                  // focus loss: commits "한"
         rows={[
           ["Engine per text field", "Small", "The segment (one word of tokens), settings and learned weights. Engines share the dictionary and predictor."],
           ["Hanja dictionary", "4.3 MB on disk; most of a 74 MB process", "Parsed into a hash map of 167,783 readings. Peak resident memory of the whole benchmark process, lite: 74 MB."],
-          ["Predictor", "1.3 MB on disk; about 8 MB in memory", "The key-trigram model (39 KB) and three word lists. Peak resident memory with it: 82 MB."],
-          ["Wasm binary", "445 KB (146 KB gzipped)", "The full engine with predictions and resolving, without data files."],
+          ["Predictor", "1.3 MB on disk; about 8 MB in memory", "The key-trigram model (39 KB) and three word lists. Peak resident memory with it: 82 MB. The learned ranker adds learned.bin (2.1 MB)."],
+          ["Wasm binary", "564 KB (176 KB gzipped)", "The full engine with predictions and resolving, without data files."],
         ]}
       />
 
       <h2>Tests</h2>
       <p>
-        <code>cargo test</code> in <code>engine/</code>; <code>cargo test --no-default-features</code> for the lite build.
+        <code>cargo test</code> in <code>engine/</code>; <code>cargo test --features legacy-predict</code> for the legacy
+        build and <code>cargo test --no-default-features</code> for the lite build.
         Golden tables cover every automaton transition, Backspace, each F-key and every spec example; a robot types real
         text key by key and checks the screen after every character; <code>tests/modes.rs</code> checks every mode against
         the mode contract (<Source path="docs/modes.md" />). <code>tests/baseline.rs</code> is the core principle as a
-        test: every syllable, typed the conventional 2-set way, in every mode. CI runs the baseline and the full and lite
+        test: every syllable, typed the conventional 2-set way, in every mode. CI runs the baseline and the full, legacy and lite
         tests on every push.
       </p>
     </>

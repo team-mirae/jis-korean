@@ -50,7 +50,8 @@ things yourself.
   wouldn't.
 - Every prompt follows [rules.md](rules.md). Don't add a step that scans or installs without its
   question.
-- Install from the releases by the tag suffix (`-macos`, `-windows`, `-minecraft`), not by a
-  version number, and check every download's SHA-256 against the release's `digest`.
+- Install from the newest release that has the platform's file (start.md, "Official builds: the
+  releases"), not by a version number or a tag suffix: since 0.3.1 one release, tagged
+  `v<version>`, carries every platform. Check every download's SHA-256 against the release's `digest`.
 - If the repository id, owner, or the macOS Team ID (UHQFCCB4DJ) ever changes, update start.md,
   macos.md and the pasted prompt (here and in the README) together.
