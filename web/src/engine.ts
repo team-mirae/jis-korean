@@ -78,9 +78,9 @@ export interface Prediction {
 }
 
 export type PredictionKind =
-  | "korean" | "english" | "capitalized" | "upper" | "two-set" | "keep-finals" | "hanja" | "bare" | "mixed" | "implied-l";
+  | "korean" | "english" | "capitalized" | "upper" | "two-set" | "keep-finals" | "hanja" | "bare" | "mixed" | "implied-l" | "aspirated";
 const KINDS: PredictionKind[] = [
-  "korean", "english", "capitalized", "upper", "two-set", "keep-finals", "hanja", "bare", "mixed", "implied-l",
+  "korean", "english", "capitalized", "upper", "two-set", "keep-finals", "hanja", "bare", "mixed", "implied-l", "aspirated",
 ];
 
 /** Scenarios the user can tune (spec §10.5), in C ABI id order. */

@@ -46,7 +46,7 @@ pub fn scenario(kind: Kind) -> Weight {
         Kind::TwoSet => Weight::TwoSet,
         Kind::KoreanKeepFinals => Weight::KeepFinals,
         Kind::Hanja => Weight::Hanja,
-        Kind::ImpliedL => Weight::ImpliedL,
+        Kind::ImpliedL | Kind::Aspirated => Weight::ImpliedL,
     }
 }
 

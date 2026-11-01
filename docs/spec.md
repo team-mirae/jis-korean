@@ -730,6 +730,8 @@ no behavior change.
 | Korean, finals kept | each vowel after a final starts its own syllable on ㅇ | `akfl` → 말이 (JIS Korean: 마리) |
 | Bare vowels | JIS Korean without the implied ㅇ (§10.3) | `bb` → ㅠㅠ, `nn` → ㅜㅜ |
 | English + particle | an English start with a Korean particle or ending (§10.3); after an acronym, a Korean word; or a Korean start with an acronym | Anthropic에서, report에, RLHF에, server를; LG에너지솔루션은; 한전KPS |
+| Implied ㄹ after ㄴ | an ㄹ before a vowel a ㄴ final moved onto (§10.5) | `wjsur` → 전력 (JIS Korean: 저녁) |
+| ㄶ by sound | ㄶ and ㄱ / ㄷ / ㅈ where a ㄴ final met ㅋ / ㅌ / ㅊ (§10.5) | `dkszh` → 않고 (JIS Korean: 안코) |
 | Hanja | the top dictionary form of the **whole** Korean reading, 2+ syllables only; plus the everyday exceptions (§10.4) | 학교 → 學校, 2026년 → 2026年 |
 
 Duplicates are removed (most readings coincide for most words), and **at most 4** are offered.
@@ -853,6 +855,14 @@ also gets a reading with an ㄹ before it (전력). It's an alternative: one ste
 reading unless it's a known word, with word counts deciding between two known words. Both are
 often valid (저녁, 전력), so it's a slider (default 1.0; 0.00 turns it off; macOS
 `Weight.ImpliedL`).
+
+**ㄶ by sound:** ㅎ then ㄱ, ㄷ or ㅈ sounds ㅋ, ㅌ or ㅊ, so 않고 is said [안코] and a typist going by
+sound types 안코 (`dkszh`). Where a ㄴ final is followed by ㅋ, ㅌ or ㅊ starting a syllable, the
+reading gets that ㄴ as ㄶ and the consonant as ㄱ, ㄷ or ㅈ: 안코 → 않고, 만타 → 많다, 괜찬치 → 괜찮지.
+One variant per place, and one with all of them when there are several. It's ranked like the
+implied ㄹ, so a known word goes **above the literal** (않고 over 안코) and a literal word stays on
+top (만큼, not 많금; 한테, not 핞데). It shares the implied ㄹ slider (`Weight.ImpliedL`): both spell
+what was heard, and 0 turns both off. Kind `Aspirated`.
 
 Hosts store them per user: the web playground has sliders under "Tune predictions" (remembered
 in the browser); macOS reads `defaults write me.sjun.inputmethod.JISKorean Weight.<Scenario>`;
@@ -1371,7 +1381,7 @@ every reading and score it, the model nudges, and the hard guarantees are rules 
   reading, with the kind of the copy the weights lift most.
 - **Features** (`engine/src/learned.rs`; about 130 per reading, hashed with FNV-1a into 2^20
   weights): the rules' score, rank and gap to the top; where the reading came from (Korean,
-  English, case variants, 2-set, kept finals, implied ㄹ, hanja, bare vowels, English + particle,
+  English, case variants, 2-set, kept finals, implied ㄹ, ㄶ by sound, hanja, bare vowels, English + particle,
   Korean + acronym, pieces) and its other copies; the key model's margin; lexicon counts of the
   reading, of the Korean reading and of the keys as English, and WordNet nouns; the keys' capitals
   (initial, acronym, all capitals, capitals Korean shifts too, Shift+vowel inside), digits, digits

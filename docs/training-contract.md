@@ -70,7 +70,7 @@ weight set here counts as **set by hand**, so it wins over anything learned from
 | `two-set` | plain 2-set reading (number-row keys as digits) | more digit readings |
 | `keep-finals` | a final kept before a vowel (말이 for 마리's keys) | more kept-final readings |
 | `hanja` | hanja (always below the top) | hanja listed sooner |
-| `implied-l` | an implied ㄹ after ㄴ (전력 for 저녁's keys) | more 전력-style readings |
+| `implied-l` | an implied ㄹ after ㄴ (전력 for 저녁's keys) and ㄶ by sound (않고 for 안코) | more 전력- and 않고-style readings |
 
 **0 turns a scenario off** entirely. That works for every key except `korean` and `english`, which
 are clamped to 0.1. Leave a key out to keep its current value, or its learned one.

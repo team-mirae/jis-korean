@@ -205,7 +205,7 @@ fn scenario_bits(w: &Weights, kind: Kind, origin: Origin, readings: &Readings, t
         Kind::Korean => korean,
         Kind::TwoSet => korean + bits(Weight::TwoSet),
         Kind::KoreanKeepFinals => korean + bits(Weight::KeepFinals),
-        Kind::ImpliedL => korean + bits(Weight::ImpliedL),
+        Kind::ImpliedL | Kind::Aspirated => korean + bits(Weight::ImpliedL),
         Kind::Hanja => korean + bits(Weight::Hanja),
         Kind::BareVowels => {
             let two_set = if text == readings.two_set { bits(Weight::TwoSet) } else { 0.0 };
@@ -393,6 +393,7 @@ fn origin_name(origin: Origin) -> &'static str {
         Origin::KeepFinals => "F",
         Origin::Kept => "k",
         Origin::ImpliedL => "L",
+        Origin::Aspirated => "N",
         Origin::Hanja => "H",
         Origin::EverydayHanja => "h",
         Origin::Bare => "B",
@@ -552,6 +553,7 @@ fn features(f: &mut Features, p: &Predictor, readings: &Readings, keys: &Keys, c
     f.add(&["implied", o, &small(readings.implied, 4)], 1.0);
     f.add(&["kept variants", o, &small(keys.kept, 3)], 1.0);
     f.add(&["implied l variants", o, &small(readings.implied_l.len(), 2)], 1.0);
+    f.add(&["aspirated variants", o, &small(readings.aspirated.len(), 2)], 1.0);
     let jamo = chars.iter().filter(|&&c| predict::is_jamo(c)).count();
     f.add(&["jamo", o, &small(jamo, 4)], 1.0);
     if jamo > 0 && jamo == chars.len() {
