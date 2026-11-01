@@ -1,0 +1,11 @@
+# LF everywhere, on Windows too (core.autocrlf would check text out as CRLF). The engine embeds
+# and reads its data files (predict/, dict/, the test corpora) and the web playground serves them
+# and its sample texts as they are; a \r in any of them is a character the macOS and Linux
+# builds don't see. Nothing here needs CRLF: PowerShell, CMake and Inno Setup read LF.
+* text=auto eol=lf
+
+*.bin binary
+*.wasm binary
+*.ico binary
+*.png binary
+*.jar binary

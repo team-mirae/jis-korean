@@ -61,13 +61,17 @@ def ensure_numpy():
         return
     except ImportError:
         pass
-    python = os.path.join(VENV, "bin", "python")
+    # A venv keeps its interpreter in Scripts\python.exe on Windows, bin/python elsewhere.
+    python = os.path.join(VENV, "Scripts", "python.exe") if os.name == "nt" else os.path.join(VENV, "bin", "python")
     if os.path.abspath(sys.executable) == os.path.abspath(python):
-        sys.exit("numpy/scipy missing in corpora/.venv; run: corpora/.venv/bin/pip install numpy scipy")
+        sys.exit(f"numpy/scipy missing in corpora/.venv; run: {python} -m pip install numpy scipy")
     if not os.path.exists(python):
         print(f"making {VENV} with numpy and scipy (gitignored, nothing system-wide)", flush=True)
         subprocess.check_call([sys.executable, "-m", "venv", VENV])
         subprocess.check_call([python, "-m", "pip", "install", "-q", "numpy", "scipy"])
+    if os.name == "nt":
+        # Windows has no exec: os.execv starts a new process and returns to the shell at once.
+        sys.exit(subprocess.call([python] + sys.argv))
     os.execv(python, [python] + sys.argv)
 
 
@@ -191,7 +195,7 @@ def plan(args):
 # data
 
 def data(args):
-    cargo = os.path.expanduser("~/.cargo/bin/cargo")
+    cargo = os.path.expanduser("~/.cargo/bin/cargo" + (".exe" if os.name == "nt" else ""))
     if not os.path.exists(cargo):
         cargo = "cargo"
     cmd = [cargo, "run", "--release", "--example", "learn_data", "--",
