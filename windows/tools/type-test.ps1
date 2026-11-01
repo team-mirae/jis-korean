@@ -40,6 +40,7 @@ $cases = @(
     @('predictions: hello', 1, 1, 'KeyH KeyE KeyL KeyL KeyO Space', 'hello '),
     @('predictions: 한글 stays Korean', 1, 1, 'KeyG KeyK KeyS KeyR KeyM KeyF Space', '한글 '),
     @('predictions: Shift+Enter commits hello, no new line', 1, 1, 'KeyH KeyE KeyL KeyL KeyO S-Enter', 'hello'),
+    @('predictions: ㄶ by sound, 안코 → 않고', 0, 1, 'KeyD KeyK KeyS KeyZ KeyH Space', '않고 '),
     @('predictions: a key outside the map commits what is shown (#8)', 0, 1, 'KeyH KeyE KeyL KeyL KeyO Backquote', 'hello`'),
     @('predictions: Esc commits what is shown', 0, 1, 'KeyH KeyE KeyL KeyL KeyO Escape', 'hello'),
     @('predictions: Esc leaves a chosen row, Esc again commits', 0, 1, 'KeyH KeyE KeyL KeyL KeyO Tab Tab Escape Escape', 'hello'),
