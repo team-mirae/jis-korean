@@ -185,9 +185,14 @@ ifeq ($(PREDICT),1)
 	mkdir -p $@/Contents/Resources/predict
 	cp $(PREDICT_FILES) $@/Contents/Resources/predict/
 endif
-	codesign --force --sign "$(SIGN_IDENTITY)" $@
+	@# A failed codesign (keychain locked, e.g. over SSH) must not leave the bundle behind: make
+	@# doesn't delete a directory target, so the next make would call it up to date and install a
+	@# bundle that types nothing (docs/troubleshooting/macos-unsigned-bundle.md).
+	codesign --force --sign "$(SIGN_IDENTITY)" $@ || { rm -rf $@; exit 1; }
 
 install: $(APP)
+	@# Refuse an unsealed bundle: imklaunchagent refuses its connection and nothing types.
+	@codesign --verify --deep --strict $(APP) || { echo "$(APP) isn't signed: touch Info.plist && make (docs/troubleshooting/macos-unsigned-bundle.md)" >&2; exit 1; }
 	@killall JISKorean 2>/dev/null || true
 	mkdir -p "$(INSTALL_TO)"
 	@# Swap the bundle in with renames: while the path is missing (an uninstall followed by a long
