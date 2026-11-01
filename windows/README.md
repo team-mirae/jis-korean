@@ -219,5 +219,8 @@ show the password in other forms. JIS Korean protects it in layers:
 - Browsers take F10 for their menu: use Shift+Z (spec §3.4).
 - Apps that end the composition at every key through the IMM layer still get loose jamo; TSF-native
   ones keep composing (#6, [windows-tsf-notes.md](../docs/troubleshooting/windows-tsf-notes.md)).
-- Store apps that run sandboxed (AppContainer) may not be able to read the settings or the
-  training file, and then use the defaults *(not measured yet)*.
+- Sandboxed apps (AppContainer: Store apps, the Start menu's search) can read the settings only
+  because JIS Korean grants ALL APPLICATION PACKAGES read access on `HKCU\Software\JIS Korean`
+  (at a write, or the first time an ordinary program reads them); without it they ran on the
+  defaults. They can't write it, so a choice made from the menu there doesn't last. Whether they
+  can read the training file is *not measured yet*.
