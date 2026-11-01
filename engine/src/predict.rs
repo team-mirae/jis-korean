@@ -1210,6 +1210,9 @@ impl Predictor {
         }
         match context.previous {
             Some(Language::Korean) => margin += STICKY,
+            // A particle right after an English word is the English + particle pattern (report에)
+            // typed apart, so it gets the particle bonus instead of English's stickiness.
+            Some(Language::English) if PARTICLES.contains(&korean.as_str()) => margin += PARTICLE,
             Some(Language::English) => margin -= STICKY,
             None => {}
         }

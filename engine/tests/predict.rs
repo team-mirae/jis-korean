@@ -605,6 +605,16 @@ fn an_implied_l_after_n_is_offered_and_its_weight_0_turns_it_off() {
     assert!(typed("KeyT KeyK KeyF KeyK KeyA").predictions().iter().all(|x| x.kind != Kind::ImpliedL));
 }
 
+/// A particle typed right after an English word is English + particle typed apart (spec §10.3,
+/// item 2): Korean, though the previous word was English.
+#[test]
+fn a_particle_right_after_an_english_word_is_korean() {
+    for (keys, particle) in [("KeyD KeyP", "에"), ("KeyF KeyM KeyF", "를"), ("KeyD KeyP KeyT KeyJ", "에서"), ("S-KeyL KeyS", "인")] {
+        let e = typed(&format!("KeyR KeyE KeyP KeyO KeyR KeyT Space {keys}"));
+        assert_eq!(e.predictions()[0].text, particle, "{:?}", e.predictions());
+    }
+}
+
 // ㄶ for ㄴ + ㅋ / ㅌ / ㅊ (spec §10.5): 않고 is said [안코], so it gets typed that way
 
 fn aspirated(keys: &str) -> Vec<(String, Kind)> {

@@ -760,7 +760,8 @@ Scores are in bits per key, positive leaning Korean:
    not `2ro`; 3년, not `3sus`. Exact
    matches in `predict/common-ko.txt` / `common-en.txt` lean their way; leftover bare jamo count
    against Korean; a command name (after `/`) is English; the previous committed word's language
-   tips close calls. A known Korean word against keys that spell no known English word or noun is
+   tips close calls, except that a known particle right after an English word gets the English +
+   particle bonus (item 5) instead: report then 에, typed apart. A known Korean word against keys that spell no known English word or noun is
    Korean (몇 over `auc`, 어디야 over `jeli`), unless the Shift rule settled it.
 3. **Alternatives** rank one step below the reading they vary, unless they're a known word (so ㅠㅠ
    beats 유유). When both are words, their counts decide (§10.9): an alternative needs to be more
