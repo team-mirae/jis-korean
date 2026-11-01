@@ -45,6 +45,16 @@ So the shell sets the interim selection when it can, accepts the one TSF kept wh
 only then falls back to a caret. Contexts know whether they go through the IMM layer:
 `TF_SS_TRANSITORY` in `ITfContext::GetStatus`. TSF-native contexts get a plain caret.
 
+**What it costs.** The IMM layer hands a Korean interim character to the control as one
+character (`WM_IME_COMPOSITION`, `CS_INSERTCHAR`), so a classic control draws only the
+composition's first character while it's open, though TSF's selection covers all of it. The
+Microsoft Korean IME never shows more than one syllable, so it doesn't meet this; JIS Korean does
+whenever the composition is longer than one syllable (an F6 segment, a prediction shown inline).
+Measured in JIS Moonshot, which shares this shell (2026-11-02, `jk_testpad`, the `edit` and `rich`
+targets): hello with predictions shows h, 한하 shows 한; the text that commits is whole. The `tsf`
+target shows all of it. Showing the rest would take a window of the shell's own. *Not yet
+re-measured in JIS Korean.*
+
 ## Windows closes the Korean open/close compartment on activation
 
 **Symptom.** The first build switched every app to ABC (passthrough) right after activating.

@@ -15,6 +15,8 @@ if (-not (Test-Path $key)) { New-Item $key | Out-Null }
 
 # name, Mode (0 A, 1 B, 2 C), Predictions, keys, expected text in the control[, DedicatedSymbols
 # [, EnglishMode: ABC's layout id, 'unset' for the keyboard's default, 'windows' for Windows' own]]
+# Cases end committed, or with at most one character open: classic controls (edit, rich) hold only
+# the first character of an open composition (docs/troubleshooting/windows-tsf-notes.md).
 $cases = @(
     @('한글 안녕 (Space commits)', 0, 0, 'KeyG KeyK KeyS KeyR KeyM KeyF Space KeyD KeyK KeyS KeyS KeyU KeyD Space', '한글 안녕 '),
     @('Enter commits, new line', 0, 0, 'KeyG KeyK KeyS Enter KeyG KeyK Space', "한`r`n하 "),
