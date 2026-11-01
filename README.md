@@ -34,9 +34,9 @@
     </td>
     <td align="center" width="25%">
       <h3><a href="#download">Download</a></h3>
-      <sub><a href="https://github.com/team-mirae/jis-korean/releases/tag/v0.3.0-windows">Windows</a>
-      &nbsp;·&nbsp; <a href="https://github.com/team-mirae/jis-korean/releases/tag/v0.3.0-macos">macOS</a>
-      &nbsp;·&nbsp; <a href="https://github.com/team-mirae/jis-korean/releases/tag/v0.3.0-minecraft">Minecraft</a></sub>
+      <sub><a href="https://github.com/team-mirae/jis-korean/releases/tag/v0.3.1">Windows</a>
+      &nbsp;·&nbsp; <a href="https://github.com/team-mirae/jis-korean/releases/tag/v0.3.1">macOS</a>
+      &nbsp;·&nbsp; <a href="https://github.com/team-mirae/jis-korean/releases/tag/v0.3.1">Minecraft</a></sub>
     </td>
     <td align="center" width="25%">
       <h3><a href="#set-up-with-an-ai-assistant">Set up with AI</a></h3>
@@ -83,14 +83,14 @@ one thing at a time. See [docs/interactive-prompts](docs/interactive-prompts/REA
 
 ### Download
 
-Each platform has its own release. The install prompt above checks every download against the
+Each release carries every platform. The install prompt above checks every download against the
 release's published SHA-256.
 
 | | Release | What you get |
 |---|---|---|
-| **Windows** | [v0.3.0-windows](https://github.com/team-mirae/jis-korean/releases/tag/v0.3.0-windows) | `JISKorean-<version>-setup.exe`: a TSF input method for Windows 10 and 11, in 64-bit and 32-bit apps. The wizard asks Full (with predictions) or Lite, and your starting mode. |
-| **macOS** | [v0.3.0-macos](https://github.com/team-mirae/jis-korean/releases/tag/v0.3.0-macos) | `JISKorean-<version>-english.zip`, with `JISKorean.app`: an InputMethodKit input method for macOS 13 or later, universal. |
-| **Minecraft** | [v0.3.0-minecraft](https://github.com/team-mirae/jis-korean/releases/tag/v0.3.0-minecraft) | A client-side Fabric mod for Minecraft Java Edition 26.3 (Fabric Loader 0.19.3+, Fabric API, Java 25). The engine runs inside the jar as WebAssembly, so there are no native libraries. |
+| **Windows** | [v0.3.1](https://github.com/team-mirae/jis-korean/releases/tag/v0.3.1) | `JISKorean-<version>-setup.exe`: a TSF input method for Windows 10 and 11, in 64-bit and 32-bit apps. The wizard asks Full (with predictions) or Lite, and your starting mode. |
+| **macOS** | [v0.3.1](https://github.com/team-mirae/jis-korean/releases/tag/v0.3.1) | `JISKorean-<version>-english.zip`, with `JISKorean.app`: an InputMethodKit input method for macOS 13 or later, universal. |
+| **Minecraft** | [v0.3.1](https://github.com/team-mirae/jis-korean/releases/tag/v0.3.1) | A client-side Fabric mod for Minecraft Java Edition 26.3 (Fabric Loader 0.19.3+, Fabric API, Java 25). The engine runs inside the jar as WebAssembly, so there are no native libraries. |
 
 - **Windows:** after the wizard, pick JIS Korean with <kbd>Win</kbd>+<kbd>Space</kbd>. The installer
   isn't code-signed yet, so SmartScreen warns: **More info → Run anyway**, for this file only.
@@ -111,7 +111,7 @@ which stock keyboard sits under it ([spec §3.6](docs/spec.md#36-modes)).
 
 | Mode | For | What the other keys type |
 |---|---|---|
-| **A** | JIS | The original layout (above). Double consonants and compound vowels on the number row, Korean punctuation on the symbol keys, 한글 / 한자 / 두벌식 / 전각 / 반각 on F6–F10. |
+| **A** | JIS | The original layout (above). Double consonants and compound vowels on the number row, Korean punctuation on the symbol keys, 한글 / 한자 / 전각 / 반각 on F6, F7, F9 and F10 (F8 is reserved). |
 | **B** | US ANSI: HHKB US, MacBook US | The same number row and brackets, and every other key as US ANSI has it, by design. |
 | **C** | UK ISO | Mode B's pattern on UK symbols, with the middle dot and the em dash on the extra key left of Z. Its three symbol keys can be turned off (**Dedicated Symbol Keys**) to get the UK characters back; the number row stays Korean. |
 
@@ -244,8 +244,8 @@ is **required** or **optional**. Versions are the ones this release builds again
 |---|---|---|---|
 | A browser with WebAssembly | prod | required | |
 | [React](https://react.dev) 19.3.1 and react-dom | prod (bundled), dev | required | The page |
-| [Node.js](https://nodejs.org) (CI uses 24) and npm | dev | required | |
-| [Vite](https://vite.dev) 8.3.4, `@vitejs/plugin-react` 6.1.2, [TypeScript](https://www.typescriptlang.org) 7.0.2, `@types/react`, `@types/react-dom` | dev | required | The build |
+| [Node.js](https://nodejs.org) 24 (24.22.1+) or 26.12.1+ (`web/.nvmrc`: 24.22.1; CI uses 24) and npm | dev | required | |
+| [Vite](https://vite.dev) 8.3.5, `@vitejs/plugin-react` 6.1.2, [TypeScript](https://www.typescriptlang.org) 7.0.2, `@types/react`, `@types/react-dom` | dev | required | The build |
 | Rust 1.85+ with `wasm32-unknown-unknown` | dev | required | The engine as WebAssembly |
 | [Vercel](https://vercel.com) CLI 62 | dev | optional | Deploying the site (CI) |
 | Python 3 | dev | optional | `web/tools/build_stats.py`, the benchmark texts' key counts |

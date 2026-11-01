@@ -2,7 +2,8 @@
 
 Seen 2026-10-22 on macOS 27.0.1, `main` at `cd71e0d` built with `make ENGLISH=1`, an HHKB Studio JIS
 over Bluetooth through Karabiner-Elements 16.3.0 (remapping only Pause → Play/Pause), on a MacBook
-with a US ANSI built-in keyboard. Both problems are about the switch keys of spec §8.2.1.
+with a US ANSI built-in keyboard. Both problems are about the switch keys of spec §8.2.1. The log
+lines and the fix below are updated to the current code (v0.3.1), which no longer needs a restart.
 
 Turn on the input method's own log first; every step below reads it:
 
@@ -25,17 +26,18 @@ tail -f ~/Library/Logs/JISKorean.log
 - At launch, the log says:
 
   ```
-  hardware keys: no keyboard is configured as JIS; カタカナ isn't listened for
+  hardware keys: on; 0 keyboard(s) configured as JIS
   ```
 
 ### Cause
 
 macOS turns カタカナ into かな (key code 104), so JIS Korean tells them apart by reading the
-keyboard itself (HID usage 0x88). It opens only the keyboards macOS has configured as JIS:
+keyboard itself (HID usage 0x88). It opens every keyboard, but counts that key only from the
+keyboards macOS has configured as JIS:
 `/Library/Preferences/com.apple.keyboardtype`, one entry per keyboard (`product-vendor-country`),
 with the type Keyboard Setup Assistant chose. **Type 40 is ANSI, 41 ISO, 42 JIS.** On this Mac every
 keyboard was 40 (ANSI), the HHKB Studio included, although it types JIS correctly through
-Karabiner, so the listener had nothing to open.
+Karabiner, so the listener ignored it.
 
 With Karabiner-Elements remapping a keyboard, Karabiner holds that keyboard, and its keys come out
 of Karabiner's virtual keyboard (vendor 1452, product 593, entry `593-1452-0`). That entry needs to
@@ -50,23 +52,24 @@ karabiner_cli --list-connected-devices    # in /Library/Application Support/org.
 
 ### Fix
 
-Set the keyboard and Karabiner's virtual keyboard to JIS (42), then restart JIS Korean:
+Set the keyboard and Karabiner's virtual keyboard to JIS (42):
 
 ```sh
 sudo defaults write /Library/Preferences/com.apple.keyboardtype keyboardtype \
   -dict-add "593-1452-0" -int 42 "21-1278-0" -int 42    # Karabiner's virtual keyboard, HHKB Studio
-pkill -x JISKorean                                         # relaunches on the next keystroke in a text field
 ```
 
 Use your keyboard's own `product-vendor-0` key in place of `21-1278-0`. Or use Keyboard Setup Assistant
 (System Settings → Keyboard → Change Keyboard Type…) with the keyboard, and choose JIS.
 
-After the relaunch, the log says `hardware keys: on for 2 JIS keyboard(s), some held by another
-program` ("held" is Karabiner holding the HHKB itself, expected), and a press gives:
+No restart is needed: JIS Korean reads the list again when a Japanese key comes from a keyboard
+that isn't on it, and logs `hardware keys: 2 keyboard(s) configured as JIS`. (At launch it's
+`hardware keys: on; 2 keyboard(s) configured as JIS, some held by another program`; "held" is
+Karabiner holding the HHKB itself, expected.) A press then gives:
 
 ```
 hardware key 0x88 down
-Korean Key (tap)
+カタカナ (tap)
 ```
 
 Restarting Karabiner wasn't needed.

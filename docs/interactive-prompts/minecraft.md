@@ -25,7 +25,9 @@ instance's `mods` folder for `fabric-api-*.jar`.
 
 ### Official builds
 
-The newest release whose tag ends in `-minecraft` (start.md, "Official builds: the releases").
+The newest release (not a draft or prerelease) with `jis-korean-<version>.jar` in its assets, whatever its tag
+(start.md, "Official builds: the releases"): since 0.3.1 one `v<version>` tag carries every
+platform; older `-minecraft` tags are 0.3.0 and before.
 Download `jis-korean-<version>.jar` and check its SHA-256 against the release's `digest`. That's
 the only check: the jar isn't signed.
 
@@ -54,7 +56,7 @@ These are changes: ask before each one, or walk the user through it.
 - Every key goes into a staging area above the caret. Space, Enter or Tab commits whichever of
   Korean and English is more likely. **F6** forces Korean, **F7** forces English.
 - **The mode follows JIS Korean's:** on macOS and Windows it reads the installed input method's mode
-  (Mode A or B). Without JIS Korean installed, it's Mode A. With a US ANSI keyboard and no input
+  (Mode A, B or C). Without JIS Korean installed, it's Mode A. With a US ANSI keyboard and no input
   method, offer to set up the platform's input method too (macos.md or windows.md), or say that
   Mode A's symbol keys are JIS's.
 

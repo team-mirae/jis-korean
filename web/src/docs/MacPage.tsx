@@ -18,7 +18,8 @@ export function MacPage() {
           <strong>Built without Xcode.</strong> <code>make</code> builds the engine as a universal static library (arm64 and
           x86_64), compiles the Swift sources against its C header, and assembles <code>JISKorean.app</code>. It needs
           the Command Line Tools and Rust with the <code>aarch64-apple-darwin</code> and <code>x86_64-apple-darwin</code>{" "}
-          targets. <code>make PREDICT=0</code> builds the lite version without the predictive layer, and{" "}
+          targets. <code>make PREDICT=0</code> builds the lite version without the predictive layer,{" "}
+          <code>make LEGACY_PREDICT=1</code> ranks predictions by the rules alone, without the learned ranker, and{" "}
           <code>make ENGLISH=1</code> adds the English modes and the switch keys (below).
         </li>
         <li>
@@ -37,6 +38,7 @@ cd mac
 make install ENGLISH=1   # build, install, register; then add it in System Settings
 make install             # the Korean modes only
 make PREDICT=0           # the lite build
+make LEGACY_PREDICT=1    # predictions without the learned ranker
 `}</Code>
 
       <h2>Modes are input sources</h2>
@@ -80,8 +82,9 @@ make PREDICT=0           # the lite build
       <Table
         head={["Key", "Goes to"]}
         rows={[
-          ["カタカナ (Windows JIS keyboards), or the Korean Key (F18 by default)", "Korean, the last Korean mode used"],
-          ["英数", "English, the last English mode used"],
+          ["カタカナ (Windows JIS keyboards)", "Korean: JIS Korean (Mode A), or the last Korean mode used if Mode A isn't added"],
+          ["The Korean Key (F18 by default)", "Korean, the last Korean mode used"],
+          ["英数", "English: JIS English (or JIS Dvorak or Colemak, if used last); with none added, the last English mode used"],
           ["かな", "Japanese (Kana), left to macOS"],
           ["Ctrl+Space", "The previous input source, as macOS does"],
         ]}

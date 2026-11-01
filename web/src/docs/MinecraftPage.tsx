@@ -25,8 +25,8 @@ export function MinecraftPage() {
         </li>
         <li>
           <strong>The mode follows JIS Korean's.</strong> Each time a screen opens, the mod reads the installed input
-          method's mode (on macOS <code>CurrentModeID</code>, on Windows the <code>Mode</code> setting) and types Mode A or
-          Mode B to match. Without JIS Korean installed, it's Mode A.
+          method's mode (on macOS <code>CurrentModeID</code>, on Windows the <code>Mode</code> setting) and types Mode A, B or
+          C to match. Without JIS Korean installed, it's Mode A.
         </li>
       </ul>
 
@@ -51,7 +51,7 @@ export function MinecraftPage() {
       <ul>
         <li>
           <code>ScreenEvents.AFTER_INIT</code> registers, on every screen, <code>allowKeyPress</code> and{" "}
-          <code>allowCharType</code> listeners and a render hook.
+          <code>allowCharType</code> listeners, a mouse-click hook and a render hook.
         </li>
         <li>
           On a key press, it finds the focused <code>EditBox</code>, looking through nested containers, and only acts if the
@@ -59,10 +59,13 @@ export function MinecraftPage() {
           <code>insertText</code>, and the key is cancelled when the staging area used it.
         </li>
         <li>
-          Minecraft also sends a separate character event for each key. When the staging area took the key press, the
-          matching character event is dropped, so no Latin letter lands next to the Hangul.
+          Minecraft also sends a separate character event for each key. In a field the mod types into, every character
+          event is dropped: only the mod's engine composes, so no Latin letter lands next to the Hangul.
         </li>
-        <li>Moving focus to another field, or closing the screen, clears the staging area.</li>
+        <li>
+          A click, moving focus to another field, or closing the screen commits the ranked reading into the field first,
+          so Done, Create World or the anvil's output sees it.
+        </li>
       </ul>
 
       <h3>Physical keys from SDL scancodes</h3>

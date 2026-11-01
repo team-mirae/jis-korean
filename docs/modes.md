@@ -209,7 +209,8 @@ Apple has confirmed this has no workaround (developer forums thread 775526, FB23
 
 ### Other shells
 
-Only Windows is built with the `english` feature; the others have Modes A, B and C.
+Windows is built with the `english` feature, and macOS with `make ENGLISH=1`; the others have Modes A,
+B and C.
 
 - **Windows** lists every Korean mode its engine has in the language bar menu ("Mode B: JIS Korean
   for US ANSI"), with `jk_mode_id_at` and `jk_mode_is_english`, so a new Korean mode appears there

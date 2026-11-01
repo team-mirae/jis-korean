@@ -104,7 +104,9 @@ The release notes have the current version of these steps: follow them where the
 
 ### Official builds
 
-The newest release whose tag ends in `-macos` (start.md, "Official builds: the releases"). It's one
+The newest release (not a draft or prerelease) that has the macOS zip in its assets, whatever its
+tag: from 0.3.1 one `v<version>` tag carries every platform, and up to 0.3.0 tags ended in `-macos`
+(start.md, "Official builds: the releases"). It's one
 build: every Korean mode, the English modes, the switch keys and predictions (`make ENGLISH=1`).
 For the version without predictions (`PREDICT=0`), they build it themselves.
 
@@ -146,6 +148,8 @@ Pick the build:
   neither, and switch with Ctrl+Space or the input menu only. It's what the official build is.
 - `make install` for the Korean modes only, switched with Ctrl+Space or the input menu.
 - `PREDICT=0` with either one leaves out predictions (spec §10): smaller, fully deterministic.
+  `LEGACY_PREDICT=1` keeps predictions but ranks them by the rules alone, without the learned
+  ranker (spec §10.13).
 
 Run it in `mac/`. It installs to `~/Library/Input Methods`, so no administrator password.
 
@@ -173,11 +177,12 @@ Apps that were already open use the new input method after they're reopened.
 
 ## 5. Permissions for the switch keys (official build, or `ENGLISH=1`)
 
-JIS Korean asks for **Input Monitoring** (to tell カタカナ from かな) and **Accessibility** (to catch
-F18 and カタカナ before apps do). Explain both before the prompts appear. The user grants them in
-System Settings → Privacy & Security. Never script these. If the prompts don't appear, or カタカナ
-acts as かな, the input menu has **Allow カタカナ and F18 Everywhere…**; after granting them, restart
-JIS Korean (`pkill -x JISKorean`).
+JIS Korean needs **Input Monitoring** (to tell カタカナ from かな) and **Accessibility** (to catch
+F18, カタカナ and 英数 before apps and macOS do). It never asks at launch: the prompts appear when
+the user chooses **Allow カタカナ and F18 Everywhere…** in the input menu (shown while either is
+missing). Explain both before that. The user grants them in System Settings → Privacy & Security.
+Never script these. JIS Korean checks again every few seconds after asking, so no restart is
+needed; if the keys still don't work, restart it (`pkill -x JISKorean`).
 
 ## 6. Switch keys, by keyboard and remap answer
 
@@ -219,7 +224,7 @@ Everything in a, plus whatever they want to maintain:
   `defaults write me.sjun.inputmethod.JISKorean KoreanKey -int <code>`;
 - their own mode, forked from Mode A, B or C ([docs/modes.md](../modes.md)), built into their own
   `make install`;
-- build variants (`PREDICT=0`), the diagnostic log (`defaults write me.sjun.inputmethod.JISKorean
+- build variants (`PREDICT=0`, `LEGACY_PREDICT=1`), the diagnostic log (`defaults write me.sjun.inputmethod.JISKorean
   DiagnosticLog -bool true`, read in `~/Library/Logs/JISKorean.log`).
 
 Say plainly that they own it: macOS and Karabiner updates can break their rules, and each rebuild

@@ -6,8 +6,8 @@ worked example.
 
 - **Where it comes from:** any tool can write one, such as a style corpus like type-like-me, a
   notes app, or an AI agent working with you.
-- **Where it applies:** the web playground (drop the file on "Tune predictions") and the macOS input
-  method (put it in a folder, see [Applying it](#applying-it)).
+- **Where it applies:** the web playground (drop the file on "Tune predictions") and the macOS and
+  Windows input methods (put it in a folder, see [Applying it](#applying-it)).
 
 **The file holds:**
 - **weights:** where the sliders sit;
@@ -152,9 +152,16 @@ sits where it does.
   - Weights go to the `Weight.<Scenario>` preferences, the vocabulary and avoided words are kept on
     your Mac, and
     examples feed the learner even with "Learn from My Choices" off.
+- **Windows:** put the file at `%APPDATA%\JIS Korean\training.json`; the menu's Learned Weights →
+  "Open Training Folder" opens that folder.
+  - It's read the next time JIS Korean activates after the file's modified time changed.
+  - Weights go to the `Weight.<Scenario>` settings, the vocabulary and avoided words are kept on
+    this PC, and examples feed the learner, turning on "Learn from My Choices".
 - **Undo:**
   - Web: Reset in Tune predictions, and "Forget what it learned" or "Forget training words".
   - macOS: "Reset What It Learned", and remove `training.json`. The words go on the next switch.
+  - Windows: "Reset What It Learned", and remove `training.json`. The words go the next time JIS
+    Korean activates.
 
 ---
 

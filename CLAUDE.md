@@ -85,7 +85,8 @@ Build order: macOS → Minecraft → Windows. Android and iPhone are out of scop
   every syllable before every initial, and a pangram covering every jamo, typed the conventional
   2-set way (and with sloppy Shift, and with the dedicated keys) in every mode. Its 2-set tables
   are written out independently of the engine's. Never loosen it to make a change pass.
-- CI (`.github/workflows/test.yml`) runs the baseline and the full and lite engine tests on every
+- CI (`.github/workflows/test.yml`) runs the baseline and the full, legacy, lite and JIS English
+  (`--features english`) engine tests, and builds the Windows shell and installer, on every
   pull request and branch push; `deploy-web.yml` runs the same tests before deploying `main`.
 - Shells are tested by hand against the app matrix (to be written per platform).
 

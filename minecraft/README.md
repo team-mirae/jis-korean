@@ -39,12 +39,15 @@ it stays English.
 
 `me.sjun.jiskorean.rank.Ranker` compares two key-trigram models on the keys you pressed: one
 trained on English spelling, one on the keys JIS Korean users press for Korean words (with the
-implied ㅇ and the double press). The models are built by `tools/build_ranker.py` from
-redistributable data:
+implied ㅇ and the double press). The model (`engine/predict/ranker.bin`, shared with the
+engine's predictor and copied into the jar with `common-*.txt`) is built by
+`tools/build_ranker.py` from redistributable data (licenses in `engine/predict/LICENSE-*.txt`):
 
 - English: [dwyl/english-words](https://github.com/dwyl/english-words) (Unlicense) and
-  `common-en.txt`
+  `common-en.txt`, with nouns (Princeton WordNet) weighing more
 - Korean: the readings in `engine/dict/hanja.tsv` (libhangul, BSD-3-Clause) and `common-ko.txt`
+- Optionally, colloquial corpora fetched by `tools/fetch_corpora.py` (`--corpora`) and open
+  corpora extracted by `tools/open_corpora/<source>.py` (`--derived`)
 
 Held-out accuracy (from the build script's report):
 
@@ -83,8 +86,12 @@ runtime: one engine for every OS, no native libraries. Gradle runs on Java 25
 (`gradle/gradle-daemon-jvm.properties`). To rebuild the ranker model:
 
 ```sh
-python3 -I tools/build_ranker.py words_alpha.txt [--eval-korean <Korean text>]
+python3 -I tools/build_ranker.py words_alpha.txt --nouns <WordNet dict/index.noun> \
+    [--corpora <dir>] [--derived <corpora/derived>] [--eval-korean <Korean text>]
 ```
+
+It writes `engine/predict/ranker.bin`; retrain the engine's learned ranker after
+(`python3 engine/tools/train_learned.py`).
 
 ## Notes
 

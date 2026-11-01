@@ -186,11 +186,15 @@ from the remap answer.
 
 ## Official builds: the releases
 
-Each platform is released on its own, tagged `v<version>-<platform>`: `v0.3.0-macos`,
-`v0.3.0-windows`, `v0.3.0-minecraft`. Find the newest with
+Since 0.3.1, one release carries every platform, tagged `v<version>` (`v0.3.1`), with
+`JISKorean-<version>-english.zip` (macOS), `JISKorean-<version>-setup.exe` (Windows) and
+`jis-korean-<version>.jar` (Minecraft). Up to 0.3.0, each platform was released on its own, tagged
+`v<version>-<platform>` (`v0.3.0-macos`, `v0.3.0-windows`, `v0.3.0-minecraft`). Find the newest with
 `https://api.github.com/repos/team-mirae/jis-korean/releases`: the first one, not a draft or
-prerelease, whose `tag_name` ends in `-macos`, `-windows` or `-minecraft`. Read its notes (`body`)
-before installing. They have that release's cleanup and install steps, and they win over these
+prerelease, that has the platform's file among its `assets`, whatever its tag. Where a platform
+prompt says "the newest release whose tag ends in `-macos`" (or `-windows`, `-minecraft`), it means
+this. Read its notes (`body`) before installing. They have that release's cleanup and install
+steps, and they win over these
 prompts where they differ.
 
 **Check every download** before opening it: its SHA-256 matches the asset's `digest` in that API

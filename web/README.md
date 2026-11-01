@@ -11,11 +11,15 @@ npm run dev     # builds the engine to wasm, then starts Vite
 npm run build   # production build in dist/
 ```
 
-Needs the Rust `wasm32-unknown-unknown` target (`rustup target add wasm32-unknown-unknown`).
+Needs Node 24 (24.22.1 or later) or 26.12.1+ (the patched lines; `.nvmrc` pins 24.22.1, `package.json`'s
+`engines` asks for it) and the Rust `wasm32-unknown-unknown` target
+(`rustup target add wasm32-unknown-unknown`).
 
 ## Deploy
 
-Vercel's build machines have no Rust, so the site is built locally and uploaded prebuilt:
+Every push to `main` that touches `web/` or `engine/` deploys the site
+(`.github/workflows/deploy-web.yml`), after the engine tests pass. Vercel's build machines have no
+Rust, so the site is built first and uploaded prebuilt; by hand, from `web/`:
 
 ```sh
 vercel pull --yes --environment=production
