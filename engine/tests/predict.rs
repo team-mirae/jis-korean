@@ -605,6 +605,58 @@ fn an_implied_l_after_n_is_offered_and_its_weight_0_turns_it_off() {
     assert!(typed("KeyT KeyK KeyF KeyK KeyA").predictions().iter().all(|x| x.kind != Kind::ImpliedL));
 }
 
+/// A particle typed right after an English word is English + particle typed apart (spec §10.3,
+/// item 2): Korean, though the previous word was English.
+#[test]
+fn a_particle_right_after_an_english_word_is_korean() {
+    for (keys, particle) in [("KeyD KeyP", "에"), ("KeyF KeyM KeyF", "를"), ("KeyD KeyP KeyT KeyJ", "에서"), ("S-KeyL KeyS", "인")] {
+        let e = typed(&format!("KeyR KeyE KeyP KeyO KeyR KeyT Space {keys}"));
+        assert_eq!(e.predictions()[0].text, particle, "{:?}", e.predictions());
+    }
+}
+
+// ㄶ for ㄴ + ㅋ / ㅌ / ㅊ (spec §10.5): 않고 is said [안코], so it gets typed that way
+
+fn aspirated(keys: &str) -> Vec<(String, Kind)> {
+    typed(keys).predictions().into_iter().map(|p| (p.text, p.kind)).collect()
+}
+
+#[test]
+fn nh_read_from_n_and_an_aspirated_consonant_goes_above_the_literal() {
+    // ㅇ ㅏ ㄴ ㅋ ㅗ: 안코 as typed, 않고 meant.
+    let p = aspirated("KeyD KeyK KeyS KeyZ KeyH");
+    assert_eq!(p[0], ("않고".into(), Kind::Aspirated), "{p:?}");
+    assert!(p.iter().any(|(t, _)| t == "안코"), "the literal is still offered: {p:?}");
+    // ㅇ ㅏ ㄴ ㅋ ㅔ: 안케 → 않게.
+    assert_eq!(aspirated("KeyD KeyK KeyS KeyZ KeyP")[0], ("않게".into(), Kind::Aspirated));
+    // ㄴ + ㅌ: 만타 → 많다.
+    assert_eq!(aspirated("KeyA KeyK KeyS KeyX KeyK")[0], ("많다".into(), Kind::Aspirated));
+    // ㄴ + ㅊ, with a second ㄴ + ㅊ earlier in the word: 괜찬치 → 괜찮지 (only the last place).
+    let p = aspirated("KeyR KeyH KeyO KeyS KeyC KeyK KeyS KeyC KeyL");
+    assert_eq!(p[0], ("괜찮지".into(), Kind::Aspirated), "{p:?}");
+}
+
+#[test]
+fn nh_stays_below_a_literal_word_and_its_weight_0_turns_it_off() {
+    use jis_korean::predict::Weight;
+    // 만큼 and 한테 are words: the ㄶ readings (많금, 핞데) never pass them.
+    for (keys, word) in [("KeyA KeyK KeyS KeyZ KeyM KeyA", "만큼"), ("KeyG KeyK KeyS KeyX KeyP", "한테")] {
+        let p = aspirated(keys);
+        assert_eq!(p[0].0, word, "{p:?}");
+    }
+    // Neither known (귀찬케 / 귀찮게): one step below the literal.
+    let p = aspirated("KeyR KeyN KeyL KeyC KeyK KeyS KeyZ KeyP");
+    let at = |t: &str| p.iter().position(|(x, _)| x == t);
+    assert!(at("귀찬케").is_some() && at("귀찮게").is_some() && at("귀찬케") < at("귀찮게"), "{p:?}");
+    // Only after a ㄴ final and before a vowel: 사람 and 안ㅋ have none.
+    assert!(aspirated("KeyT KeyK KeyF KeyK KeyA").iter().all(|(_, k)| *k != Kind::Aspirated));
+    assert!(aspirated("KeyD KeyK KeyS KeyZ").iter().all(|(_, k)| *k != Kind::Aspirated));
+    // It shares the implied ㄹ slider (both spell what was heard): 0 turns it off.
+    let mut e = typed("KeyD KeyK KeyS KeyZ KeyH");
+    e.set_prediction_weight(Weight::ImpliedL, 0.0);
+    assert!(e.predictions().iter().all(|x| x.kind != Kind::Aspirated), "{:?}", e.predictions());
+}
+
 /// Mode B (spec §3.6): predictions read the keys as US ANSI, so Shift+2 is @ there, never JIS's ".
 #[test]
 fn mode_b_predictions_read_us_symbols() {

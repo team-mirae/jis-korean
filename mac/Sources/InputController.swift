@@ -278,7 +278,7 @@ final class JKInputController: IMKInputController {
         // What was learned, read-only: one line per scenario that moved.
         let learned = NSMenuItem(title: "Learned Weights", action: nil, keyEquivalent: "")
         let submenu = NSMenu()
-        let labels = ["Korean", "English", "Implied ㅇ", "English + particle", "Plain 2-set", "Finals kept", "Hanja", "Implied ㄹ after ㄴ"]
+        let labels = ["Korean", "English", "Implied ㅇ", "English + particle", "Plain 2-set", "Finals kept", "Hanja", "Implied ㄹ after ㄴ, ㄶ by sound"]
         for (id, label) in labels.enumerated() {
             let value = jk_learned_weight(engine, UInt32(id))
             let item = NSMenuItem(title: String(format: "%@  ×%.2f", label, value), action: nil, keyEquivalent: "")
@@ -488,7 +488,7 @@ final class JKInputController: IMKInputController {
 
     /// On: the shared predictor. Off: the deterministic lite behavior. Also applies the user's
     /// tuning (spec §10.5), e.g. `defaults write me.sjun.inputmethod.JISKorean Weight.English -float 0.8`
-    /// (`Weight.ImpliedL -float 0` turns the implied ㄹ after ㄴ off)
+    /// (`Weight.ImpliedL -float 0` turns the implied ㄹ after ㄴ and ㄶ by sound off)
     /// (a weight set this way wins over the learned one), and what was learned (spec §10.11).
     private func applyPredictionsSetting() {
         let defaults = UserDefaults.standard

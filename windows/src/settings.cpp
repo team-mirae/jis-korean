@@ -1,8 +1,10 @@
 #include "settings.h"
 
 #include <windows.h>
+#include <aclapi.h>
 
 #include <cwctype>
+#include <mutex>
 #include <vector>
 
 namespace jk::settings {
@@ -57,6 +59,66 @@ constexpr const wchar_t* kOffByDefault[] = {
 
 constexpr wchar_t kVersion[] = L"SettingsVersion";
 
+// Whether the DACL already grants `sid` read on the key and the keys under it.
+bool GrantsRead(PACL acl, PSID sid) {
+    if (acl == nullptr) return true;  // a NULL DACL grants everyone everything
+    ACL_SIZE_INFORMATION info = {};
+    if (!GetAclInformation(acl, &info, sizeof(info), AclSizeInformation)) return false;
+    for (DWORD i = 0; i < info.AceCount; ++i) {
+        void* ace = nullptr;
+        if (!GetAce(acl, i, &ace)) continue;
+        const auto* header = static_cast<ACE_HEADER*>(ace);
+        if (header->AceType != ACCESS_ALLOWED_ACE_TYPE) continue;
+        const auto* allowed = static_cast<ACCESS_ALLOWED_ACE*>(ace);
+        if ((allowed->Mask & KEY_READ) == KEY_READ && (header->AceFlags & CONTAINER_INHERIT_ACE) &&
+            !(header->AceFlags & INHERIT_ONLY_ACE) &&
+            EqualSid(const_cast<DWORD*>(&allowed->SidStart), sid)) {
+            return true;
+        }
+    }
+    return false;
+}
+
+// Sandboxed programs (AppContainer: the Start menu's search, Store apps) read only keys that grant
+// ALL APPLICATION PACKAGES access. HKCU\Software grants it but doesn't pass it on, so the key
+// created by the first write doesn't have it, and those programs ran on the defaults (their own
+// writes fail too). Grants read, inherited by Apps\<exe>, once per process, and only when the
+// grant is missing, so ordinary programs don't rewrite the DACL every time. Needs WRITE_DAC: a
+// sandboxed program can't, harmlessly. From jis-moonshot 13b4d1e, where it was measured with
+// reg.exe in an AppContainer (unreadable before, readable after).
+void ShareWithApps() {
+    static std::once_flag once;
+    std::call_once(once, [] {
+        BYTE sid[SECURITY_MAX_SID_SIZE];
+        DWORD sid_size = sizeof(sid);
+        if (!CreateWellKnownSid(WinBuiltinAnyPackageSid, nullptr, sid, &sid_size)) return;
+        std::wstring key = std::wstring(L"CURRENT_USER\\") + kKey;
+        LPWSTR path = key.data();
+        PACL old_acl = nullptr;
+        PSECURITY_DESCRIPTOR descriptor = nullptr;
+        if (GetNamedSecurityInfoW(path, SE_REGISTRY_KEY, DACL_SECURITY_INFORMATION, nullptr, nullptr,
+                                  &old_acl, nullptr, &descriptor) != ERROR_SUCCESS) {
+            return;  // no key yet (the first write calls this again in its process) or no access
+        }
+        if (!GrantsRead(old_acl, sid)) {
+            EXPLICIT_ACCESSW access = {};
+            access.grfAccessPermissions = KEY_READ;
+            access.grfAccessMode = GRANT_ACCESS;
+            access.grfInheritance = SUB_CONTAINERS_AND_OBJECTS_INHERIT;
+            access.Trustee.TrusteeForm = TRUSTEE_IS_SID;
+            access.Trustee.TrusteeType = TRUSTEE_IS_WELL_KNOWN_GROUP;
+            access.Trustee.ptstrName = reinterpret_cast<LPWSTR>(sid);
+            PACL acl = nullptr;
+            if (SetEntriesInAclW(1, &access, old_acl, &acl) == ERROR_SUCCESS) {
+                SetNamedSecurityInfoW(path, SE_REGISTRY_KEY, DACL_SECURITY_INFORMATION, nullptr,
+                                      nullptr, acl, nullptr);
+                LocalFree(acl);
+            }
+        }
+        LocalFree(descriptor);
+    });
+}
+
 // Every change through these functions gives the settings a new version, so engines in every
 // program re-read them (ApplySettings) only when something changed. A counter value from this
 // moment, not an increment: two programs writing at once still leave a value nobody applied.
@@ -66,6 +128,7 @@ void Changed() {
     DWORD version = static_cast<DWORD>(now.QuadPart ^ (now.QuadPart >> 32));
     if (version == Version()) ++version;
     RegSetKeyValueW(HKEY_CURRENT_USER, kKey, kVersion, REG_DWORD, &version, sizeof(version));
+    ShareWithApps();
 }
 
 }  // namespace
@@ -73,7 +136,13 @@ void Changed() {
 unsigned long Version() {
     DWORD value = 0;
     DWORD size = sizeof(value);
-    RegGetValueW(HKEY_CURRENT_USER, kKey, kVersion, RRF_RT_REG_DWORD, nullptr, &value, &size);
+    // Every program reads the version first (ApplySettings): a key made by an earlier build gets
+    // the grant from the first ordinary program that types. Only once the key exists (the call is
+    // once per process, and a key that isn't there yet can't take it).
+    if (RegGetValueW(HKEY_CURRENT_USER, kKey, kVersion, RRF_RT_REG_DWORD, nullptr, &value, &size) ==
+        ERROR_SUCCESS) {
+        ShareWithApps();
+    }
     return value;
 }
 

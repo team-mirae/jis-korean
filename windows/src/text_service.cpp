@@ -941,7 +941,7 @@ void TextService::InitMenu(ITfMenu* menu) {
     if (SUCCEEDED(menu->AddMenuItem(0, TF_LBMENUF_SUBMENU, nullptr, nullptr, title.c_str(),
                                     static_cast<ULONG>(title.size()), &learned)) && learned) {
         const wchar_t* labels[] = {L"Korean", L"English", L"Implied ㅇ", L"English + particle",
-                                   L"Plain 2-set", L"Finals kept", L"Hanja", L"Implied ㄹ after ㄴ"};
+                                   L"Plain 2-set", L"Finals kept", L"Hanja", L"Implied ㄹ after ㄴ, ㄶ by sound"};
         for (std::uint32_t id = 0; id < std::size(labels); ++id) {
             wchar_t line[64];
             swprintf_s(line, L"%s  ×%.2f", labels[id], jk_learned_weight(engine_, id));

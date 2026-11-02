@@ -41,9 +41,9 @@
     </td>
     <td align="center" width="25%">
       <h3><a href="#다운로드">다운로드</a></h3>
-      <sub><a href="https://github.com/team-mirae/jis-korean/releases/tag/v0.3.1">Windows</a>
-      &nbsp;·&nbsp; <a href="https://github.com/team-mirae/jis-korean/releases/tag/v0.3.1">macOS</a>
-      &nbsp;·&nbsp; <a href="https://github.com/team-mirae/jis-korean/releases/tag/v0.3.1">Minecraft</a></sub>
+      <sub><a href="https://github.com/team-mirae/jis-korean/releases/tag/v0.4.0">Windows</a>
+      &nbsp;·&nbsp; <a href="https://github.com/team-mirae/jis-korean/releases/tag/v0.4.0">macOS</a>
+      &nbsp;·&nbsp; <a href="https://github.com/team-mirae/jis-korean/releases/tag/v0.4.0">Minecraft</a></sub>
     </td>
     <td align="center" width="25%">
       <h3><a href="#ai-agent로-설치">AI Agent로 설치</a></h3>
@@ -98,9 +98,9 @@ First, ask me whether I want the official builds (recommended) or to build JIS K
 
 | | 릴리스 | 구성 |
 |---|---|---|
-| **Windows** | [v0.3.1](https://github.com/team-mirae/jis-korean/releases/tag/v0.3.1) | `JISKorean-<version>-setup.exe`: Windows 10·11용 TSF 입력기. 64비트·32비트 앱 모두 지원. 설치 마법사에서 Full(예측 포함) 또는 Lite 및 시작 모드를 선택합니다. |
-| **macOS** | [v0.3.1](https://github.com/team-mirae/jis-korean/releases/tag/v0.3.1) | `JISKorean-<version>-english.zip`(안에 `JISKorean.app`): macOS 13 이상용 InputMethodKit 입력기. 유니버설 빌드. |
-| **Minecraft** | [v0.3.1](https://github.com/team-mirae/jis-korean/releases/tag/v0.3.1) | Minecraft Java Edition 26.3용 클라이언트 측 Fabric 모드(Fabric Loader 0.19.3+, Fabric API, Java 25). 엔진이 jar 내부에서 WebAssembly로 실행되기 때문에 네이티브 라이브러리가 필요하지 않습니다. |
+| **Windows** | [v0.4.0](https://github.com/team-mirae/jis-korean/releases/tag/v0.4.0) | `JISKorean-<version>-setup.exe`: Windows 10·11용 TSF 입력기. 64비트·32비트 앱 모두 지원. 설치 마법사에서 Full(예측 포함) 또는 Lite 및 시작 모드를 선택합니다. |
+| **macOS** | [v0.4.0](https://github.com/team-mirae/jis-korean/releases/tag/v0.4.0) | `JISKorean-<version>-english.zip`(안에 `JISKorean.app`): macOS 13 이상용 InputMethodKit 입력기. 유니버설 빌드. |
+| **Minecraft** | [v0.4.0](https://github.com/team-mirae/jis-korean/releases/tag/v0.4.0) | Minecraft Java Edition 26.3용 클라이언트 측 Fabric 모드(Fabric Loader 0.19.3+, Fabric API, Java 25). 엔진이 jar 내부에서 WebAssembly로 실행되기 때문에 네이티브 라이브러리가 필요하지 않습니다. |
 
 - **Windows:** 설치 마법사 완료 후 <kbd>Win</kbd>+<kbd>Space</kbd>로 JIS Korean을 선택하세요.
   인스톨러에 아직 코드 서명이 없기 때문에 SmartScreen 경고가 표시되며, **추가 정보 → 실행**을 누르면 본

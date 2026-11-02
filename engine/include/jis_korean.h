@@ -209,6 +209,7 @@ enum {
     JK_PREDICTION_BARE_VOWELS = 7,
     JK_PREDICTION_MIXED = 8,
     JK_PREDICTION_IMPLIED_L = 9, /* an implied ㄹ after a ㄴ final: 전력 for 저녁 */
+    JK_PREDICTION_ASPIRATED = 10, /* ㄶ for ㄴ + ㅋ / ㅌ / ㅊ, by sound: 않고 for 안코 */
 };
 JkPredictor *jk_predictor_new(const uint8_t *model, size_t model_len, const uint8_t *english_words,
                               size_t english_len, const uint8_t *korean_words, size_t korean_len,

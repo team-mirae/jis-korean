@@ -739,6 +739,7 @@ impl Engine {
             keep_finals: compose_with(segment, Options { keep_finals: true, ..Options::default() }),
             kept: kept_variants(segment),
             implied_l: implied_l_variants(segment),
+            aspirated: aspirated_variants(segment),
             bare: compose_with(segment, Options { no_implied: true, ..Options::default() }),
             implied: composer_for(segment).implied_count(),
             splits,
@@ -1018,6 +1019,55 @@ fn implied_l_variants(segment: &[Token]) -> Vec<String> {
         variant.insert(k, Token::Jamo { jamo: 'ㄹ', raw: None });
         let text = compose(&variant);
         if text != moved && text.chars().count() == moved.chars().count() && !out.contains(&text) {
+            out.push(text);
+        }
+    }
+    out
+}
+
+/// The staged keys composed with ㄶ where a ㄴ final was followed by ㅋ, ㅌ or ㅊ (않고 for 안코
+/// typed by sound: ㅎ then ㄱ, ㄷ or ㅈ sounds ㅋ, ㅌ or ㅊ, so 않고 is said [안코]). One variant per
+/// place, and one with all of them when there are several (spec §10.5).
+#[cfg(feature = "predict")]
+fn aspirated_variants(segment: &[Token]) -> Vec<String> {
+    let vowel = |t: &Token| match *t {
+        Token::Jamo { jamo, .. } | Token::IeungVowel { jamo, .. } => hangul::is_medial(jamo),
+        _ => false,
+    };
+    // The ㄴ must close a syllable (a vowel before it) and the aspirated consonant open one (a
+    // plain vowel after it; Shift+vowel would start its own syllable on ㅇ).
+    let places: Vec<(usize, char)> = (2..segment.len().saturating_sub(1))
+        .filter_map(|k| {
+            let Token::Jamo { jamo, .. } = segment[k] else { return None };
+            let plain = match jamo {
+                'ㅋ' => 'ㄱ',
+                'ㅌ' => 'ㄷ',
+                'ㅊ' => 'ㅈ',
+                _ => return None,
+            };
+            let after_n = matches!(segment[k - 1], Token::Jamo { jamo: 'ㄴ', .. });
+            let next_vowel = matches!(segment[k + 1], Token::Jamo { jamo, .. } if hangul::is_medial(jamo));
+            (after_n && vowel(&segment[k - 2]) && next_vowel).then_some((k, plain))
+        })
+        .collect();
+    let typed = compose(segment);
+    let with = |chosen: &[(usize, char)]| {
+        let mut variant = segment.to_vec();
+        // From the back, so the earlier places keep their index.
+        for &(k, plain) in chosen.iter().rev() {
+            variant[k] = Token::Jamo { jamo: plain, raw: None };
+            variant.insert(k, Token::Jamo { jamo: 'ㅎ', raw: None });
+        }
+        compose(&variant)
+    };
+    let mut out: Vec<String> = Vec::new();
+    let mut sets: Vec<Vec<(usize, char)>> = places.iter().map(|&p| vec![p]).collect();
+    if places.len() > 1 {
+        sets.push(places.clone());
+    }
+    for set in sets {
+        let text = with(&set);
+        if text != typed && text.chars().count() == typed.chars().count() && !out.contains(&text) {
             out.push(text);
         }
     }

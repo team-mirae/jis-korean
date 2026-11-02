@@ -15,6 +15,8 @@ if (-not (Test-Path $key)) { New-Item $key | Out-Null }
 
 # name, Mode (0 A, 1 B, 2 C), Predictions, keys, expected text in the control[, DedicatedSymbols
 # [, EnglishMode: ABC's layout id, 'unset' for the keyboard's default, 'windows' for Windows' own]]
+# Cases end committed, or with at most one character open: classic controls (edit, rich) hold only
+# the first character of an open composition (docs/troubleshooting/windows-tsf-notes.md).
 $cases = @(
     @('한글 안녕 (Space commits)', 0, 0, 'KeyG KeyK KeyS KeyR KeyM KeyF Space KeyD KeyK KeyS KeyS KeyU KeyD Space', '한글 안녕 '),
     @('Enter commits, new line', 0, 0, 'KeyG KeyK KeyS Enter KeyG KeyK Space', "한`r`n하 "),
@@ -38,6 +40,7 @@ $cases = @(
     @('predictions: hello', 1, 1, 'KeyH KeyE KeyL KeyL KeyO Space', 'hello '),
     @('predictions: 한글 stays Korean', 1, 1, 'KeyG KeyK KeyS KeyR KeyM KeyF Space', '한글 '),
     @('predictions: Shift+Enter commits hello, no new line', 1, 1, 'KeyH KeyE KeyL KeyL KeyO S-Enter', 'hello'),
+    @('predictions: ㄶ by sound, 안코 → 않고', 0, 1, 'KeyD KeyK KeyS KeyZ KeyH Space', '않고 '),
     @('predictions: a key outside the map commits what is shown (#8)', 0, 1, 'KeyH KeyE KeyL KeyL KeyO Backquote', 'hello`'),
     @('predictions: Esc commits what is shown', 0, 1, 'KeyH KeyE KeyL KeyL KeyO Escape', 'hello'),
     @('predictions: Esc leaves a chosen row, Esc again commits', 0, 1, 'KeyH KeyE KeyL KeyL KeyO Tab Tab Escape Escape', 'hello'),

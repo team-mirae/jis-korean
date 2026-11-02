@@ -34,7 +34,7 @@ when the input method activates:
 defaults write me.sjun.inputmethod.JISKorean Weight.English -float 0.8   # English readings 0.8× as likely
 defaults write me.sjun.inputmethod.JISKorean Weight.Korean -float 1.2
 # Also Weight.Implied, Weight.Mixed, Weight.TwoSet, Weight.KeepFinals, Weight.Hanja, Weight.ImpliedL
-# (default 1.0; Weight.ImpliedL 0 turns the implied ㄹ after ㄴ off)
+# (default 1.0; Weight.ImpliedL 0 turns the implied ㄹ after ㄴ and ㄶ by sound off)
 ```
 
 The full build ranks the readings with the **learned ranker** (spec §10.13): a linear model over
@@ -215,3 +215,8 @@ English modes under English.
 
 - Input method installed but not launching after a reinstall, or Keyboard Viewer showing ABC
   legends: see [docs/troubleshooting/macos-input-method-not-launching.md](../docs/troubleshooting/macos-input-method-not-launching.md).
+- Selectable but nothing types in any mode: check
+  `codesign --verify --deep --strict ~/Library/Input\ Methods/JISKorean.app`. An unsigned
+  bundle gets its connection refused by `imklaunchagent`. Rebuild with `touch Info.plist && make && make install`
+  (`make install` now refuses such a bundle):
+  see [docs/troubleshooting/macos-unsigned-bundle.md](../docs/troubleshooting/macos-unsigned-bundle.md).

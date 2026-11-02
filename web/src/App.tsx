@@ -718,6 +718,7 @@ const KIND_LABELS: Record<PredictionKind, string> = {
   bare: "ㅏ",
   mixed: "En+한",
   "implied-l": "ㄹ",
+  aspirated: "ㄶ",
 };
 
 /** The predictive layer's ranked readings of the staged text, top one first. */
@@ -795,7 +796,7 @@ const WEIGHT_LABELS: Record<WeightName, string> = {
   "two-set": "Plain 2-set",
   "keep-finals": "Finals kept",
   hanja: "Hanja",
-  "implied-l": "Implied ㄹ after ㄴ",
+  "implied-l": "Implied ㄹ after ㄴ, ㄶ by sound",
 };
 
 /** Scenarios a slider can turn off (at 0); the rest go down to 0.5. */
