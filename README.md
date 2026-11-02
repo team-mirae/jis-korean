@@ -34,9 +34,9 @@
     </td>
     <td align="center" width="25%">
       <h3><a href="#download">Download</a></h3>
-      <sub><a href="https://github.com/team-mirae/jis-korean/releases/tag/v0.3.1">Windows</a>
-      &nbsp;·&nbsp; <a href="https://github.com/team-mirae/jis-korean/releases/tag/v0.3.1">macOS</a>
-      &nbsp;·&nbsp; <a href="https://github.com/team-mirae/jis-korean/releases/tag/v0.3.1">Minecraft</a></sub>
+      <sub><a href="https://github.com/team-mirae/jis-korean/releases/tag/v0.4.0">Windows</a>
+      &nbsp;·&nbsp; <a href="https://github.com/team-mirae/jis-korean/releases/tag/v0.4.0">macOS</a>
+      &nbsp;·&nbsp; <a href="https://github.com/team-mirae/jis-korean/releases/tag/v0.4.0">Minecraft</a></sub>
     </td>
     <td align="center" width="25%">
       <h3><a href="#set-up-with-an-ai-assistant">Set up with AI</a></h3>
@@ -88,9 +88,9 @@ release's published SHA-256.
 
 | | Release | What you get |
 |---|---|---|
-| **Windows** | [v0.3.1](https://github.com/team-mirae/jis-korean/releases/tag/v0.3.1) | `JISKorean-<version>-setup.exe`: a TSF input method for Windows 10 and 11, in 64-bit and 32-bit apps. The wizard asks Full (with predictions) or Lite, and your starting mode. |
-| **macOS** | [v0.3.1](https://github.com/team-mirae/jis-korean/releases/tag/v0.3.1) | `JISKorean-<version>-english.zip`, with `JISKorean.app`: an InputMethodKit input method for macOS 13 or later, universal. |
-| **Minecraft** | [v0.3.1](https://github.com/team-mirae/jis-korean/releases/tag/v0.3.1) | A client-side Fabric mod for Minecraft Java Edition 26.3 (Fabric Loader 0.19.3+, Fabric API, Java 25). The engine runs inside the jar as WebAssembly, so there are no native libraries. |
+| **Windows** | [v0.4.0](https://github.com/team-mirae/jis-korean/releases/tag/v0.4.0) | `JISKorean-<version>-setup.exe`: a TSF input method for Windows 10 and 11, in 64-bit and 32-bit apps. The wizard asks Full (with predictions) or Lite, and your starting mode. |
+| **macOS** | [v0.4.0](https://github.com/team-mirae/jis-korean/releases/tag/v0.4.0) | `JISKorean-<version>-english.zip`, with `JISKorean.app`: an InputMethodKit input method for macOS 13 or later, universal. |
+| **Minecraft** | [v0.4.0](https://github.com/team-mirae/jis-korean/releases/tag/v0.4.0) | A client-side Fabric mod for Minecraft Java Edition 26.3 (Fabric Loader 0.19.3+, Fabric API, Java 25). The engine runs inside the jar as WebAssembly, so there are no native libraries. |
 
 - **Windows:** after the wizard, pick JIS Korean with <kbd>Win</kbd>+<kbd>Space</kbd>. The installer
   isn't code-signed yet, so SmartScreen warns: **More info → Run anyway**, for this file only.
